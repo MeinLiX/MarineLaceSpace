@@ -35,6 +35,13 @@ jobs:
     
     - name: Configure NuGet
       run: |
+        SOURCES=$(dotnet nuget list source)
+        
+        if echo "$SOURCES" | grep -q "github"; then
+          echo "GitHub source already exists, updating it"
+          dotnet nuget remove source github || true
+        fi
+        
         dotnet nuget add source --username ${{ github.actor }} --password ${{ secrets.GITHUB_TOKEN }} --store-password-in-clear-text --name github "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
     
     - name: Restore dependencies

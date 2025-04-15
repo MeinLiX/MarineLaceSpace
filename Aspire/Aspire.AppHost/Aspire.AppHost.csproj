@@ -13,7 +13,6 @@
     <PackageReference Include="Aspire.Hosting.PostgreSQL" Version="9.2.0" />
     <PackageReference Include="Aspire.Hosting.RabbitMQ" Version="9.2.0" />
     <PackageReference Include="Aspire.Hosting.Redis" Version="9.2.0" />
-    <PackageReference Include="MarineLaceSpace.Options" Version="1.0.1-alpha.1" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.4" />
   </ItemGroup>
 

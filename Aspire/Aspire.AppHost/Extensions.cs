@@ -1,5 +1,4 @@
-﻿using MarineLaceSpace.Options;
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 
 namespace Aspire.AppHost;
 
@@ -14,9 +13,9 @@ public static class Extensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var keys = configuration.GetSection("CommonConfiguration").Get<ListArrayOption<string>>();
+        var keys = configuration.GetSection("CommonConfiguration").Get<string[]>();
 
-        if (keys == null || !keys.Any())
+        if (keys == null || keys.Length == 0)
             return builder;
 
         return builder.AddSectionConfiguration(configuration, keys);

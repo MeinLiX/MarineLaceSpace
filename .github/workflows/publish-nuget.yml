@@ -55,7 +55,11 @@ jobs:
         fi
         
         echo "Changed projects: $CHANGED_PROJECTS"
-        echo "changed_files=$CHANGED_PROJECTS" >> $GITHUB_OUTPUT
+        {
+          echo "changed_files<<EOF"
+          echo "$CHANGED_PROJECTS"
+          echo "EOF"
+        } >> $GITHUB_OUTPUT
     
     - name: Check version changes
       id: check-version

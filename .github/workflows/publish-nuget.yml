@@ -1,0 +1,105 @@
+name: Publish NuGet Packages
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'BuildingBlocks/Packages/**/*.csproj'
+      - 'BuildingBlocks/Packages/**/Directory.Build.props'
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '9.0.x'
+    
+    - name: Restore dependencies
+      run: dotnet restore BuildingBlocks/Packages/Packages.sln
+    
+    - name: Build solution
+      run: dotnet build BuildingBlocks/Packages/Packages.sln --configuration Release --no-restore
+    
+    - name: Find changed project files
+      id: changed-files
+      run: |
+        CHANGED_PROJECTS=$(git diff --name-only HEAD^ HEAD | grep "BuildingBlocks/Packages/.*\.csproj$" || echo "")
+        DIR_BUILD_PROPS_CHANGED=$(git diff --name-only HEAD^ HEAD | grep "BuildingBlocks/Packages/.*Directory.Build.props$" || echo "")
+        
+        if [ -n "$DIR_BUILD_PROPS_CHANGED" ]; then
+          echo "Directory.Build.props changed, will check all projects"
+          CHANGED_PROJECTS=$(find BuildingBlocks/Packages -name "*.csproj")
+        fi
+        
+        echo "Changed projects: $CHANGED_PROJECTS"
+        echo "changed_files=$CHANGED_PROJECTS" >> $GITHUB_OUTPUT
+    
+    - name: Check version changes
+      id: check-version
+      run: |
+        PACKAGES_TO_PUBLISH=()
+        
+        for PROJECT_PATH in $(echo "${{ steps.changed-files.outputs.changed_files }}" | tr ' ' '\n'); do
+          if [ -n "$PROJECT_PATH" ]; then
+            echo "Checking project: $PROJECT_PATH"
+            
+            VERSION_CHANGED=$(git diff HEAD^ HEAD -- "$PROJECT_PATH" | grep -E '\+.*<VersionPrefix>|<VersionSuffix>' || echo "")
+            DIR_BUILD_PROPS_CHANGED=$(git diff --name-only HEAD^ HEAD | grep "BuildingBlocks/Packages/.*Directory.Build.props$" || echo "")
+            
+            if [ -n "$VERSION_CHANGED" ] || [ -n "$DIR_BUILD_PROPS_CHANGED" ]; then
+              echo "Version changed in $PROJECT_PATH or Directory.Build.props changed. Will publish."
+              PACKAGES_TO_PUBLISH+=("$PROJECT_PATH")
+            else
+              echo "No version change in $PROJECT_PATH and Directory.Build.props not changed. Skipping."
+            fi
+          fi
+        done
+        
+        if [ ${#PACKAGES_TO_PUBLISH[@]} -gt 0 ]; then
+          echo "packages_to_publish=${PACKAGES_TO_PUBLISH[*]}" >> $GITHUB_OUTPUT
+          echo "has_packages=true" >> $GITHUB_OUTPUT
+        else
+          echo "has_packages=false" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Configure GitHub Packages source
+      if: steps.check-version.outputs.has_packages == 'true'
+      run: |
+        dotnet nuget add source --username ${{ github.actor }} --password ${{ secrets.GITHUB_TOKEN }} --store-password-in-clear-text --name github "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
+    
+    - name: Pack NuGet packages
+      if: steps.check-version.outputs.has_packages == 'true'
+      run: |
+        for PROJECT_PATH in ${{ steps.check-version.outputs.packages_to_publish }}; do
+          echo "Packing $PROJECT_PATH"
+          
+          PROJECT_NAME=$(basename "$PROJECT_PATH" .csproj)
+          
+          REPOSITORY_URL="https://github.com/${{ github.repository }}"
+          sed -i "s|<PropertyGroup>|<PropertyGroup>\n    <RepositoryUrl>$REPOSITORY_URL</RepositoryUrl>\n    <PackageProjectUrl>$REPOSITORY_URL</PackageProjectUrl>|" "$PROJECT_PATH"
+          
+          PACKAGE_ID_PREFIX="${{ github.repository_owner }}."
+          if ! grep -q "<PackageId>$PACKAGE_ID_PREFIX" "$PROJECT_PATH"; then
+            sed -i "s|<PackageId>\(.*\)</PackageId>|<PackageId>$PACKAGE_ID_PREFIX\1</PackageId>|" "$PROJECT_PATH" || \
+            sed -i "s|<PropertyGroup>|<PropertyGroup>\n    <PackageId>$PACKAGE_ID_PREFIX$PROJECT_NAME</PackageId>|" "$PROJECT_PATH"
+          fi
+          
+          dotnet pack "$PROJECT_PATH" --configuration Release --no-build --output ./nupkgs
+        done
+    
+    - name: Publish to GitHub Packages
+      if: steps.check-version.outputs.has_packages == 'true'
+      run: |
+        echo "Publishing packages to GitHub Packages"
+        dotnet nuget push "./nupkgs/*.nupkg" --source "github" --api-key ${{ secrets.GITHUB_TOKEN }} --skip-duplicate
+        
+        mkdir -p MarineLaceSpacePackages
+        cp ./nupkgs/*.nupkg MarineLaceSpacePackages/

@@ -6,6 +6,7 @@ on:
     paths:
       - 'BuildingBlocks/Packages/**/*.csproj'
       - 'BuildingBlocks/Packages/**/Directory.Build.props'
+  workflow_dispatch: 
 
 jobs:
   build-and-publish:
@@ -22,8 +23,26 @@ jobs:
       with:
         dotnet-version: '9.0.x'
     
+    - name: Setup environment variables
+      run: |
+        mkdir -p $GITHUB_WORKSPACE/MarineLaceSpacePackages
+        
+        echo "MLS_LOCAL_PACKAGE_PATH=$GITHUB_WORKSPACE/MarineLaceSpacePackages" >> $GITHUB_ENV
+        echo "GITHUB_MLS_USER=${{ github.actor }}" >> $GITHUB_ENV
+        echo "GITHUB_MLS_PAT=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
+        
+        echo "Created package directory at $GITHUB_WORKSPACE/MarineLaceSpacePackages"
+    
+    - name: Configure NuGet
+      run: |
+        dotnet nuget add source --username ${{ github.actor }} --password ${{ secrets.GITHUB_TOKEN }} --store-password-in-clear-text --name github "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
+    
     - name: Restore dependencies
-      run: dotnet restore BuildingBlocks/Packages/Packages.sln
+      run: |
+        echo "Using package path: $MLS_LOCAL_PACKAGE_PATH"
+        echo "Using GitHub user: $GITHUB_MLS_USER"
+        
+        dotnet restore BuildingBlocks/Packages/Packages.sln
     
     - name: Build solution
       run: dotnet build BuildingBlocks/Packages/Packages.sln --configuration Release --no-restore
@@ -70,11 +89,6 @@ jobs:
           echo "has_packages=false" >> $GITHUB_OUTPUT
         fi
     
-    - name: Configure GitHub Packages source
-      if: steps.check-version.outputs.has_packages == 'true'
-      run: |
-        dotnet nuget add source --username ${{ github.actor }} --password ${{ secrets.GITHUB_TOKEN }} --store-password-in-clear-text --name github "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
-    
     - name: Pack NuGet packages
       if: steps.check-version.outputs.has_packages == 'true'
       run: |
@@ -101,5 +115,4 @@ jobs:
         echo "Publishing packages to GitHub Packages"
         dotnet nuget push "./nupkgs/*.nupkg" --source "github" --api-key ${{ secrets.GITHUB_TOKEN }} --skip-duplicate
         
-        mkdir -p MarineLaceSpacePackages
-        cp ./nupkgs/*.nupkg MarineLaceSpacePackages/
+        cp ./nupkgs/*.nupkg $MLS_LOCAL_PACKAGE_PATH/

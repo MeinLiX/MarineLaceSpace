@@ -2,7 +2,7 @@
 
 	<PropertyGroup>
 		<VersionPrefix>1.0.1</VersionPrefix>
-		<VersionSuffix>alpha.1</VersionSuffix>
+		<VersionSuffix></VersionSuffix>
 	</PropertyGroup>
 
 	<ItemGroup>

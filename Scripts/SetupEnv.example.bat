@@ -14,11 +14,11 @@ REM ==                                                                      ==
 REM == 2. !!!!! IMPORTANT !!!!!                                             ==
 REM ==    **ADD "SetupEnv.bat" TO YOUR .gitignore FILE!** ==
 REM ==    This will prevent accidentally committing your secrets            ==
-REM ==    (especially GITHUB_MLS_PAT) to the Git repository.                ==
+REM ==    (especially GITHUB_MLS_GHP) to the Git repository.                ==
 REM ==                                                                      ==
 REM == 3. Open "SetupEnv.bat" in a text editor and replace the              ==
 REM ==    placeholder values (e.g., "YOUR_GITHUB_USERNAME_HERE",            ==
-REM ==    "YOUR_GITHUB_PAT_HERE") with your actual data and secrets.        ==
+REM ==    "YOUR_GITHUB_GHP_HERE") with your actual data and secrets.        ==
 REM ==    Save the file.                                                    ==
 REM ==                                                                      ==
 REM == 4. Run "SetupEnv.bat" (by double-clicking or from the command line). ==
@@ -58,9 +58,9 @@ setx GITHUB_MLS_USER "YOUR_GITHUB_USERNAME_HERE"
 
 echo.
 
-REM REPLACE the value in double quotes with YOUR ACTUAL PAT in the SetupEnv.bat file
-echo Setting GITHUB_MLS_PAT (REPLACE PLACEHOLDER IN SetupEnv.bat!)...
-setx GITHUB_MLS_PAT "YOUR_GITHUB_PAT_HERE"
+REM REPLACE the value in double quotes with YOUR ACTUAL GHP in the SetupEnv.bat file with perm: package:read
+echo Setting GITHUB_MLS_GHP (REPLACE PLACEHOLDER IN SetupEnv.bat!)...
+setx GITHUB_MLS_GHP "YOUR_GITHUB_GHP_HERE"
 
 echo.
 echo ==========================================================================

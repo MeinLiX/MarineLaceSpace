@@ -1,0 +1,38 @@
+<Project>
+	<PropertyGroup>
+		<TargetFramework>net9.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+
+		<Authors>MarineLaceSpace</Authors>
+		<Company>MarineLaceSpace</Company>
+
+		<RepositoryType>git</RepositoryType>
+
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<IsPackageProject>true</IsPackageProject>
+		
+		<MarineLaceSpacePackagesDir>$(MSBuildThisFileDirectory)MarineLaceSpacePackages\</MarineLaceSpacePackagesDir>
+	</PropertyGroup>
+
+	<Target Name="CopyNuGetPackagesFromPackagesFolder" AfterTargets="Pack">
+		<!-- Create the directory if it doesn't exist -->
+		<Message Importance="low"
+				 Text="Create the directory: $(MarineLaceSpacePackagesDir)"
+				 Condition="!Exists('$(MarineLaceSpacePackagesDir)')" />
+
+		<MakeDir Directories="$(MarineLaceSpacePackagesDir)"
+				 Condition="!Exists('$(MarineLaceSpacePackagesDir)')" />
+
+		<ItemGroup>
+			<NuPkgFiles Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\*.nupkg" />
+		</ItemGroup>
+
+		<!-- Copy the NuGet package files to the MarineLaceSpacePackages directory -->
+		<Message Importance="high"
+				 Text="Copying NuGet package: @(NuPkgFiles) to $(MarineLaceSpacePackagesDir)" />
+
+		<Copy SourceFiles="@(NuPkgFiles)"
+			  DestinationFolder="$(MarineLaceSpacePackagesDir)" />
+	</Target>
+</Project>

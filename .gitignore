@@ -1,3 +1,6 @@
+# Scripts
+Scripts/SetupEnv.bat
+
 # User-specific files
 *.suo
 *.user
@@ -161,6 +164,8 @@ PublishScripts/
 **/packages/*
 # except build/, which is used as an MSBuild target.
 !**/packages/build/
+!BuildingBlocks/Packages/*
+BuildingBlocks/Packages/.vs
 # Uncomment if necessary however generally it will be regenerated when needed
 #!**/packages/repositories.config
 # NuGet v3's project.json files produces more ignorable files

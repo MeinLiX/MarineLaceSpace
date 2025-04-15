@@ -2,7 +2,7 @@ name: Publish NuGet Packages
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main ]
     paths:
       - 'BuildingBlocks/Packages/**/*.csproj'
       - 'BuildingBlocks/Packages/**/Directory.Build.props'
@@ -29,10 +29,23 @@ jobs:
         
         echo "MLS_LOCAL_PACKAGE_PATH=$GITHUB_WORKSPACE/MarineLaceSpacePackages" >> $GITHUB_ENV
         echo "GITHUB_MLS_USER=${{ github.actor }}" >> $GITHUB_ENV
-        echo "GITHUB_MLS_PAT=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
+        echo "GITHUB_MLS_GHP=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
         
         echo "Created package directory at $GITHUB_WORKSPACE/MarineLaceSpacePackages"
-    
+        
+    - name: Add GitHub NuGet source (safe)
+      run: |
+        if dotnet nuget list source | grep -q "github"; then
+          echo "NuGet source 'github' already exists. Removing it to avoid conflict."
+          dotnet nuget remove source github
+        fi
+
+        dotnet nuget add source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
+          --name "github" \
+          --username "${{ github.actor }}" \
+          --password "${{ secrets.GITHUB_TOKEN }}" \
+          --store-password-in-clear-text
+
     - name: Restore dependencies
       run: |
         echo "Using package path: $MLS_LOCAL_PACKAGE_PATH"
@@ -46,20 +59,22 @@ jobs:
     - name: Find changed project files
       id: changed-files
       run: |
-        CHANGED_PROJECTS=$(git diff --name-only HEAD^ HEAD | grep "BuildingBlocks/Packages/.*\.csproj$" || echo "")
-        DIR_BUILD_PROPS_CHANGED=$(git diff --name-only HEAD^ HEAD | grep "BuildingBlocks/Packages/.*Directory.Build.props$" || echo "")
-        
+        BASE_COMMIT=$(git merge-base origin/main HEAD)
+        CHANGED_PROJECTS=$(git diff --name-only $BASE_COMMIT HEAD | grep "BuildingBlocks/Packages/.*\.csproj$" || echo "")
+        DIR_BUILD_PROPS_CHANGED=$(git diff --name-only $BASE_COMMIT HEAD | grep "BuildingBlocks/Packages/.*/Directory.Build.props$" || echo "")
+
         if [ -n "$DIR_BUILD_PROPS_CHANGED" ]; then
           echo "Directory.Build.props changed, will check all projects"
           CHANGED_PROJECTS=$(find BuildingBlocks/Packages -name "*.csproj")
         fi
-        
+
         echo "Changed projects: $CHANGED_PROJECTS"
         {
           echo "changed_files<<EOF"
           echo "$CHANGED_PROJECTS"
           echo "EOF"
         } >> $GITHUB_OUTPUT
+
     
     - name: Check version changes
       id: check-version

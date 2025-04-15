@@ -1,0 +1,11 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Folder Include="DBContexts\" />
+    <Folder Include="Repositories\" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,29 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <Sdk Name="Aspire.AppHost.Sdk" Version="9.0.0" />
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsAspireHost>true</IsAspireHost>
+    <UserSecretsId>04ede6df-e4f7-4b88-bb94-b5d879b987ad</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.AppHost" Version="9.2.0" />
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" Version="9.2.0" />
+    <PackageReference Include="Aspire.Hosting.RabbitMQ" Version="9.2.0" />
+    <PackageReference Include="Aspire.Hosting.Redis" Version="9.2.0" />
+    <PackageReference Include="MarineLaceSpace.Options" Version="1.0.1-alpha.1" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Services\ApiGateway\MarineLaceSpace.ApiGateway\ApiGateway.WebHost.csproj" />
+    <ProjectReference Include="..\..\Services\Basket\MarineLaceSpace.Basket\Basket.WebHost.csproj" />
+    <ProjectReference Include="..\..\Services\Catalog\MarineLaceSpace.Catalog\Catalog.WebHost.csproj" />
+    <ProjectReference Include="..\..\Services\Notification\MarineLaceSpace.Notification\Notification.WebHost.csproj" />
+    <ProjectReference Include="..\..\Services\Order\MarineLaceSpace.Order\Order.WebHost.csproj" />
+    <ProjectReference Include="..\..\Services\Payment\MarineLaceSpace.Payment\Payment.WebHost.csproj" />
+  </ItemGroup>
+
+</Project>

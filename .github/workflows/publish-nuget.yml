@@ -85,7 +85,6 @@ jobs:
             VERSION_SUFFIX=$(grep -o '<VersionSuffix>[^<]*' "$PROJECT_PATH" | sed 's/<VersionSuffix>//')
             
             if [ -z "$VERSION_PREFIX" ]; then
-              # Try to get version from Directory.Build.props
               DIR_BUILD_PROPS=$(dirname "$PROJECT_PATH")/Directory.Build.props
               if [ -f "$DIR_BUILD_PROPS" ]; then
                 VERSION_PREFIX=$(grep -o '<VersionPrefix>[^<]*' "$DIR_BUILD_PROPS" | sed 's/<VersionPrefix>//')
@@ -106,7 +105,9 @@ jobs:
             
             echo "Package ID: $PACKAGE_ID, Version: $FULL_VERSION"
             
-            PACKAGE_EXISTS=$(dotnet nuget list package "$PACKAGE_ID" --source github | grep "$PACKAGE_ID $FULL_VERSION" || echo "")
+            PACKAGE_EXISTS=$(curl -s -H "Authorization: token ${{ secrets.PAT_GITHUB }}" \
+              "https://api.github.com/orgs/${{ github.repository_owner }}/packages/nuget/$PROJECT_NAME/versions" | \
+              grep -o "\"name\":\"$FULL_VERSION\"" || echo "")
             
             if [ -z "$PACKAGE_EXISTS" ]; then
               echo "Package $PACKAGE_ID version $FULL_VERSION does not exist. Will publish."
@@ -159,5 +160,3 @@ jobs:
       run: |
         echo "Publishing packages to GitHub Packages"
         dotnet nuget push "./nupkgs/*.nupkg" --source "github" --api-key ${{ secrets.NUGET_API_KEY }} --skip-duplicate
-        
-        cp ./nupkgs/*.nupkg $MLS_LOCAL_PACKAGE_PATH/

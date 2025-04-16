@@ -56,43 +56,63 @@ jobs:
     - name: Build solution
       run: dotnet build BuildingBlocks/Packages/Packages.sln --configuration Release --no-restore
     
-    - name: Find changed project files
-      id: changed-files
+    - name: Find all project files
+      id: find-projects
       run: |
-        BASE_COMMIT=$(git merge-base origin/main HEAD)
-        CHANGED_PROJECTS=$(git diff --name-only $BASE_COMMIT HEAD | grep "BuildingBlocks/Packages/.*\.csproj$" || echo "")
-        DIR_BUILD_PROPS_CHANGED=$(git diff --name-only $BASE_COMMIT HEAD | grep "BuildingBlocks/Packages/.*/Directory.Build.props$" || echo "")
-
-        if [ -n "$DIR_BUILD_PROPS_CHANGED" ]; then
-          echo "Directory.Build.props changed, will check all projects"
-          CHANGED_PROJECTS=$(find BuildingBlocks/Packages -name "*.csproj")
-        fi
-
-        echo "Changed projects: $CHANGED_PROJECTS"
+        ALL_PROJECTS=$(find BuildingBlocks/Packages -name "*.csproj")
+        
+        echo "Found projects: $ALL_PROJECTS"
         {
-          echo "changed_files<<EOF"
-          echo "$CHANGED_PROJECTS"
+          echo "all_projects<<EOF"
+          echo "$ALL_PROJECTS"
           echo "EOF"
         } >> $GITHUB_OUTPUT
-
     
-    - name: Check version changes
-      id: check-version
+    - name: Check NuGet package existence and versions
+      id: check-packages
       run: |
         PACKAGES_TO_PUBLISH=()
         
-        for PROJECT_PATH in $(echo "${{ steps.changed-files.outputs.changed_files }}" | tr ' ' '\n'); do
+        for PROJECT_PATH in $(echo "${{ steps.find-projects.outputs.all_projects }}" | tr ' ' '\n'); do
           if [ -n "$PROJECT_PATH" ]; then
             echo "Checking project: $PROJECT_PATH"
             
-            VERSION_CHANGED=$(git diff HEAD^ HEAD -- "$PROJECT_PATH" | grep -E '\+.*<VersionPrefix>|<VersionSuffix>' || echo "")
-            DIR_BUILD_PROPS_CHANGED=$(git diff --name-only HEAD^ HEAD | grep "BuildingBlocks/Packages/.*Directory.Build.props$" || echo "")
+            PACKAGE_ID_PREFIX="${{ github.repository_owner }}."
+            PROJECT_NAME=$(basename "$PROJECT_PATH" .csproj)
+            PACKAGE_ID="$PACKAGE_ID_PREFIX$PROJECT_NAME"
             
-            if [ -n "$VERSION_CHANGED" ] || [ -n "$DIR_BUILD_PROPS_CHANGED" ]; then
-              echo "Version changed in $PROJECT_PATH or Directory.Build.props changed. Will publish."
+            VERSION_PREFIX=$(grep -o '<VersionPrefix>[^<]*' "$PROJECT_PATH" | sed 's/<VersionPrefix>//')
+            VERSION_SUFFIX=$(grep -o '<VersionSuffix>[^<]*' "$PROJECT_PATH" | sed 's/<VersionSuffix>//')
+            
+            if [ -z "$VERSION_PREFIX" ]; then
+              # Try to get version from Directory.Build.props
+              DIR_BUILD_PROPS=$(dirname "$PROJECT_PATH")/Directory.Build.props
+              if [ -f "$DIR_BUILD_PROPS" ]; then
+                VERSION_PREFIX=$(grep -o '<VersionPrefix>[^<]*' "$DIR_BUILD_PROPS" | sed 's/<VersionPrefix>//')
+                VERSION_SUFFIX=$(grep -o '<VersionSuffix>[^<]*' "$DIR_BUILD_PROPS" | sed 's/<VersionSuffix>//')
+              fi
+            fi
+            
+            if [ -z "$VERSION_PREFIX" ]; then
+              echo "No version information found for $PROJECT_PATH. Skipping."
+              continue
+            fi
+            
+            if [ -n "$VERSION_SUFFIX" ]; then
+              FULL_VERSION="$VERSION_PREFIX-$VERSION_SUFFIX"
+            else
+              FULL_VERSION="$VERSION_PREFIX"
+            fi
+            
+            echo "Package ID: $PACKAGE_ID, Version: $FULL_VERSION"
+            
+            PACKAGE_EXISTS=$(dotnet nuget list package "$PACKAGE_ID" --source github | grep "$PACKAGE_ID $FULL_VERSION" || echo "")
+            
+            if [ -z "$PACKAGE_EXISTS" ]; then
+              echo "Package $PACKAGE_ID version $FULL_VERSION does not exist. Will publish."
               PACKAGES_TO_PUBLISH+=("$PROJECT_PATH")
             else
-              echo "No version change in $PROJECT_PATH and Directory.Build.props not changed. Skipping."
+              echo "Package $PACKAGE_ID version $FULL_VERSION already exists. Skipping."
             fi
           fi
         done
@@ -100,32 +120,42 @@ jobs:
         if [ ${#PACKAGES_TO_PUBLISH[@]} -gt 0 ]; then
           echo "packages_to_publish=${PACKAGES_TO_PUBLISH[*]}" >> $GITHUB_OUTPUT
           echo "has_packages=true" >> $GITHUB_OUTPUT
+          echo "Packages to publish: ${PACKAGES_TO_PUBLISH[*]}"
         else
           echo "has_packages=false" >> $GITHUB_OUTPUT
+          echo "No packages to publish"
         fi
     
     - name: Pack NuGet packages
-      if: steps.check-version.outputs.has_packages == 'true'
+      if: steps.check-packages.outputs.has_packages == 'true'
       run: |
-        for PROJECT_PATH in ${{ steps.check-version.outputs.packages_to_publish }}; do
+        for PROJECT_PATH in ${{ steps.check-packages.outputs.packages_to_publish }}; do
           echo "Packing $PROJECT_PATH"
           
           PROJECT_NAME=$(basename "$PROJECT_PATH" .csproj)
           
           REPOSITORY_URL="https://github.com/${{ github.repository }}"
-          sed -i "s|<PropertyGroup>|<PropertyGroup>\n    <RepositoryUrl>$REPOSITORY_URL</RepositoryUrl>\n    <PackageProjectUrl>$REPOSITORY_URL</PackageProjectUrl>|" "$PROJECT_PATH"
+          
+          if ! grep -q "<RepositoryUrl>" "$PROJECT_PATH"; then
+            sed -i "s|<PropertyGroup>|<PropertyGroup>\n    <RepositoryUrl>$REPOSITORY_URL</RepositoryUrl>|" "$PROJECT_PATH"
+          fi
+          
+          if ! grep -q "<PackageProjectUrl>" "$PROJECT_PATH"; then
+            sed -i "s|<PropertyGroup>|<PropertyGroup>\n    <PackageProjectUrl>$REPOSITORY_URL</PackageProjectUrl>|" "$PROJECT_PATH"
+          fi
           
           PACKAGE_ID_PREFIX="${{ github.repository_owner }}."
-          if ! grep -q "<PackageId>$PACKAGE_ID_PREFIX" "$PROJECT_PATH"; then
-            sed -i "s|<PackageId>\(.*\)</PackageId>|<PackageId>$PACKAGE_ID_PREFIX\1</PackageId>|" "$PROJECT_PATH" || \
+          if ! grep -q "<PackageId>" "$PROJECT_PATH"; then
             sed -i "s|<PropertyGroup>|<PropertyGroup>\n    <PackageId>$PACKAGE_ID_PREFIX$PROJECT_NAME</PackageId>|" "$PROJECT_PATH"
+          elif ! grep -q "<PackageId>$PACKAGE_ID_PREFIX" "$PROJECT_PATH"; then
+            sed -i "s|<PackageId>\(.*\)</PackageId>|<PackageId>$PACKAGE_ID_PREFIX\1</PackageId>|" "$PROJECT_PATH"
           fi
           
           dotnet pack "$PROJECT_PATH" --configuration Release --no-build --output ./nupkgs
         done
     
     - name: Publish to GitHub Packages
-      if: steps.check-version.outputs.has_packages == 'true'
+      if: steps.check-packages.outputs.has_packages == 'true'
       run: |
         echo "Publishing packages to GitHub Packages"
         dotnet nuget push "./nupkgs/*.nupkg" --source "github" --api-key ${{ secrets.GITHUB_TOKEN }} --skip-duplicate

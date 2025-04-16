@@ -29,7 +29,7 @@ jobs:
         
         echo "MLS_LOCAL_PACKAGE_PATH=$GITHUB_WORKSPACE/MarineLaceSpacePackages" >> $GITHUB_ENV
         echo "GITHUB_MLS_USER=${{ github.actor }}" >> $GITHUB_ENV
-        echo "GITHUB_MLS_GHP=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
+        echo "GITHUB_MLS_GHP=${{ secrets.NUGET_API_KEY }}" >> $GITHUB_ENV
         
         echo "Created package directory at $GITHUB_WORKSPACE/MarineLaceSpacePackages"
         
@@ -43,7 +43,7 @@ jobs:
         dotnet nuget add source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
           --name "github" \
           --username "${{ github.actor }}" \
-          --password "${{ secrets.GITHUB_TOKEN }}" \
+          --password "${{ secrets.NUGET_API_KEY }}" \
           --store-password-in-clear-text
 
     - name: Restore dependencies
@@ -158,6 +158,6 @@ jobs:
       if: steps.check-packages.outputs.has_packages == 'true'
       run: |
         echo "Publishing packages to GitHub Packages"
-        dotnet nuget push "./nupkgs/*.nupkg" --source "github" --api-key ${{ secrets.GITHUB_TOKEN }} --skip-duplicate
+        dotnet nuget push "./nupkgs/*.nupkg" --source "github" --api-key ${{ secrets.NUGET_API_KEY }} --skip-duplicate
         
         cp ./nupkgs/*.nupkg $MLS_LOCAL_PACKAGE_PATH/

@@ -9,7 +9,8 @@
 		<Company>MarineLaceSpace</Company>
 
 		<RepositoryType>git</RepositoryType>
-
+		<RepositoryUrl>https://github.com/MeinLiX/MarineLaceSpace</RepositoryUrl>
+		
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 		<IsPackageProject>true</IsPackageProject>
 		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>

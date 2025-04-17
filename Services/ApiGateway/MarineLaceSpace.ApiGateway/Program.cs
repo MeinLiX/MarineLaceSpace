@@ -17,4 +17,4 @@ app.MapGet("/", async (IHttpClientFactory httpClientFactory) =>
     return $"order: {orderRes.Result}; basket: {basketRes.Result}";
 });
 
-app.Run();
+await app.RunAsync();

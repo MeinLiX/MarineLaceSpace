@@ -6,4 +6,4 @@ var app = builder.Build();
 
 app.MapGet("/", () => "Notification");
 
-app.Run();
+await app.RunAsync();

@@ -6,4 +6,4 @@ var app = builder.Build();
 
 app.MapGet("/", () => "Auth");
 
-app.Run();
+await app.RunAsync();

@@ -6,4 +6,4 @@ var app = builder.Build();
 
 app.MapGet("/", () => "Payment");
 
-app.Run();
+await app.RunAsync();

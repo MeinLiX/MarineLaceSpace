@@ -6,8 +6,6 @@ public static class Extensions
 {
     #region Configuration extensions
 
-
-
     public static IResourceBuilder<T> AddCommonConfiguration<T>(this IResourceBuilder<T> builder, IConfigurationManager configuration) where T : IResourceWithEnvironment
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -26,8 +24,6 @@ public static class Extensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(configuration);
         
-        //string prefix = keys.Contains("*") ? "cfg_" : "";
-
         foreach (var configSection in configuration.GetChildren())
         {
             if (!keys.Contains(configSection.Key))

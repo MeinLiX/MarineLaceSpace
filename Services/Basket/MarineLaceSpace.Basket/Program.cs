@@ -10,4 +10,4 @@ app.MapGet("/", (ILogger<Program> l) =>
     return "basket";
 });
 
-app.Run();
+await app.RunAsync();

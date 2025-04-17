@@ -16,6 +16,7 @@ var basketdb = postgres.AddDatabase("pg-basket");
 var catalogdb = postgres.AddDatabase("pg-catalog");
 var orderdb = postgres.AddDatabase("pg-order");
 var paymentdb = postgres.AddDatabase("pg-payment");
+var identitydb = postgres.AddDatabase("pg-identity");
 
 var rabbitmq = builder.AddRabbitMQ("rabbitmq")
                       .WithLifetime(ContainerLifetime.Persistent)
@@ -26,32 +27,36 @@ var rabbitmq = builder.AddRabbitMQ("rabbitmq")
 
 #region Add projects
 
-//Маршрутизація
+//РњР°СЂС€СЂСѓС‚РёР·Р°С†С–СЏ
 var apiGateway = builder.AddProject<ApiGateway_WebHost>("api-gateway")
                         .AddCommonConfiguration(builder.Configuration);
 
+//
+var auth = builder.AddProject<Auth_WebHost>("auth-api")
+                  .AddCommonConfiguration(builder.Configuration);
 
-//Сервіс управління кошиком
+
+//РЎРµСЂРІС–СЃ СѓРїСЂР°РІР»С–РЅРЅСЏ РєРѕС€РёРєРѕРј
 var basket = builder.AddProject<Basket_WebHost>("basket-api")
                     .AddCommonConfiguration(builder.Configuration);
 
 
-//Сервіс каталогу товарів
+//РЎРµСЂРІС–СЃ РєР°С‚Р°Р»РѕРіСѓ С‚РѕРІР°СЂС–РІ
 var catalog = builder.AddProject<Catalog_WebHost>("catalog-api")
                      .AddCommonConfiguration(builder.Configuration);
 
 
-//Сервіс сповіщень
+//РЎРµСЂРІС–СЃ СЃРїРѕРІС–С‰РµРЅСЊ
 var notification = builder.AddProject<Notification_WebHost>("notification-api")
                           .AddCommonConfiguration(builder.Configuration);
 
 
-//Сервіс обробки замовлень
+//РЎРµСЂРІС–СЃ РѕР±СЂРѕР±РєРё Р·Р°РјРѕРІР»РµРЅСЊ
 var order = builder.AddProject<Order_WebHost>("order-api")
                    .AddCommonConfiguration(builder.Configuration);
 
 
-//Сервіс оплат
+//РЎРµСЂРІС–СЃ РѕРїР»Р°С‚
 var payment = builder.AddProject<Payment_WebHost>("payment-api")
                      .AddCommonConfiguration(builder.Configuration);
 
@@ -65,6 +70,8 @@ apiGateway.WithReference(redis).WaitFor(redis)
           .WithReference(order).WaitFor(order)
           .WithReference(basket).WaitFor(basket);
 
+auth.WithReference(rabbitmq).WaitFor(rabbitmq)
+    .WithReference(identitydb).WaitFor(identitydb);
 
 basket.WithReference(basketdb).WaitFor(basketdb)
       .WithReference(rabbitmq).WaitFor(rabbitmq);
@@ -85,6 +92,7 @@ payment.WithReference(paymentdb).WaitFor(paymentdb)
        .WithReference(rabbitmq).WaitFor(rabbitmq);
 
 #endregion projects references
+
 
 builder.Build().Run();
 

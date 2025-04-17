@@ -5,8 +5,4 @@
 		<VersionSuffix></VersionSuffix>
 	</PropertyGroup>
 
-	<ItemGroup>
-	  <Folder Include="Requests\" />
-	</ItemGroup>
-
 </Project>

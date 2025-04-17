@@ -1,10 +1,6 @@
-using ApiGateway.WebHost.Aggregators;
-
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
-
-builder.Services.AddApiAggregators();
 
 var app = builder.Build();
 

@@ -5,7 +5,8 @@ namespace MarineLaceSpace.Models.Catalog;
 // Персоналізація замовлення
 public class ProductPersonalization
 {
-    public int Id { get; set; }
+    [Key]
+    public string Id { get; set; }
 
     public int ProductId { get; set; }
     public Product Product { get; set; }

@@ -1,12 +1,16 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<VersionPrefix>1.0.0</VersionPrefix>
+		<VersionPrefix>1.0.1</VersionPrefix>
 		<VersionSuffix></VersionSuffix>
 	</PropertyGroup>
 
 	<ItemGroup>
 	  <ProjectReference Include="..\MarineLaceSpace.Models\MarineLaceSpace.Models.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Folder Include="Services\" />
 	</ItemGroup>
 
 </Project>

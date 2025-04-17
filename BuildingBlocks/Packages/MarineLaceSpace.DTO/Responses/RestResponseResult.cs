@@ -5,13 +5,13 @@ namespace MarineLaceSpace.DTO.Responses;
 public class RestResponseResult : IRestResponseResult
 {
     [JsonPropertyName("is_success")]
-    public required bool IsSuccess { get; set; }
+    public bool IsSuccess { get; set; }
 
     [JsonPropertyName("date")]
     public DateTime Date { get; set; } = DateTime.Now;
 
     [JsonPropertyName("status_code")]
-    public required int StatusCode { get; set; }
+    public int StatusCode { get; set; }
 
     [JsonPropertyName("message")]
     public string Message { get; set; } = string.Empty;
@@ -36,7 +36,7 @@ public class RestResponseResult<T> : RestResponseResult, IRestResponseResult<T>
        where T : class
 {
     [JsonPropertyName("data")]
-    public T? Data { get; set; }
+    public T Data { get; set; }
 
     public static IRestResponseResult<T> Success(T data, int statusCode = 200)
         => new RestResponseResult<T> { StatusCode = statusCode, IsSuccess = true, Data = data };
@@ -62,6 +62,6 @@ public class ErrorRestResponseResult<T> : RestResponseResult<T>, IErrorRestRespo
     where T : class
 {
     [JsonPropertyName("error_id")]
-    public required string ErrorId { get; set; }
+    public string ErrorId { get; set; }
 }
 

@@ -5,7 +5,8 @@ namespace MarineLaceSpace.Models.Catalog;
 
 public class Category
 {
-    public int Id { get; set; }
+    [Key]
+    public string Id { get; set; }
 
     [Required]
     [StringLength(100)]
@@ -20,11 +21,11 @@ public class Category
     [ForeignKey("ParentCategoryId")]
     public Category ParentCategory { get; set; }
 
-    public ICollection<Category> Subcategories { get; set; }
-    public ICollection<Product> Products { get; set; }
+    public ICollection<Category> Subcategories { get; set; } = [];
+    public ICollection<Product> Products { get; set; } = [];
 
     // Рівень вкладеності (для швидкого доступу)
-    public int Level { get; set; }
+    public int Level { get; set; } = 0;
 
     // Повний шлях категорії (для швидкого пошуку)
     [StringLength(1000)]

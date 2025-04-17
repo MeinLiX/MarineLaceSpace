@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Services\ApiGateway\MarineLaceSpace.ApiGateway\ApiGateway.WebHost.csproj" />
+    <ProjectReference Include="..\..\Services\Auth\MarineLaceSpace.Auth\Auth.WebHost.csproj" />
     <ProjectReference Include="..\..\Services\Basket\MarineLaceSpace.Basket\Basket.WebHost.csproj" />
     <ProjectReference Include="..\..\Services\Catalog\MarineLaceSpace.Catalog\Catalog.WebHost.csproj" />
     <ProjectReference Include="..\..\Services\Notification\MarineLaceSpace.Notification\Notification.WebHost.csproj" />

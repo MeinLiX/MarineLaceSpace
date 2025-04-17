@@ -29,7 +29,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Basket", "Basket", "{653693
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Catalog", "Catalog", "{A7E24C41-BE56-425F-BF79-42E3D3158EBE}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Identity", "Identity", "{48654511-1DA9-4DE0-B889-B628872404AD}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Auth", "Auth", "{48654511-1DA9-4DE0-B889-B628872404AD}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApiGateway.WebHost", "Services\ApiGateway\MarineLaceSpace.ApiGateway\ApiGateway.WebHost.csproj", "{D9DC2FA8-7183-444D-A067-61099FA09A0B}"
 EndProject
@@ -73,6 +73,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BB.Data", "BuildingBlocks\BB.Data\BB.Data.csproj", "{74F87EB2-2F94-4D30-BA38-670AFFEE69EC}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MarineLaceSpace.DTO.Validation", "BuildingBlocks\Packages\MarineLaceSpace.DTO.Validation\MarineLaceSpace.DTO.Validation.csproj", "{5883A948-27B2-4B5B-9624-7EEE4DCA3ACD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Auth.WebHost", "Services\Auth\MarineLaceSpace.Auth\Auth.WebHost.csproj", "{9B9A13CB-152A-9F73-791C-A47B2ABA504C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -140,6 +142,10 @@ Global
 		{5883A948-27B2-4B5B-9624-7EEE4DCA3ACD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5883A948-27B2-4B5B-9624-7EEE4DCA3ACD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5883A948-27B2-4B5B-9624-7EEE4DCA3ACD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9B9A13CB-152A-9F73-791C-A47B2ABA504C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9B9A13CB-152A-9F73-791C-A47B2ABA504C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9B9A13CB-152A-9F73-791C-A47B2ABA504C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9B9A13CB-152A-9F73-791C-A47B2ABA504C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -173,6 +179,7 @@ Global
 		{377A78EC-EDF1-4F2D-9AA0-BE3F50AF8191} = {E8F85188-6AC0-4F73-8CF1-B1E7D74D3DB8}
 		{74F87EB2-2F94-4D30-BA38-670AFFEE69EC} = {633D4885-1E22-4333-BA58-A9BE8A0347B2}
 		{5883A948-27B2-4B5B-9624-7EEE4DCA3ACD} = {E8F85188-6AC0-4F73-8CF1-B1E7D74D3DB8}
+		{9B9A13CB-152A-9F73-791C-A47B2ABA504C} = {48654511-1DA9-4DE0-B889-B628872404AD}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {7F4CF0F5-CE13-400F-A691-533BBCE644F9}

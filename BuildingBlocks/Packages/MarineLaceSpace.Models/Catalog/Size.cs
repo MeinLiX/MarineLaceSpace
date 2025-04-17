@@ -1,11 +1,13 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using MarineLaceSpace.Enumerations;
+using System.ComponentModel.DataAnnotations;
 
 namespace MarineLaceSpace.Models.Catalog;
 
 // Довідник розмірів
 public class Size
 {
-    public int Id { get; set; }
+    [Key]
+    public string Id { get; set; }
 
     [Required]
     [StringLength(50)]
@@ -15,11 +17,11 @@ public class Size
     public string Description { get; set; }
 
     // Чи це кастомний розмір
-    public bool IsCustom { get; set; }
+    public bool IsCustom { get; set; } = false;
 
     // Для якої статі цей розмір
     [StringLength(50)]
-    public string Gender { get; set; } // "Man", "Woman", "Unisex"
+    public ProductSizeGender Gender { get; set; } = ProductSizeGender.Unisex;
 
-    public ICollection<ProductSize> ProductSizes { get; set; }
+    public ICollection<ProductSize> ProductSizes { get; set; } = [];
 }

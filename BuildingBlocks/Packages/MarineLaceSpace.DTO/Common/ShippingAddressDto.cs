@@ -1,4 +1,4 @@
-﻿namespace MarineLaceSpace.DTO;
+﻿namespace MarineLaceSpace.DTO.Common;
 
 public class ShippingAddressDto
 {

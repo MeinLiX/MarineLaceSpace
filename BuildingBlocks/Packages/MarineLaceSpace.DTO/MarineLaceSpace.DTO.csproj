@@ -1,12 +1,11 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<VersionPrefix>1.0.1</VersionPrefix>
+		<VersionPrefix>1.0.2</VersionPrefix>
 		<VersionSuffix></VersionSuffix>
 	</PropertyGroup>
 
 	<ItemGroup>
-	  <Folder Include="Responses\" />
 	  <Folder Include="Requests\" />
 	</ItemGroup>
 

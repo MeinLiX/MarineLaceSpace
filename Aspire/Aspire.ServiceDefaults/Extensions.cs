@@ -7,6 +7,7 @@ using Microsoft.Extensions.ServiceDiscovery;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using BB.Extensions;
 
 namespace Microsoft.Extensions.Hosting;
 
@@ -39,6 +40,8 @@ public static class Extensions
             logging.AddDebug();
             logging.AddEventSourceLogger();
         });
+
+        builder.Services.AddCommonOptions(builder.Configuration);
 
         return builder;
     }

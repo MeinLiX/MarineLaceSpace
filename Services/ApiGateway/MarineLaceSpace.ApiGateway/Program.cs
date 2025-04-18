@@ -1,7 +1,9 @@
+using MarineLaceSpace.Options;
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
-
+builder.Services.AddOptions();
 var app = builder.Build();
 
 app.MapGet("/", async (IHttpClientFactory httpClientFactory) =>

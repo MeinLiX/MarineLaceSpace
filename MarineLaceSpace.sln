@@ -85,6 +85,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Packages.Test", "Tests\Buil
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BB.Extensions", "BuildingBlocks\BB.Extensions\BB.Extensions.csproj", "{3B211AFB-670D-4D18-810F-7528E2EFFBD4}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MarineLaceSpace.Exceptions", "BuildingBlocks\Packages\MarineLaceSpace.Exceptions\MarineLaceSpace.Exceptions.csproj", "{02072357-CCC4-4DB8-948F-4FC82C42C52E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -163,6 +165,10 @@ Global
 		{3B211AFB-670D-4D18-810F-7528E2EFFBD4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3B211AFB-670D-4D18-810F-7528E2EFFBD4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3B211AFB-670D-4D18-810F-7528E2EFFBD4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{02072357-CCC4-4DB8-948F-4FC82C42C52E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{02072357-CCC4-4DB8-948F-4FC82C42C52E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{02072357-CCC4-4DB8-948F-4FC82C42C52E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{02072357-CCC4-4DB8-948F-4FC82C42C52E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -200,6 +206,7 @@ Global
 		{3A12F487-19C5-4BD5-A44B-F8128FC4A0EA} = {9A1E7CA0-6C9B-40FF-AEC8-2A580D57258A}
 		{28C20F5A-6E09-4FCE-B3AE-E3655A168767} = {3A12F487-19C5-4BD5-A44B-F8128FC4A0EA}
 		{3B211AFB-670D-4D18-810F-7528E2EFFBD4} = {633D4885-1E22-4333-BA58-A9BE8A0347B2}
+		{02072357-CCC4-4DB8-948F-4FC82C42C52E} = {E8F85188-6AC0-4F73-8CF1-B1E7D74D3DB8}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {7F4CF0F5-CE13-400F-A691-533BBCE644F9}

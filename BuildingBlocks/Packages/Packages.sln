@@ -21,6 +21,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MarineLaceSpace.DTO.Validation", "MarineLaceSpace.DTO.Validation\MarineLaceSpace.DTO.Validation.csproj", "{78944914-F9E5-6DBE-9509-A62B71311DBD}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MarineLaceSpace.Exceptions", "MarineLaceSpace.Exceptions\MarineLaceSpace.Exceptions.csproj", "{98C5A62D-1A81-69DB-4CBF-A3CDE78D87C2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -51,6 +53,10 @@ Global
 		{78944914-F9E5-6DBE-9509-A62B71311DBD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{78944914-F9E5-6DBE-9509-A62B71311DBD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{78944914-F9E5-6DBE-9509-A62B71311DBD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{98C5A62D-1A81-69DB-4CBF-A3CDE78D87C2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{98C5A62D-1A81-69DB-4CBF-A3CDE78D87C2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{98C5A62D-1A81-69DB-4CBF-A3CDE78D87C2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{98C5A62D-1A81-69DB-4CBF-A3CDE78D87C2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

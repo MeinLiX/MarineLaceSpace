@@ -1,6 +1,6 @@
 ﻿using MarineLaceSpace.Enumerations;
 
-namespace Packages.MarineLaceSpace.Enumerations.Tests;
+namespace Packages.Test.MarineLaceSpace.Enumerations;
 
 public class TestEnumeration(int id, string name) : Enumeration(id, name)
 {

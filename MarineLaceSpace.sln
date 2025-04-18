@@ -53,6 +53,9 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Catalog.WebHost", "Services\Catalog\MarineLaceSpace.Catalog\Catalog.WebHost.csproj", "{A9FE5334-D4E3-44C9-AA1F-CD704E2138B3}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{9A1E7CA0-6C9B-40FF-AEC8-2A580D57258A}"
+	ProjectSection(SolutionItems) = preProject
+		Tests\Directory.Build.props = Tests\Directory.Build.props
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MarineLaceSpace.Interfaces", "BuildingBlocks\Packages\MarineLaceSpace.Interfaces\MarineLaceSpace.Interfaces.csproj", "{AEE32281-3F4C-4267-BD90-E91FFD6C085E}"
 	ProjectSection(ProjectDependencies) = postProject

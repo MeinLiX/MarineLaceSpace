@@ -35,7 +35,7 @@ public static class OptionsExtensions
             if (optionType != null)
             {
                 var method = (typeof(OptionsConfigurationServiceCollectionExtensions)
-                    ?.GetMethod("Configure", [typeof(IServiceCollection), typeof(IConfiguration)])
+                    .GetMethod("Configure", [typeof(IServiceCollection), typeof(IConfiguration)])
                     ?.MakeGenericMethod(optionType)) ?? throw new InvalidOperationException($"Could not find Configure method for type {optionType.Name}");
                 method.Invoke(null, [services, configuration.GetSection(optionName)]);
 

@@ -88,5 +88,5 @@ payment.WithReference(paymentdb).WaitFor(paymentdb)
 #endregion projects references
 
 
-builder.Build().Run();
+await builder.Build().RunAsync();
 

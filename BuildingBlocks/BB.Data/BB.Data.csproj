@@ -4,8 +4,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="DBContexts\" />
-    <Folder Include="Repositories\" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Packages\MarineLaceSpace.Exceptions\MarineLaceSpace.Exceptions.csproj" />
+    <ProjectReference Include="..\Packages\MarineLaceSpace.Interfaces\MarineLaceSpace.Interfaces.csproj" />
   </ItemGroup>
 
 </Project>

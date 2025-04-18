@@ -14,19 +14,19 @@ ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["Directory.Packages.props", "."]
 COPY ["Directory.Build.props", "."]
-COPY ["Services/Payment/MarineLaceSpace.Payment/MarineLaceSpace.Payment.csproj", "Services/Payment/MarineLaceSpace.Payment/"]
-RUN dotnet restore "./Services/Payment/MarineLaceSpace.Payment/MarineLaceSpace.Payment.csproj"
+COPY ["Services/Payment/MarineLaceSpace.Payment/Payment.WebHost.csproj", "Services/Payment/MarineLaceSpace.Payment/"]
+RUN dotnet restore "./Services/Payment/MarineLaceSpace.Payment/Payment.WebHost.csproj"
 COPY . .
 WORKDIR "/src/Services/Payment/MarineLaceSpace.Payment"
-RUN dotnet build "./MarineLaceSpace.Payment.csproj" -c $BUILD_CONFIGURATION -o /app/build
+RUN dotnet build "./Payment.WebHost" -c "$BUILD_CONFIGURATION" -o /app/build
 
 # This stage is used to publish the service project to be copied to the final stage
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./MarineLaceSpace.Payment.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "./Payment.WebHost" -c "$BUILD_CONFIGURATION" -o /app/publish /p:UseAppHost=false
 
 # This stage is used in production or when running from VS in regular mode (Default when not using the Debug configuration)
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
-ENTRYPOINT ["dotnet", "MarineLaceSpace.Payment.dll"]
+ENTRYPOINT ["dotnet", "Payment.WebHost.dll"]

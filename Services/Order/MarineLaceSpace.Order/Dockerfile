@@ -14,19 +14,19 @@ ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["Directory.Packages.props", "."]
 COPY ["Directory.Build.props", "."]
-COPY ["Services/Order/MarineLaceSpace.Order/MarineLaceSpace.Order.csproj", "Services/Order/MarineLaceSpace.Order/"]
-RUN dotnet restore "./Services/Order/MarineLaceSpace.Order/MarineLaceSpace.Order.csproj"
+COPY ["Services/Order/MarineLaceSpace.Order/Order.WebHost.csproj", "Services/Order/MarineLaceSpace.Order/"]
+RUN dotnet restore "./Services/Order/MarineLaceSpace.Order/Order.WebHost.csproj"
 COPY . .
 WORKDIR "/src/Services/Order/MarineLaceSpace.Order"
-RUN dotnet build "./MarineLaceSpace.Order.csproj" -c $BUILD_CONFIGURATION -o /app/build
+RUN dotnet build "./Order.WebHost.csproj" -c "$BUILD_CONFIGURATION" -o /app/build
 
 # This stage is used to publish the service project to be copied to the final stage
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./MarineLaceSpace.Order.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "./Order.WebHost.csproj" -c "$BUILD_CONFIGURATION" -o /app/publish /p:UseAppHost=false
 
 # This stage is used in production or when running from VS in regular mode (Default when not using the Debug configuration)
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
-ENTRYPOINT ["dotnet", "MarineLaceSpace.Order.dll"]
+ENTRYPOINT ["dotnet", "Order.WebHost.dll"]

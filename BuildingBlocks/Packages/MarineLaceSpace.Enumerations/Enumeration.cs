@@ -2,42 +2,12 @@
 
 namespace MarineLaceSpace.Enumerations;
 
-public abstract class Enumeration(int id, string name) : IComparable, IEquatable<Enumeration>
+public abstract class Enumeration(int id, string name) : IComparable,
+                                                         IEquatable<Enumeration>,
+                                                         IEqualityComparer<Enumeration>
 {
     public string Name { get; } = name;
     public int Id { get; } = id;
-
-    [Obsolete]
-    private string GetNameFromCallingMember()
-    {
-        var stackFrame = new System.Diagnostics.StackFrame(2, false);
-        var method = stackFrame.GetMethod();
-
-        if (method?.Name == ".cctor" || method?.Name == ".ctor")
-        {
-            var declaringType = method.DeclaringType;
-            if (declaringType != null)
-            {
-                var fields = declaringType.GetFields(BindingFlags.Public |
-                                                   BindingFlags.NonPublic |
-                                                   BindingFlags.Static |
-                                                   BindingFlags.DeclaredOnly);
-
-                foreach (var field in fields)
-                {
-                    if (!field.IsStatic) continue;
-
-                    var value = field.GetValue(null);
-                    if (ReferenceEquals(this, value))
-                    {
-                        return field.Name;
-                    }
-                }
-            }
-        }
-
-        throw new ArgumentNullException("name");
-    }
 
     public override string ToString() => Name;
 
@@ -70,10 +40,10 @@ public abstract class Enumeration(int id, string name) : IComparable, IEquatable
                Id == other.Id;
     }
 
-    public int CompareTo(object? other)
+    public int CompareTo(object? obj)
     {
-        if (other is null) return 1;
-        return other is Enumeration otherValue
+        if (obj is null) return 1;
+        return obj is Enumeration otherValue
                ? Id.CompareTo(otherValue.Id)
                : throw new ArgumentException($"Object must be of type {nameof(Enumeration)}");
     }
@@ -112,5 +82,23 @@ public abstract class Enumeration(int id, string name) : IComparable, IEquatable
     {
         result = FromName<T>(name);
         return result is not null;
+    }
+
+    public bool Equals(Enumeration? x, Enumeration? y)
+    {
+        if (x is null && y is null)
+            return true;
+        if (x is null || y is null)
+            return false;
+
+        return x.GetType() == y.GetType() && x.Id == y.Id;
+    }
+
+    public int GetHashCode(Enumeration obj)
+    {
+        if (obj is null)
+            return 0;
+
+        return HashCode.Combine(obj.GetType().ToString(), obj.Id);
     }
 }

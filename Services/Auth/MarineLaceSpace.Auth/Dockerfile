@@ -15,19 +15,19 @@ WORKDIR /src
 COPY ["Directory.Packages.props", "."]
 COPY ["Directory.Build.props", "."]
 COPY ["NuGet.config", "."]
-COPY ["Services/Auth/MarineLaceSpace.Auth/MarineLaceSpace.Auth.csproj", "Services/Auth/MarineLaceSpace.Auth/"]
-RUN dotnet restore "./Services/Auth/MarineLaceSpace.Auth/MarineLaceSpace.Auth.csproj"
+COPY ["Services/Auth/MarineLaceSpace.Auth/Auth.WebHost.csproj", "Services/Auth/MarineLaceSpace.Auth/"]
+RUN dotnet restore "./Services/Auth/MarineLaceSpace.Auth/Auth.WebHost.csproj"
 COPY . .
 WORKDIR "/src/Services/Auth/MarineLaceSpace.Auth"
-RUN dotnet build "./MarineLaceSpace.Auth.csproj" -c $BUILD_CONFIGURATION -o /app/build
+RUN dotnet build "./Auth.WebHost.csproj" -c "$BUILD_CONFIGURATION" -o /app/build
 
 # This stage is used to publish the service project to be copied to the final stage
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./MarineLaceSpace.Auth.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "./Auth.WebHost.csproj" -c "$BUILD_CONFIGURATION" -o /app/publish /p:UseAppHost=false
 
 # This stage is used in production or when running from VS in regular mode (Default when not using the Debug configuration)
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
-ENTRYPOINT ["dotnet", "MarineLaceSpace.Auth.dll"]
+ENTRYPOINT ["dotnet", "Auth.WebHost.dll"]

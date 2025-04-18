@@ -1,13 +1,26 @@
-﻿namespace MarineLaceSpace.Models.Auth;
+﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
+namespace MarineLaceSpace.Models.Auth;
 
 public class RefreshToken
 {
-    public int Id { get; set; }
-    public string UserId { get; set; }
+    [Key]
+    public string Id { get; set; }
+
+    [Required]
     public string Token { get; set; }
+
+    [Required]
     public DateTime ExpiryDate { get; set; } = DateTime.UtcNow.AddDays(7);
+
+    [Required]
     public bool IsRevoked { get; set; } = false;
-    public bool IsUsed { get; set; } = false;
+
+    [Required]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public virtual AuthUser User { get; set; }
+
+    [ForeignKey("User")]
+    public string UserId { get; set; }
+    public AuthUser User { get; set; }
 }

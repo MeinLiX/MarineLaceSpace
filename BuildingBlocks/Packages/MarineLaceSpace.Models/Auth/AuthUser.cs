@@ -4,9 +4,11 @@ namespace MarineLaceSpace.Models.Auth;
 
 public class AuthUser : IdentityUser
 {
-    public DateTime CreatedAt { get; set; } = DateTime.Now;
+    public DateTime CreatedAt { get; private set; } = DateTime.Now;
     public DateTime UpdatedAt { get; set; } = DateTime.Now;
-    public virtual ICollection<RefreshToken> RefreshTokens { get; set; } = [];
+    public bool IsAnonimous => string.IsNullOrWhiteSpace(PasswordHash);
+
+    public ICollection<RefreshToken> RefreshTokens { get; set; } = [];
 }
 
 

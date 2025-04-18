@@ -1,6 +1,6 @@
 ﻿namespace MarineLaceSpace.Exceptions.Repositories;
 
-public class NotSupportedEntityOperationException : RepositoryExceptionBase
+public class NotSupportedEntityOperationException : RepositoryBaseException
 {
     public NotSupportedEntityOperationException() { }
 

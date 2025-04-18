@@ -1,6 +1,6 @@
 ﻿namespace MarineLaceSpace.Exceptions.Repositories;
 
-public class DuplicateEntityException : RepositoryExceptionBase
+public class DuplicateEntityException : RepositoryBaseException
 {
     public DuplicateEntityException() { }
 

@@ -1,6 +1,6 @@
 ﻿namespace MarineLaceSpace.Exceptions.Repositories;
 
-public class ValidationEntityException : RepositoryExceptionBase
+public class ValidationEntityException : RepositoryBaseException
 {
     public ValidationEntityException() { }
 

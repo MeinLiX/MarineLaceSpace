@@ -1,6 +1,6 @@
 ﻿namespace MarineLaceSpace.Exceptions.Repositories;
 
-public class NotFoundEntityException : RepositoryExceptionBase
+public class NotFoundEntityException : RepositoryBaseException
 {
     public NotFoundEntityException() { }
 

@@ -1,6 +1,6 @@
 ﻿namespace MarineLaceSpace.Exceptions.Repositories;
 
-public class UserManagerException : RepositoryExceptionBase
+public class UserManagerException : RepositoryBaseException
 {
     public IEnumerable<string> Codes { get; private set; } = [];
 

@@ -5,17 +5,18 @@ builder.AddServiceDefaults();
 
 var app = builder.BuildWithPostActions();
 
-app.MapGet("/test", (IHttpClientFactory httpClientFactory) =>
+
+app.MapGet("/test", async (IHttpClientFactory httpClientFactory, IConfiguration cfg) =>
 {
     var orderClient = httpClientFactory.CreateClient("order-api");
     var basketClient = httpClientFactory.CreateClient("basket-api");
 
-    var orderBase = orderClient.BaseAddress?.ToString() ?? "null";
-    var basketBase = basketClient.BaseAddress?.ToString() ?? "null";
+    var orderRes = orderClient.GetStringAsync("/health");
+    var basketRes = basketClient.GetStringAsync("/health");
 
-    //await Task.WhenAll(orderRes, basketRes);
+    await Task.WhenAll(orderRes, basketRes);
 
-    return $"order BaseAddress: {orderBase}, basket BaseAddress: {basketBase}";
-});
+    return $"Health. Order '{orderRes.Result}'; Basket: '{basketRes.Result}'";
+}).WithDescription("Test 'Order api' and 'Basket api' connection.");
 
 await app.RunAsync();

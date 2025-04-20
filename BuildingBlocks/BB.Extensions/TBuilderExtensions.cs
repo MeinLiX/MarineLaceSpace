@@ -8,6 +8,7 @@ using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using BB.Extensions;
+using Microsoft.Extensions.Configuration;
 
 namespace Microsoft.Extensions.Hosting;
 
@@ -23,19 +24,37 @@ public static class TBuilderExtensions
         if (useCommonOpenapi)
         {
             builder.Services.AddCommonOpenApi();
+            builder.AddUseAfterBuild(app => app.UseCommonScalar());
         }
 
         if (useCommonOptions)
         {
             builder.Services.AddCommonOptions(builder.Configuration);
-            builder.AddUseAfterBuild(app => app.UseCommonScalar());
         }
 
         builder.AddUseAfterBuild(app => app.MapDefaultEndpoints());
 
-        //builder.Services.AddOptions();
-
         return builder.AddServiceDefaults();
+    }
+
+    /// <summary>
+    /// Required <see cref="ServiceDiscoveryServiceCollectionExtensions.AddServiceDiscovery"/> 
+    /// and <see cref="HttpClientFactoryServiceCollectionExtensions.ConfigureHttpClientDefaults"/>
+    /// </summary>
+    private static TBuilder AddLocalHttpClientsByProjectName<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
+    {
+        if (builder.Configuration.GetSection("Services") is IConfigurationSection servicesSection)
+        {
+            foreach (var serviceConfig in servicesSection.GetChildren())
+            {
+                var serviceName = serviceConfig.Key;
+                builder.Services.AddHttpClient(serviceName, client =>
+                {
+                    client.BaseAddress = new Uri($"http://{serviceName}");
+                });
+            }
+        }
+        return builder;
     }
 
     private static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
@@ -51,7 +70,9 @@ public static class TBuilderExtensions
             http.AddStandardResilienceHandler();
 
             http.AddServiceDiscovery();
+            
         });
+        builder.AddLocalHttpClientsByProjectName();
 
         builder.Services.Configure<ServiceDiscoveryOptions>(options =>
         {

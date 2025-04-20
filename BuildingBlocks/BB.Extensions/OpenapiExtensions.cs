@@ -1,8 +1,9 @@
-﻿using Microsoft.AspNetCore.Builder;
+﻿using APIWeaver;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.OpenApi;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.OpenApi.Models;
 using Scalar.AspNetCore;
 
 namespace BB.Extensions;
@@ -10,7 +11,19 @@ namespace BB.Extensions;
 public static class OpenapiExtensions
 {
     public static IServiceCollection AddCommonOpenApi(this IServiceCollection services)
-           => services.AddOpenApi("api", options => { });
+           => services.AddOpenApi("api", options => {
+               options.AddSecurityScheme("Bearer", scheme =>
+               {
+                   scheme.Description = "JWT Authorization";
+                   scheme.Name = "Authorization";
+                   scheme.In = ParameterLocation.Header;
+                   scheme.Type = SecuritySchemeType.Http;
+                   scheme.Scheme = "Bearer";
+                   scheme.BearerFormat = "JWT";
+               });
+
+               options.AddAuthResponse();
+           });
 
     public static IEndpointConventionBuilder UseCommonScalar(this IEndpointRouteBuilder app, string title = "api")
     {
@@ -30,7 +43,7 @@ public static class OpenapiExtensions
             options.Servers = Array.Empty<ScalarServer>();
 
             options.WithPreferredScheme("Bearer")
-                   .WithHttpBearerAuthentication(bearerOptions => bearerOptions.Token = "put-here-your-token");
+                   .WithHttpBearerAuthentication(bearerOptions => bearerOptions.Token = "");
         });
     }
 }

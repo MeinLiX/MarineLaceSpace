@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Builder;
+﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -12,9 +12,33 @@ using BB.Extensions;
 namespace Microsoft.Extensions.Hosting;
 
 // https://aka.ms/dotnet/aspire/service-defaults
-public static class Extensions
+public static class TBuilderExtensions
 {
-    public static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
+    public static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder, bool useCommonAuthentication = true, bool useCommonOpenapi = true, bool useCommonOptions = true) where TBuilder : IHostApplicationBuilder
+    {
+        if (useCommonAuthentication)
+        {
+            builder.Services.AddCommonAuthenticationApi();
+        }
+        if (useCommonOpenapi)
+        {
+            builder.Services.AddCommonOpenApi();
+        }
+
+        if (useCommonOptions)
+        {
+            builder.Services.AddCommonOptions(builder.Configuration);
+            builder.AddUseAfterBuild(app => app.UseCommonScalar());
+        }
+
+        builder.AddUseAfterBuild(app => app.MapDefaultEndpoints());
+
+        //builder.Services.AddOptions();
+
+        return builder.AddServiceDefaults();
+    }
+
+    private static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
     {
         builder.ConfigureOpenTelemetry();
 
@@ -31,17 +55,18 @@ public static class Extensions
 
         builder.Services.Configure<ServiceDiscoveryOptions>(options =>
         {
-             options.AllowedSchemes = ["https"];
+            options.AllowedSchemes = ["https"];
         });
 
         builder.Services.AddLogging(logging =>
         {
             logging.AddConsole();
-            logging.AddDebug();
+            if (builder.Environment.IsDevelopment())
+            {
+                logging.AddDebug();
+            }
             logging.AddEventSourceLogger();
         });
-
-        builder.Services.AddCommonOptions(builder.Configuration);
 
         return builder;
     }

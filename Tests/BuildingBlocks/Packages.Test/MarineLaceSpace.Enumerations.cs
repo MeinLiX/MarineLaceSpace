@@ -201,7 +201,7 @@ public class EnumerationTests
 
         Assert.False(enumeration == nullEnumeration);
         Assert.False(nullEnumeration == enumeration);
-        Assert.True(nullEnumeration == nullEnumeration);
+        Assert.True(nullEnumeration == null);
     }
 
     [Fact]
@@ -230,7 +230,7 @@ public class EnumerationTests
 
         Assert.True(enumeration != nullEnumeration);
         Assert.True(nullEnumeration != enumeration);
-        Assert.False(nullEnumeration != nullEnumeration);
+        Assert.False(nullEnumeration != null);
     }
 
     [Fact]

@@ -1,22 +1,21 @@
-using MarineLaceSpace.Options;
-
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
-builder.Services.AddOptions();
-var app = builder.Build();
 
-app.MapGet("/", async (IHttpClientFactory httpClientFactory) =>
+
+var app = builder.BuildWithPostActions();
+
+app.MapGet("/test", (IHttpClientFactory httpClientFactory) =>
 {
     var orderClient = httpClientFactory.CreateClient("order-api");
     var basketClient = httpClientFactory.CreateClient("basket-api");
 
-    var orderRes = orderClient.GetStringAsync("/");
-    var basketRes = basketClient.GetStringAsync("/");
+    var orderBase = orderClient.BaseAddress?.ToString() ?? "null";
+    var basketBase = basketClient.BaseAddress?.ToString() ?? "null";
 
-    await Task.WhenAll(orderRes, basketRes);
-    
-    return $"order: {orderRes.Result}; basket: {basketRes.Result}";
+    //await Task.WhenAll(orderRes, basketRes);
+
+    return $"order BaseAddress: {orderBase}, basket BaseAddress: {basketBase}";
 });
 
 await app.RunAsync();

@@ -1,9 +1,11 @@
+using Auth.WebHost.Routes;
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 
-var app = builder.Build();
+var app = builder.BuildWithPostActions();
 
-app.MapGet("/", () => "Auth");
+app.InitRoutes();
 
 await app.RunAsync();

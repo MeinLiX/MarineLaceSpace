@@ -11,11 +11,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\Aspire\Aspire.ServiceDefaults\Aspire.ServiceDefaults.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Aggregators\" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\BB.Extensions\BB.Extensions.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,36 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+  </PropertyGroup>
+
+	<ItemGroup>
+		<FrameworkReference Include="Microsoft.AspNetCore.App" />
+
+		<PackageReference Include="APIWeaver.OpenApi" />
+		<PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+		<PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
+		<PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+		<PackageReference Include="Microsoft.Extensions.Http.Resilience" />
+		<PackageReference Include="Microsoft.Extensions.ServiceDiscovery" />
+		<PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+		<PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+		<PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+		<PackageReference Include="OpenTelemetry.Instrumentation.Http" />
+		<PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
+		<PackageReference Include="Scalar.AspNetCore" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <ProjectReference Include="..\Packages\MarineLaceSpace.DTO.Validation\MarineLaceSpace.DTO.Validation.csproj" />
+	  <ProjectReference Include="..\Packages\MarineLaceSpace.DTO\MarineLaceSpace.DTO.csproj" />
+	  <ProjectReference Include="..\Packages\MarineLaceSpace.Enumerations\MarineLaceSpace.Enumerations.csproj" />
+	  <ProjectReference Include="..\Packages\MarineLaceSpace.Exceptions\MarineLaceSpace.Exceptions.csproj" />
+	  <ProjectReference Include="..\Packages\MarineLaceSpace.Interfaces\MarineLaceSpace.Interfaces.csproj" />
+	  <ProjectReference Include="..\Packages\MarineLaceSpace.Models\MarineLaceSpace.Models.csproj" />
+	  <ProjectReference Include="..\Packages\MarineLaceSpace.Options\MarineLaceSpace.Options.csproj" />
+	</ItemGroup>
+</Project>

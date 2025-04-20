@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace MarineLaceSpace.Models.Catalog;
+namespace MarineLaceSpace.Models.Database.Catalog;
 
 // Фотографії товару
 public class ProductPhoto

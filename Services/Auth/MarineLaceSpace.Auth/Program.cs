@@ -1,4 +1,5 @@
 using Auth.WebHost.Routes;
+using BB.Common.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 

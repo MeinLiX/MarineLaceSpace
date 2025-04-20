@@ -1,7 +1,7 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace MarineLaceSpace.Models.Catalog;
+namespace MarineLaceSpace.Models.Database.Catalog;
 
 public class Category
 {

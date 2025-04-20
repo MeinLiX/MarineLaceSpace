@@ -1,4 +1,4 @@
-﻿using MarineLaceSpace.Models.Catalog;
+﻿using MarineLaceSpace.Models.Database.Catalog;
 
 namespace MarineLaceSpace.Interfaces.Repositories;
 

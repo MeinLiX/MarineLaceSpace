@@ -1,11 +1,11 @@
-﻿using BB.Data.DBContexts;
+﻿using BB.Common.Data.DBContexts;
 using MarineLaceSpace.Exceptions.Repositories;
 using MarineLaceSpace.Interfaces.Repositories.Auth;
 using MarineLaceSpace.Models.Database.Auth;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
-namespace BB.Data.Repositories;
+namespace BB.Common.Data.Repositories;
 
 public class AuthUserRepository : IAuthUserRepository
 {

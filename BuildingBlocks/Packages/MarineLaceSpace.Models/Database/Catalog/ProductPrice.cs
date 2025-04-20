@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace MarineLaceSpace.Models.Catalog;
+namespace MarineLaceSpace.Models.Database.Catalog;
 
 // Прайс-лист для товару з врахуванням комбінацій
 public class ProductPrice

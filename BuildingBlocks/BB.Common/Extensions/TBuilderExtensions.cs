@@ -1,4 +1,4 @@
-﻿using BB.Extensions;
+﻿using BB.Common.Extensions;
 using FluentValidation;
 using MarineLaceSpace.DTO.Validation;
 using Microsoft.AspNetCore.Builder;

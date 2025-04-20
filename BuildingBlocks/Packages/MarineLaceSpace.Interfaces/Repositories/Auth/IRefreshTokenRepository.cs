@@ -1,4 +1,4 @@
-﻿using MarineLaceSpace.Models.Auth;
+﻿using MarineLaceSpace.Models.Database.Auth;
 
 namespace MarineLaceSpace.Interfaces.Repositories.Auth;
 

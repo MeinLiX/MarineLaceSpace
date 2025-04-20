@@ -1,14 +1,12 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
 	<FrameworkReference Include="Microsoft.AspNetCore.App" />
 	<PackageReference Include="APIWeaver.OpenApi" />
+	<PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
@@ -25,6 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Packages\MarineLaceSpace.DTO.Validation\MarineLaceSpace.DTO.Validation.csproj" />
     <ProjectReference Include="..\Packages\MarineLaceSpace.Models\MarineLaceSpace.Models.csproj" />
     <ProjectReference Include="..\Packages\MarineLaceSpace.Options\MarineLaceSpace.Options.csproj" />
   </ItemGroup>

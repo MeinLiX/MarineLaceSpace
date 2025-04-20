@@ -2,7 +2,7 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
-namespace BB.Data.DBContexts;
+namespace BB.Common.Data.DBContexts;
 
 public abstract class AuthDbContext(DbContextOptions options) : IdentityDbContext<AuthUser>(options)
 {

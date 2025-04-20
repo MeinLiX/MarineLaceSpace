@@ -1,7 +1,7 @@
 ﻿using MarineLaceSpace.Enumerations;
 using System.ComponentModel.DataAnnotations;
 
-namespace MarineLaceSpace.Models.Catalog;
+namespace MarineLaceSpace.Models.Database.Catalog;
 
 // Довідник розмірів
 public class Size

@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace MarineLaceSpace.Models.Catalog;
+namespace MarineLaceSpace.Models.Database.Catalog;
 
 // Довідник матеріалів/тканин
 public class Material

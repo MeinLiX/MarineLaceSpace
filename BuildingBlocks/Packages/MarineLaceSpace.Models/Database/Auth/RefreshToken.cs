@@ -1,7 +1,7 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace MarineLaceSpace.Models.Auth;
+namespace MarineLaceSpace.Models.Database.Auth;
 
 public class RefreshToken
 {

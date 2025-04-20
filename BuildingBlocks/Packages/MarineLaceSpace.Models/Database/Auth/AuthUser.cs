@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Identity;
 
-namespace MarineLaceSpace.Models.Auth;
+namespace MarineLaceSpace.Models.Database.Auth;
 
 public class AuthUser : IdentityUser
 {

@@ -5,7 +5,7 @@ namespace MarineLaceSpace.Options;
 [Option("JwtSettings")]
 public class JwtSettingsOption
 {
-    public required string SecretKey { get; set; }
+    public required string SecretKeyBase64 { get; set; }
     public required string Issuer { get; set; }
     public required string Audience { get; set; }
     public required int AccessTokenExpirationMinutes { get; set; }

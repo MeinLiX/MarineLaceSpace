@@ -31,6 +31,7 @@ public static class Routes
 
 
         authGroup.MapPost("refresh-token", AuthHandlers.RefreshTokenRouteHandler)
+                 .RequireAuthorization()
                  .WithSummary("Update JWT token")
                  .Produces<IRestResponseResult<RefreshTokenResponseDto>>(StatusCodes.Status200OK)
                  .Produces<IErrorRestResponseResult<RefreshTokenResponseDto>>(StatusCodes.Status400BadRequest);

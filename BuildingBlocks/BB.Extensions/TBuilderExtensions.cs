@@ -20,6 +20,11 @@ public static class TBuilderExtensions
         if (useCommonAuthentication)
         {
             builder.Services.AddCommonAuthenticationApi();
+            builder.AddUseAfterBuild(app =>
+            {
+                app.UseAuthentication();
+                app.UseAuthorization();
+            });
         }
         if (useCommonOpenapi)
         {
@@ -70,7 +75,7 @@ public static class TBuilderExtensions
             http.AddStandardResilienceHandler();
 
             http.AddServiceDiscovery();
-            
+
         });
         builder.AddLocalHttpClientsByProjectName();
 

@@ -27,7 +27,7 @@ public class RouteHandlers
 
             if (!validationResult.IsValid)
             {
-                return Results.Json(RESTErrorResult<IDictionary<string, string[]>>.Fail(validationResult.ToDictionary()), statusCode: 400);
+                return Results.Json(RESTErrorResult<IDictionary<string, string[]>>.Fail(validationResult.ToDictionary()), statusCode: 422);
             }
         }
 

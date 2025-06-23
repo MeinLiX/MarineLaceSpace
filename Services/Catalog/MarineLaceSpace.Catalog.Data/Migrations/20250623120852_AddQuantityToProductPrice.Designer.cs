@@ -3,6 +3,7 @@ using System;
 using MarineLaceSpace.Catalog.Data.DBContexts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MarineLaceSpace.Catalog.Data.Migrations
 {
     [DbContext(typeof(CatalogDbContext))]
-    partial class CatalogDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250623120852_AddQuantityToProductPrice")]
+    partial class AddQuantityToProductPrice
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -220,42 +223,50 @@ namespace MarineLaceSpace.Catalog.Data.Migrations
 
             modelBuilder.Entity("MarineLaceSpace.Models.Database.Catalog.ProductColor", b =>
                 {
-                    b.Property<string>("ProductId")
+                    b.Property<string>("Id")
                         .HasColumnType("text");
 
                     b.Property<string>("ColorId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Id")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<decimal>("PriceModifier")
                         .HasColumnType("numeric");
 
-                    b.HasKey("ProductId", "ColorId");
+                    b.Property<string>("ProductId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
 
                     b.HasIndex("ColorId");
+
+                    b.HasIndex("ProductId");
 
                     b.ToTable("ProductColors");
                 });
 
             modelBuilder.Entity("MarineLaceSpace.Models.Database.Catalog.ProductMaterial", b =>
                 {
-                    b.Property<string>("ProductId")
+                    b.Property<string>("Id")
                         .HasColumnType("text");
 
                     b.Property<string>("MaterialId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Id")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<decimal>("PriceModifier")
                         .HasColumnType("numeric");
 
-                    b.HasKey("ProductId", "MaterialId");
+                    b.Property<string>("ProductId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
 
                     b.HasIndex("MaterialId");
+
+                    b.HasIndex("ProductId");
 
                     b.ToTable("ProductMaterials");
                 });
@@ -268,13 +279,7 @@ namespace MarineLaceSpace.Catalog.Data.Migrations
                     b.Property<bool>("IsMain")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("ProductColorColorId")
-                        .HasColumnType("text");
-
                     b.Property<string>("ProductColorId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ProductColorProductId")
                         .HasColumnType("text");
 
                     b.Property<string>("ProductId")
@@ -284,19 +289,7 @@ namespace MarineLaceSpace.Catalog.Data.Migrations
                     b.Property<string>("ProductMaterialId")
                         .HasColumnType("text");
 
-                    b.Property<string>("ProductMaterialMaterialId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ProductMaterialProductId")
-                        .HasColumnType("text");
-
                     b.Property<string>("ProductSizeId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ProductSizeProductId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ProductSizeSizeId")
                         .HasColumnType("text");
 
                     b.Property<int>("SortOrder")
@@ -313,13 +306,13 @@ namespace MarineLaceSpace.Catalog.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ProductColorId");
+
                     b.HasIndex("ProductId");
 
-                    b.HasIndex("ProductColorProductId", "ProductColorColorId");
+                    b.HasIndex("ProductMaterialId");
 
-                    b.HasIndex("ProductMaterialProductId", "ProductMaterialMaterialId");
-
-                    b.HasIndex("ProductSizeProductId", "ProductSizeSizeId");
+                    b.HasIndex("ProductSizeId");
 
                     b.ToTable("ProductPhotos");
                 });
@@ -330,23 +323,15 @@ namespace MarineLaceSpace.Catalog.Data.Migrations
                         .HasColumnType("text");
 
                     b.Property<decimal>("BasePrice")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("numeric");
 
                     b.Property<decimal>("DiscountPercentage")
                         .HasColumnType("numeric");
 
                     b.Property<decimal?>("OldPrice")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<string>("ProductColorColorId")
-                        .HasColumnType("text");
+                        .HasColumnType("numeric");
 
                     b.Property<string>("ProductColorId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ProductColorProductId")
                         .HasColumnType("text");
 
                     b.Property<string>("ProductId")
@@ -356,19 +341,7 @@ namespace MarineLaceSpace.Catalog.Data.Migrations
                     b.Property<string>("ProductMaterialId")
                         .HasColumnType("text");
 
-                    b.Property<string>("ProductMaterialMaterialId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ProductMaterialProductId")
-                        .HasColumnType("text");
-
                     b.Property<string>("ProductSizeId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ProductSizeProductId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ProductSizeSizeId")
                         .HasColumnType("text");
 
                     b.Property<int>("Quantity")
@@ -376,14 +349,13 @@ namespace MarineLaceSpace.Catalog.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ProductColorProductId", "ProductColorColorId");
+                    b.HasIndex("ProductColorId");
 
-                    b.HasIndex("ProductMaterialProductId", "ProductMaterialMaterialId");
+                    b.HasIndex("ProductId");
 
-                    b.HasIndex("ProductSizeProductId", "ProductSizeSizeId");
+                    b.HasIndex("ProductMaterialId");
 
-                    b.HasIndex("ProductId", "ProductSizeId", "ProductColorId", "ProductMaterialId")
-                        .IsUnique();
+                    b.HasIndex("ProductSizeId");
 
                     b.ToTable("ProductPrices");
                 });
@@ -434,19 +406,23 @@ namespace MarineLaceSpace.Catalog.Data.Migrations
 
             modelBuilder.Entity("MarineLaceSpace.Models.Database.Catalog.ProductSize", b =>
                 {
-                    b.Property<string>("ProductId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("SizeId")
-                        .HasColumnType("text");
-
                     b.Property<string>("Id")
                         .HasColumnType("text");
 
                     b.Property<decimal>("PriceModifier")
                         .HasColumnType("numeric");
 
-                    b.HasKey("ProductId", "SizeId");
+                    b.Property<string>("ProductId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SizeId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
 
                     b.HasIndex("SizeId");
 
@@ -608,23 +584,23 @@ namespace MarineLaceSpace.Catalog.Data.Migrations
 
             modelBuilder.Entity("MarineLaceSpace.Models.Database.Catalog.ProductPhoto", b =>
                 {
+                    b.HasOne("MarineLaceSpace.Models.Database.Catalog.ProductColor", "ProductColor")
+                        .WithMany()
+                        .HasForeignKey("ProductColorId");
+
                     b.HasOne("MarineLaceSpace.Models.Database.Catalog.Product", "Product")
                         .WithMany("Photos")
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("MarineLaceSpace.Models.Database.Catalog.ProductColor", "ProductColor")
-                        .WithMany()
-                        .HasForeignKey("ProductColorProductId", "ProductColorColorId");
-
                     b.HasOne("MarineLaceSpace.Models.Database.Catalog.ProductMaterial", "ProductMaterial")
                         .WithMany()
-                        .HasForeignKey("ProductMaterialProductId", "ProductMaterialMaterialId");
+                        .HasForeignKey("ProductMaterialId");
 
                     b.HasOne("MarineLaceSpace.Models.Database.Catalog.ProductSize", "ProductSize")
                         .WithMany()
-                        .HasForeignKey("ProductSizeProductId", "ProductSizeSizeId");
+                        .HasForeignKey("ProductSizeId");
 
                     b.Navigation("Product");
 
@@ -637,23 +613,23 @@ namespace MarineLaceSpace.Catalog.Data.Migrations
 
             modelBuilder.Entity("MarineLaceSpace.Models.Database.Catalog.ProductPrice", b =>
                 {
+                    b.HasOne("MarineLaceSpace.Models.Database.Catalog.ProductColor", "ProductColor")
+                        .WithMany()
+                        .HasForeignKey("ProductColorId");
+
                     b.HasOne("MarineLaceSpace.Models.Database.Catalog.Product", "Product")
                         .WithMany("ProductPrices")
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("MarineLaceSpace.Models.Database.Catalog.ProductColor", "ProductColor")
-                        .WithMany()
-                        .HasForeignKey("ProductColorProductId", "ProductColorColorId");
-
                     b.HasOne("MarineLaceSpace.Models.Database.Catalog.ProductMaterial", "ProductMaterial")
                         .WithMany()
-                        .HasForeignKey("ProductMaterialProductId", "ProductMaterialMaterialId");
+                        .HasForeignKey("ProductMaterialId");
 
                     b.HasOne("MarineLaceSpace.Models.Database.Catalog.ProductSize", "ProductSize")
                         .WithMany()
-                        .HasForeignKey("ProductSizeProductId", "ProductSizeSizeId");
+                        .HasForeignKey("ProductSizeId");
 
                     b.Navigation("Product");
 

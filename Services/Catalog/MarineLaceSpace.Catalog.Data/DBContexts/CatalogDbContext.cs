@@ -5,12 +5,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MarineLaceSpace.Catalog.Data.DBContexts;
 
-public class CatalogDbContext : DbContext
+public class CatalogDbContext(DbContextOptions<CatalogDbContext> options) : DbContext(options)
 {
-    public CatalogDbContext(DbContextOptions<CatalogDbContext> options) : base(options)
-    {
-    }
-
     public DbSet<Category> Categories { get; set; }
     public DbSet<Color> Colors { get; set; }
     public DbSet<Material> Materials { get; set; }
@@ -57,6 +53,30 @@ public class CatalogDbContext : DbContext
         {
             entity.Property(e => e.Gender)
                   .HasConversion(new EnumerationConverter<ProductSizeGender>());
+        });
+
+        modelBuilder.Entity<ProductPrice>(entity =>
+        {
+            entity.Property(p => p.BasePrice).HasPrecision(18, 2);
+            entity.Property(p => p.OldPrice).HasPrecision(18, 2);
+
+            entity.HasIndex(p => new { p.ProductId, p.ProductSizeId, p.ProductColorId, p.ProductMaterialId })
+                  .IsUnique();
+        });
+
+        modelBuilder.Entity<ProductSize>(entity =>
+        {
+            entity.HasKey(ps => new { ps.ProductId, ps.SizeId });
+        });
+
+        modelBuilder.Entity<ProductColor>(entity =>
+        {
+            entity.HasKey(pc => new { pc.ProductId, pc.ColorId });
+        });
+
+        modelBuilder.Entity<ProductMaterial>(entity =>
+        {
+            entity.HasKey(pm => new { pm.ProductId, pm.MaterialId });
         });
     }
 }

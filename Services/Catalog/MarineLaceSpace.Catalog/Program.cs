@@ -1,5 +1,6 @@
 using Catalog.WebHost.Routes;
 using MarineLaceSpace.Catalog.Data.DBContexts;
+using MarineLaceSpace.Catalog.Routes;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,5 +16,6 @@ builder.AddServiceDefaults();
 var app = builder.BuildWithPostActions();
 
 app.MapShopRoutes();
+app.MapProductRoutes();
 
 await app.RunAsync();

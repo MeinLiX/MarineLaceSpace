@@ -6,14 +6,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MarineLaceSpace.Catalog.Data.Repositories;
 
-public class ShopRepository : IShopRepository
+public class ShopRepository(CatalogDbContext context) : IShopRepository
 {
-    private readonly CatalogDbContext _context;
-
-    public ShopRepository(CatalogDbContext context)
-    {
-        _context = context;
-    }
+    private readonly CatalogDbContext _context = context;
 
     public async Task<Shop> GetByIdAsync(string entityId)
     {

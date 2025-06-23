@@ -1,8 +1,8 @@
 ﻿using BB.Common.Extensions;
+using MarineLaceSpace.DTO.Responses;
 using MarineLaceSpace.DTO.Responses.Catalog;
-using MarineLaceSpace.Models.Database.Catalog;
 
-namespace MarineLaceSpace.Catalog.Routes;
+namespace Catalog.WebHost.Routes;
 
 public static class ProductRoutes
 {
@@ -13,7 +13,7 @@ public static class ProductRoutes
 
         productsGroup.MapPost("/shops/{shopId}/products", ProductHandlers.CreateProductHandler)
             .WithSummary("Create a new product in a shop")
-            .Produces<Product>()
+            .Produces< IRESTResult<ProductDetailResponse>>()
             .RequireAuthorization("SellersOnly");
 
         productsGroup.MapGet("/shops/{shopId}/products", ProductHandlers.GetProductsByShopHandler)
@@ -23,33 +23,33 @@ public static class ProductRoutes
         productsGroup.MapGet("/products/{productId}", ProductHandlers.GetProductByIdHandler)
             .WithName("GetProductById")
             .WithSummary("Get a single product by its ID")
-            .Produces<ProductDetailResponse>()
-            .Produces(StatusCodes.Status404NotFound);
+            .Produces< IRESTResult<ProductDetailResponse>>()
+            .Produces<IRESTResult>(StatusCodes.Status404NotFound);
 
         productsGroup.MapPut("/products/{productId}", ProductHandlers.UpdateProductHandler)
             .WithSummary("Update a product")
-            .Produces<Product>()
+            .Produces< IRESTResult<ProductDetailResponse>>()
             .AddValidationResponseType()
             .RequireAuthorization("SellersOnly");
 
         productsGroup.MapDelete("/products/{productId}", ProductHandlers.DeleteProductHandler)
             .WithSummary("Delete a product")
-            .Produces(StatusCodes.Status204NoContent)
+            .Produces<IRESTResult>(StatusCodes.Status204NoContent)
             .RequireAuthorization("SellersOnly");
 
         productsGroup.MapPut("/products/{productId}/inventory", ProductHandlers.UpdateInventoryHandler)
             .WithSummary("Update product inventory and prices for all variations")
-            .Produces(StatusCodes.Status204NoContent)
-            .Produces(StatusCodes.Status403Forbidden)
-            .Produces(StatusCodes.Status404NotFound)
+            .Produces<IRESTResult>(StatusCodes.Status204NoContent)
+            .Produces<IRESTResult>(StatusCodes.Status403Forbidden)
+            .Produces<IRESTResult>(StatusCodes.Status404NotFound)
             .AddValidationResponseType()
             .RequireAuthorization("SellersOnly");
 
         productsGroup.MapPut("/products/{productId}/variation-images", ProductHandlers.AssociateVariationImagesHandler)
             .WithSummary("Update product variation image associations")
-            .Produces(StatusCodes.Status204NoContent)
-            .Produces(StatusCodes.Status403Forbidden)
-            .Produces(StatusCodes.Status404NotFound)
+            .Produces<IRESTResult>(StatusCodes.Status204NoContent)
+            .Produces<IRESTResult>(StatusCodes.Status403Forbidden)
+            .Produces<IRESTResult>(StatusCodes.Status404NotFound)
             .RequireAuthorization("SellersOnly");
     }
 }

@@ -8,7 +8,7 @@ using MarineLaceSpace.Models.Database.Catalog;
 using MarineLaceSpace.Models.Routes;
 using System.Security.Claims;
 
-namespace MarineLaceSpace.Catalog.Routes;
+namespace Catalog.WebHost.Routes;
 
 internal class ProductHandlers
 {
@@ -65,7 +65,8 @@ internal class ProductHandlers
 
     internal static Delegate GetProductByIdHandler =>
         async (string productId, IServiceProvider sp) =>
-            await RouteHandlers.RouteHandlerAsync<ProductServices>(sp, async (services) => {
+            await RouteHandlers.RouteHandlerAsync<ProductServices>(sp, async (services) =>
+            {
                 try
                 {
                     var product = await services.ProductRepository.GetByIdAsync(productId);
@@ -74,13 +75,14 @@ internal class ProductHandlers
                 }
                 catch (NotFoundEntityException ex)
                 {
-                    return Results.NotFound(RESTResult<object>.Fail(ex.Message));
+                    return Results.NotFound(RESTResult.Fail(ex.Message));
                 }
             });
 
     internal static Delegate GetProductsByShopHandler =>
         async (string shopId, IServiceProvider sp) =>
-            await RouteHandlers.RouteHandlerAsync<ProductServices>(sp, async (services) => {
+            await RouteHandlers.RouteHandlerAsync<ProductServices>(sp, async (services) =>
+            {
                 var products = await services.ProductRepository.GetByShopIdAsync(shopId);
                 var response = products.Select(product => new ProductSummaryResponse
                 {
@@ -124,7 +126,7 @@ internal class ProductHandlers
                     }
                     catch (NotFoundEntityException ex)
                     {
-                        return Results.NotFound(RESTResult<object>.Fail(ex.Message));
+                        return Results.NotFound(RESTResult.Fail(ex.Message));
                     }
                 });
 
@@ -150,7 +152,7 @@ internal class ProductHandlers
                     }
                     catch (NotFoundEntityException ex)
                     {
-                        return Results.NotFound(RESTResult<object>.Fail(ex.Message));
+                        return Results.NotFound(RESTResult.Fail(ex.Message));
                     }
                 });
 
@@ -187,7 +189,7 @@ internal class ProductHandlers
                     }
                     catch (NotFoundEntityException ex)
                     {
-                        return Results.NotFound(RESTResult<object>.Fail(ex.Message));
+                        return Results.NotFound(RESTResult.Fail(ex.Message));
                     }
                 });
     internal static Delegate AssociateVariationImagesHandler =>
@@ -212,7 +214,7 @@ internal class ProductHandlers
                     }
                     catch (NotFoundEntityException ex)
                     {
-                        return Results.NotFound(RESTResult<object>.Fail(ex.Message));
+                        return Results.NotFound(RESTResult.Fail(ex.Message));
                     }
                 });
 

@@ -44,7 +44,7 @@ internal class ShopHandlers
                     try
                     {
                         await services.ShopRepository.GetByOwnerIdAsync(ownerId);
-                        return Results.Conflict(RESTResult<object>.Fail("This user already owns a shop."));
+                        return Results.Conflict(RESTResult.Fail("This user already owns a shop."));
                     }
                     catch (NotFoundEntityException)
                     {
@@ -62,8 +62,8 @@ internal class ShopHandlers
                     };
 
                     var createdShop = await services.ShopRepository.AddAsync(newShop);
-
-                    return Results.CreatedAtRoute("GetShopById", new { id = createdShop.Id }, createdShop);
+                    var responseDto = MapShopToResponse(createdShop);
+                    return Results.CreatedAtRoute("GetShopById", new { id = responseDto.Id }, responseDto);
                 });
 
     internal static Delegate GetShopByIdHandler =>
@@ -76,23 +76,12 @@ internal class ShopHandlers
                         services.Logger.LogInformation("Attempting to retrieve shop with ID {ShopId}", id);
                         var shop = await services.ShopRepository.GetByIdAsync(id);
 
-                        var shopResponse = new ShopResponse
-                        {
-                            Id = shop.Id,
-                            Name = shop.Name,
-                            Description = shop.Description,
-                            UrlSlug = shop.UrlSlug,
-                            LogoUrl = shop.LogoUrl,
-                            BannerUrl = shop.BannerUrl,
-                            CreatedAt = shop.CreatedAt
-                        };
-
-                        return Results.Ok(shopResponse);
+                        return Results.Ok(MapShopToResponse(shop));
                     }
                     catch (NotFoundEntityException ex)
                     {
                         services.Logger.LogWarning(ex, "Shop with ID {ShopId} not found", id);
-                        return Results.NotFound(RESTResult<object>.Fail(ex.Message));
+                        return Results.NotFound(RESTResult.Fail(ex.Message));
                     }
                 });
 
@@ -106,23 +95,12 @@ internal class ShopHandlers
                         services.Logger.LogInformation("Attempting to retrieve shop with slug '{UrlSlug}'", urlSlug);
                         var shop = await services.ShopRepository.GetBySlugAsync(urlSlug);
 
-                        var shopResponse = new ShopResponse
-                        {
-                            Id = shop.Id,
-                            Name = shop.Name,
-                            Description = shop.Description,
-                            UrlSlug = shop.UrlSlug,
-                            LogoUrl = shop.LogoUrl,
-                            BannerUrl = shop.BannerUrl,
-                            CreatedAt = shop.CreatedAt
-                        };
-
-                        return Results.Ok(shopResponse);
+                        return Results.Ok(MapShopToResponse(shop));
                     }
                     catch (NotFoundEntityException ex)
                     {
                         services.Logger.LogWarning(ex, "Shop with slug '{UrlSlug}' not found", urlSlug);
-                        return Results.NotFound(RESTResult<object>.Fail(ex.Message));
+                        return Results.NotFound(RESTResult.Fail(ex.Message));
                     }
                 });
 
@@ -161,12 +139,12 @@ internal class ShopHandlers
                         await services.ShopRepository.UpdateAsync(shopToUpdate);
 
                         services.Logger.LogInformation("Shop {ShopId} was successfully updated by user {CurrentUserId}", id, currentUserId);
-                        return Results.Ok(shopToUpdate);
+                        return Results.Ok(MapShopToResponse(shopToUpdate));
                     }
                     catch (NotFoundEntityException ex)
                     {
                         services.Logger.LogWarning(ex, "Attempted to update a non-existent shop with ID {ShopId}", id);
-                        return Results.NotFound(RESTResult<object>.Fail(ex.Message));
+                        return Results.NotFound(RESTResult.Fail(ex.Message));
                     }
                 });
 
@@ -207,7 +185,20 @@ internal class ShopHandlers
                     catch (NotFoundEntityException ex)
                     {
                         services.Logger.LogWarning(ex, "Attempted to delete a non-existent shop with ID {ShopId}", id);
-                        return Results.NotFound(RESTResult<object>.Fail(ex.Message));
+                        return Results.NotFound(RESTResult.Fail(ex.Message));
                     }
                 });
+
+    #region
+    private static ShopResponse MapShopToResponse(Shop shop) => new()
+    {
+        Id = shop.Id,
+        Name = shop.Name,
+        Description = shop.Description,
+        UrlSlug = shop.UrlSlug,
+        LogoUrl = shop.LogoUrl,
+        BannerUrl = shop.BannerUrl,
+        CreatedAt = shop.CreatedAt
+    };
+    #endregion
 }

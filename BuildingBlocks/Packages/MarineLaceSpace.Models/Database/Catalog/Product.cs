@@ -16,6 +16,12 @@ public class Product
     [StringLength(2000)]
     public string Description { get; set; }
 
+    [Required]
+    public required string ShopId { get; set; }
+
+    [ForeignKey("ShopId")]
+    public virtual Shop Shop { get; set; }
+
     public string CategoryId { get; set; }
 
     [ForeignKey("CategoryId")]

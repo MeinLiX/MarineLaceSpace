@@ -13,21 +13,20 @@ public class Category
     public string Name { get; set; }
 
     [StringLength(500)]
-    public string Description { get; set; }
+    public string? Description { get; set; }
 
-    // Самореферентна зв'язка для побудови дерева категорій
-    public int? ParentCategoryId { get; set; }
+    public string? ParentCategoryId { get; set; }
 
     [ForeignKey("ParentCategoryId")]
-    public Category ParentCategory { get; set; }
+    public virtual Category? ParentCategory { get; set; }
 
-    public ICollection<Category> Subcategories { get; set; } = [];
-    public ICollection<Product> Products { get; set; } = [];
+    public virtual ICollection<Category> Subcategories { get; set; } = [];
+    public virtual ICollection<Product> Products { get; set; } = [];
 
     // Рівень вкладеності (для швидкого доступу)
     public int Level { get; set; } = 0;
 
     // Повний шлях категорії (для швидкого пошуку)
     [StringLength(1000)]
-    public string FullPath { get; set; }
+    public string? FullPath { get; set; }
 }

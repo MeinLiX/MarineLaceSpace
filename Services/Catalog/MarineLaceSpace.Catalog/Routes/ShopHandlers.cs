@@ -1,6 +1,7 @@
 ﻿using BB.Common.Routes;
 using MarineLaceSpace.DTO.Requests.Catalog;
 using MarineLaceSpace.DTO.Responses;
+using MarineLaceSpace.DTO.Responses.Catalog;
 using MarineLaceSpace.Exceptions.Repositories;
 using MarineLaceSpace.Interfaces.Repositories;
 using MarineLaceSpace.Models.Database.Catalog;
@@ -74,7 +75,19 @@ internal class ShopHandlers
                     {
                         services.Logger.LogInformation("Attempting to retrieve shop with ID {ShopId}", id);
                         var shop = await services.ShopRepository.GetByIdAsync(id);
-                        return Results.Ok(shop);
+
+                        var shopResponse = new ShopResponse
+                        {
+                            Id = shop.Id,
+                            Name = shop.Name,
+                            Description = shop.Description,
+                            UrlSlug = shop.UrlSlug,
+                            LogoUrl = shop.LogoUrl,
+                            BannerUrl = shop.BannerUrl,
+                            CreatedAt = shop.CreatedAt
+                        };
+
+                        return Results.Ok(shopResponse);
                     }
                     catch (NotFoundEntityException ex)
                     {
@@ -92,7 +105,19 @@ internal class ShopHandlers
                     {
                         services.Logger.LogInformation("Attempting to retrieve shop with slug '{UrlSlug}'", urlSlug);
                         var shop = await services.ShopRepository.GetBySlugAsync(urlSlug);
-                        return Results.Ok(shop);
+
+                        var shopResponse = new ShopResponse
+                        {
+                            Id = shop.Id,
+                            Name = shop.Name,
+                            Description = shop.Description,
+                            UrlSlug = shop.UrlSlug,
+                            LogoUrl = shop.LogoUrl,
+                            BannerUrl = shop.BannerUrl,
+                            CreatedAt = shop.CreatedAt
+                        };
+
+                        return Results.Ok(shopResponse);
                     }
                     catch (NotFoundEntityException ex)
                     {
@@ -136,7 +161,6 @@ internal class ShopHandlers
                         await services.ShopRepository.UpdateAsync(shopToUpdate);
 
                         services.Logger.LogInformation("Shop {ShopId} was successfully updated by user {CurrentUserId}", id, currentUserId);
-
                         return Results.Ok(shopToUpdate);
                     }
                     catch (NotFoundEntityException ex)

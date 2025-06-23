@@ -34,7 +34,8 @@ public static class AuthenticationExtension
             });
 
         services.AddAuthorizationBuilder()
-                .AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
+                .AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"))
+                .AddPolicy("SellersOnly", policy => policy.RequireRole("Seller"));
 
         return services;
     }

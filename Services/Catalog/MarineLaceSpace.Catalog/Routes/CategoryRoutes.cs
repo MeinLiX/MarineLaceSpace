@@ -32,5 +32,10 @@ public static class CategoryRoutes
         categoriesGroup.MapDelete("/{id}", CategoryHandlers.DeleteCategoryHandler)
             .WithSummary("Delete a category")
             .RequireAuthorization("AdminOnly");
+
+        categoriesGroup.MapGet("/{id}/products", CategoryHandlers.GetCategoryProductsHandler)
+            .WithSummary("Get products in a category")
+            .Produces<IRESTResult>(StatusCodes.Status200OK)
+            .Produces<IRESTResult>(StatusCodes.Status404NotFound);
     }
 }

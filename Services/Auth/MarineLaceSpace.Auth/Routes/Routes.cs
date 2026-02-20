@@ -59,6 +59,14 @@ public static class Routes
                   .RequireAuthorization()
                   .WithSummary("Get current user profile");
 
+        usersGroup.MapPut("me", AuthHandlers.UpdateCurrentUserProfileHandler)
+                  .RequireAuthorization()
+                  .WithSummary("Update current user profile");
+
+        usersGroup.MapGet("{id}", AuthHandlers.GetUserByIdHandler)
+                  .RequireAuthorization("AdminOnly")
+                  .WithSummary("Get user profile by ID");
+
         usersGroup.MapPost("{userId}/roles", AuthHandlers.AssignRoleHandler)
                   .RequireAuthorization("AdminOnly")
                   .WithSummary("Assign roles to a user");

@@ -78,7 +78,7 @@ apiGateway.WithReference(redis).WaitFor(redis)
 auth.WithReference(rabbitmq).WaitFor(rabbitmq)
     .WithReference(identitydb).WaitFor(identitydb);
 
-basket.WithReference(basketdb).WaitFor(basketdb)
+basket.WithReference(redis).WaitFor(redis)
       .WithReference(rabbitmq).WaitFor(rabbitmq);
 
 

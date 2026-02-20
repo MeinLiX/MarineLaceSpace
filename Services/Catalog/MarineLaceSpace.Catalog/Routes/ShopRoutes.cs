@@ -52,5 +52,13 @@ public static class ShopRoutes
             .Produces<IRESTResult>(StatusCodes.Status403Forbidden)
             .Produces<IRESTResult>(StatusCodes.Status404NotFound)
             .RequireAuthorization("SellersOnly");
+
+        shopsGroup.MapGet("/by-owner/{userId}", ShopHandlers.GetShopsByOwnerHandler)
+            .WithSummary("Get shops owned by a specific user")
+            .Produces<IRESTResult>(StatusCodes.Status200OK);
+
+        shopsGroup.MapGet("/{shopId}/reviews", ShopHandlers.GetShopReviewsHandler)
+            .WithSummary("Get reviews for all products in a shop")
+            .Produces<IRESTResult>(StatusCodes.Status200OK);
     }
 }

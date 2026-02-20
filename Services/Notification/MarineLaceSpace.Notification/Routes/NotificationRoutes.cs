@@ -10,5 +10,8 @@ public static class NotificationRoutes
         notificationsGroup.MapPost("/email", NotificationHandlers.SendEmailHandler)
             .WithSummary("Send an email notification")
             .RequireAuthorization("AdminOnly");
+
+        notificationsGroup.MapGet("/hub/info", NotificationHandlers.GetHubInfoHandler)
+            .WithSummary("Get SignalR hub connection info");
     }
 }

@@ -1,16 +1,12 @@
 using Basket.WebHost.Data;
 using BB.Common.Routes;
-using MarineLaceSpace.DTO.Common;
 using MarineLaceSpace.DTO.Requests.Basket;
 using MarineLaceSpace.DTO.Responses;
 using MarineLaceSpace.DTO.Responses.Basket;
 using MarineLaceSpace.Interfaces.EventBus;
-using MarineLaceSpace.Models.Database.Basket;
 using MarineLaceSpace.Models.Events;
 using MarineLaceSpace.Models.Routes;
-using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
-using System.Text.Json;
 
 namespace Basket.WebHost.Routes;
 
@@ -18,10 +14,9 @@ internal class BasketHandlers
 {
     private record BasketServices : BasicRouteServices
     {
-        public required BasketDbContext DbContext { get; init; }
+        public required IBasketRepository BasketRepository { get; init; }
         public required IHttpContextAccessor HttpContextAccessor { get; init; }
-        public required ILogger<BasketHandlers> Logger { get; init; }
-        public IEventBus? EventBus { get; init; }
+        public required IEventBus EventBus { get; init; }
     }
 
     private static string GetBuyerId(IHttpContextAccessor accessor)
@@ -35,14 +30,31 @@ internal class BasketHandlers
         return Guid.NewGuid().ToString();
     }
 
-    private static List<BasketItemResponse> DeserializeItems(string json)
+    private static BasketResponse ToResponse(string buyerId, BasketData? data)
     {
-        return JsonSerializer.Deserialize<List<BasketItemResponse>>(json) ?? [];
-    }
+        if (data == null)
+            return new BasketResponse { BuyerId = buyerId };
 
-    private static string SerializeItems(List<BasketItemResponse> items)
-    {
-        return JsonSerializer.Serialize(items);
+        return new BasketResponse
+        {
+            BuyerId = buyerId,
+            Items = data.Items.Select(i => new BasketItemResponse
+            {
+                ItemId = i.ItemId,
+                ProductId = i.ProductId,
+                ProductName = i.ProductName,
+                SizeId = i.SizeId,
+                SizeName = i.SizeName,
+                ColorId = i.ColorId,
+                ColorName = i.ColorName,
+                MaterialId = i.MaterialId,
+                MaterialName = i.MaterialName,
+                UnitPrice = i.UnitPrice,
+                Quantity = i.Quantity,
+                Personalization = i.Personalization,
+                ImageUrl = i.ImageUrl
+            }).ToList()
+        };
     }
 
     internal static Delegate GetBasketHandler =>
@@ -50,13 +62,8 @@ internal class BasketHandlers
             await RouteHandlers.RouteHandlerAsync<BasketServices>(sp, async (services) =>
             {
                 var buyerId = GetBuyerId(services.HttpContextAccessor);
-                var basket = await services.DbContext.Baskets.FindAsync(buyerId);
-
-                if (basket == null)
-                    return Results.Ok(new BasketResponse { BuyerId = buyerId });
-
-                var items = DeserializeItems(basket.ItemsJson);
-                return Results.Ok(new BasketResponse { BuyerId = buyerId, Items = items });
+                var basket = await services.BasketRepository.GetBasketAsync(buyerId);
+                return Results.Ok(ToResponse(buyerId, basket));
             });
 
     internal static Delegate AddItemHandler =>
@@ -65,21 +72,10 @@ internal class BasketHandlers
                 async (services) =>
                 {
                     var buyerId = GetBuyerId(services.HttpContextAccessor);
-                    var basket = await services.DbContext.Baskets.FindAsync(buyerId);
+                    var basket = await services.BasketRepository.GetBasketAsync(buyerId)
+                                 ?? new BasketData { BuyerId = buyerId };
 
-                    List<BasketItemResponse> items;
-                    if (basket == null)
-                    {
-                        basket = new BasketEntity { BuyerId = buyerId };
-                        items = [];
-                        await services.DbContext.Baskets.AddAsync(basket);
-                    }
-                    else
-                    {
-                        items = DeserializeItems(basket.ItemsJson);
-                    }
-
-                    var existingItem = items.FirstOrDefault(i =>
+                    var existingItem = basket.Items.FirstOrDefault(i =>
                         i.ProductId == request.ProductId &&
                         i.SizeId == request.SizeId &&
                         i.ColorId == request.ColorId &&
@@ -91,7 +87,7 @@ internal class BasketHandlers
                     }
                     else
                     {
-                        items.Add(new BasketItemResponse
+                        basket.Items.Add(new BasketItemData
                         {
                             ItemId = Guid.NewGuid().ToString(),
                             ProductId = request.ProductId,
@@ -109,11 +105,8 @@ internal class BasketHandlers
                         });
                     }
 
-                    basket.ItemsJson = SerializeItems(items);
-                    basket.UpdatedAt = DateTime.UtcNow;
-                    await services.DbContext.SaveChangesAsync();
-
-                    return Results.Ok(new BasketResponse { BuyerId = buyerId, Items = items });
+                    var updated = await services.BasketRepository.UpdateBasketAsync(buyerId, basket);
+                    return Results.Ok(ToResponse(buyerId, updated));
                 });
 
     internal static Delegate UpdateItemHandler =>
@@ -122,23 +115,19 @@ internal class BasketHandlers
                 async (services) =>
                 {
                     var buyerId = GetBuyerId(services.HttpContextAccessor);
-                    var basket = await services.DbContext.Baskets.FindAsync(buyerId);
+                    var basket = await services.BasketRepository.GetBasketAsync(buyerId);
                     if (basket == null) return Results.NotFound(RESTResult.Fail("Basket not found."));
 
-                    var items = DeserializeItems(basket.ItemsJson);
-                    var item = items.FirstOrDefault(i => i.ItemId == itemId);
+                    var item = basket.Items.FirstOrDefault(i => i.ItemId == itemId);
                     if (item == null) return Results.NotFound(RESTResult.Fail("Item not found in basket."));
 
                     if (request.Quantity.HasValue) item.Quantity = request.Quantity.Value;
                     if (request.Personalization != null) item.Personalization = request.Personalization;
 
-                    if (item.Quantity <= 0) items.Remove(item);
+                    if (item.Quantity <= 0) basket.Items.Remove(item);
 
-                    basket.ItemsJson = SerializeItems(items);
-                    basket.UpdatedAt = DateTime.UtcNow;
-                    await services.DbContext.SaveChangesAsync();
-
-                    return Results.Ok(new BasketResponse { BuyerId = buyerId, Items = items });
+                    var updated = await services.BasketRepository.UpdateBasketAsync(buyerId, basket);
+                    return Results.Ok(ToResponse(buyerId, updated));
                 });
 
     internal static Delegate RemoveItemHandler =>
@@ -146,19 +135,16 @@ internal class BasketHandlers
             await RouteHandlers.RouteHandlerAsync<BasketServices>(sp, async (services) =>
             {
                 var buyerId = GetBuyerId(services.HttpContextAccessor);
-                var basket = await services.DbContext.Baskets.FindAsync(buyerId);
+                var basket = await services.BasketRepository.GetBasketAsync(buyerId);
                 if (basket == null) return Results.NotFound(RESTResult.Fail("Basket not found."));
 
-                var items = DeserializeItems(basket.ItemsJson);
-                var item = items.FirstOrDefault(i => i.ItemId == itemId);
+                var item = basket.Items.FirstOrDefault(i => i.ItemId == itemId);
                 if (item == null) return Results.NotFound(RESTResult.Fail("Item not found in basket."));
 
-                items.Remove(item);
-                basket.ItemsJson = SerializeItems(items);
-                basket.UpdatedAt = DateTime.UtcNow;
-                await services.DbContext.SaveChangesAsync();
+                basket.Items.Remove(item);
+                await services.BasketRepository.UpdateBasketAsync(buyerId, basket);
 
-                return Results.Ok(new BasketResponse { BuyerId = buyerId, Items = items });
+                return Results.Ok(ToResponse(buyerId, basket));
             });
 
     internal static Delegate ClearBasketHandler =>
@@ -166,7 +152,7 @@ internal class BasketHandlers
             await RouteHandlers.RouteHandlerAsync<BasketServices>(sp, async (services) =>
             {
                 var buyerId = GetBuyerId(services.HttpContextAccessor);
-                var deleted = await services.DbContext.Baskets.Where(b => b.BuyerId == buyerId).ExecuteDeleteAsync();
+                await services.BasketRepository.DeleteBasketAsync(buyerId);
                 return Results.NoContent();
             });
 
@@ -180,44 +166,37 @@ internal class BasketHandlers
                     if (string.IsNullOrEmpty(buyerId))
                         return Results.Unauthorized();
 
-                    var basket = await services.DbContext.Baskets.FindAsync(buyerId);
-                    if (basket == null) return Results.BadRequest(RESTResult.Fail("Basket is empty."));
-
-                    var items = DeserializeItems(basket.ItemsJson);
-                    if (items.Count == 0) return Results.BadRequest(RESTResult.Fail("Basket is empty."));
+                    var basket = await services.BasketRepository.GetBasketAsync(buyerId);
+                    if (basket == null || basket.Items.Count == 0)
+                        return Results.BadRequest(RESTResult.Fail("Basket is empty."));
 
                     var buyerEmail = httpContext?.User.FindFirstValue(ClaimTypes.Email);
 
-                    if (services.EventBus != null)
+                    await services.EventBus.PublishAsync(new BasketCheckoutEvent
                     {
-                        await services.EventBus.PublishAsync(new BasketCheckoutEvent
+                        BuyerId = buyerId,
+                        BuyerEmail = buyerEmail,
+                        TotalPrice = basket.Items.Sum(i => i.UnitPrice * i.Quantity),
+                        ShippingAddress = request.ShippingAddress,
+                        Items = basket.Items.Select(i => new BasketCheckoutItem
                         {
-                            BuyerId = buyerId,
-                            BuyerEmail = buyerEmail,
-                            TotalPrice = items.Sum(i => i.UnitPrice * i.Quantity),
-                            ShippingAddress = request.ShippingAddress,
-                            Items = items.Select(i => new BasketCheckoutItem
-                            {
-                                ProductId = i.ProductId,
-                                ProductName = i.ProductName,
-                                SizeId = i.SizeId,
-                                SizeName = i.SizeName,
-                                ColorId = i.ColorId,
-                                ColorName = i.ColorName,
-                                MaterialId = i.MaterialId,
-                                MaterialName = i.MaterialName,
-                                UnitPrice = i.UnitPrice,
-                                Quantity = i.Quantity,
-                                Personalization = i.Personalization,
-                                ImageUrl = i.ImageUrl
-                            }).ToList()
-                        });
-                    }
+                            ProductId = i.ProductId,
+                            ProductName = i.ProductName,
+                            SizeId = i.SizeId,
+                            SizeName = i.SizeName,
+                            ColorId = i.ColorId,
+                            ColorName = i.ColorName,
+                            MaterialId = i.MaterialId,
+                            MaterialName = i.MaterialName,
+                            UnitPrice = i.UnitPrice,
+                            Quantity = i.Quantity,
+                            Personalization = i.Personalization,
+                            ImageUrl = i.ImageUrl
+                        }).ToList()
+                    });
 
-                    services.DbContext.Baskets.Remove(basket);
-                    await services.DbContext.SaveChangesAsync();
+                    await services.BasketRepository.DeleteBasketAsync(buyerId);
 
-                    services.Logger.LogInformation("Basket checkout for buyer {BuyerId}", buyerId);
                     return Results.Ok(RESTResult.Success("Checkout initiated. Order will be created."));
                 });
 }

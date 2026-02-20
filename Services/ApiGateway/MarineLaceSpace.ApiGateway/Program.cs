@@ -1,6 +1,71 @@
+using System.Threading.RateLimiting;
 using ApiGateway.WebHost.Middleware;
+using Microsoft.AspNetCore.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// CORS
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.WithOrigins(
+                builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+                ?? ["http://localhost:3000", "http://localhost:5173", "https://localhost:5173"])
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
+    });
+});
+
+// Rate Limiting
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.AddFixedWindowLimiter("fixed", opt =>
+    {
+        opt.PermitLimit = 100;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = 10;
+    });
+
+    options.AddSlidingWindowLimiter("sliding", opt =>
+    {
+        opt.PermitLimit = 60;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.SegmentsPerWindow = 6;
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = 5;
+    });
+
+    options.AddTokenBucketLimiter("auth", opt =>
+    {
+        opt.TokenLimit = 20;
+        opt.ReplenishmentPeriod = TimeSpan.FromMinutes(1);
+        opt.TokensPerPeriod = 10;
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = 5;
+    });
+
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+    {
+        var clientIp = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return RateLimitPartition.GetFixedWindowLimiter(clientIp, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 200,
+            Window = TimeSpan.FromMinutes(1)
+        });
+    });
+});
+
+// Register CORS, Rate Limiter, and WebSockets before auth (from AddServiceDefaults)
+builder.AddUseAfterBuild(
+    app => app.UseCors(),
+    app => app.UseRateLimiter(),
+    app => app.UseWebSockets()
+);
 
 builder.AddServiceDefaults();
 
@@ -18,8 +83,8 @@ var orderClient = "order-api";
 var paymentClient = "payment-api";
 var notificationClient = "notification-api";
 
-// Auth routes
-app.MapForward("/api/auth/{**rest}", authClient, "/auth");
+// Auth routes (rate limited to prevent brute-force)
+app.MapForward("/api/auth/{**rest}", authClient, "/auth").RequireRateLimiting("auth");
 app.MapForward("/api/users/{**rest}", authClient, "/users");
 
 // Catalog routes
@@ -39,7 +104,9 @@ app.MapForward("/api/orders/{**rest}", orderClient, "/api/orders");
 // Payment routes
 app.MapForward("/api/payments/{**rest}", paymentClient, "/api/payments");
 
-// Notification routes
+// Notification routes — SignalR hub endpoints before catch-all
+app.MapForward("/api/notifications/hub/negotiate", notificationClient, "/api/notifications/hub/negotiate");
+app.MapForward("/api/notifications/hub", notificationClient, "/api/notifications/hub");
 app.MapForward("/api/notifications/{**rest}", notificationClient, "/api/notifications");
 
 // Health check aggregation
@@ -69,9 +136,9 @@ await app.RunAsync();
 
 public static class GatewayExtensions
 {
-    public static void MapForward(this WebApplication app, string pattern, string serviceName, string targetPrefix)
+    public static RouteHandlerBuilder MapForward(this WebApplication app, string pattern, string serviceName, string targetPrefix)
     {
-        app.Map(pattern, async (HttpContext context, IHttpClientFactory httpClientFactory) =>
+        return app.Map(pattern, async (HttpContext context, IHttpClientFactory httpClientFactory) =>
         {
             var client = httpClientFactory.CreateClient(serviceName);
             var rest = context.Request.RouteValues["rest"]?.ToString() ?? "";
@@ -112,6 +179,26 @@ public static class GatewayExtensions
             context.Response.Headers.Remove("transfer-encoding");
 
             await response.Content.CopyToAsync(context.Response.Body);
+        });
+    }
+
+    public static void MapWebSocketForward(this WebApplication app, string pattern, string httpClientName, string targetPath)
+    {
+        app.Map(pattern, async (HttpContext context) =>
+        {
+            if (!context.WebSockets.IsWebSocketRequest)
+            {
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                await context.Response.WriteAsync("WebSocket upgrade required");
+                return;
+            }
+
+            var factory = context.RequestServices.GetRequiredService<IHttpClientFactory>();
+            var client = factory.CreateClient(httpClientName);
+
+            // Redirect the WebSocket client to the actual notification service
+            context.Response.StatusCode = StatusCodes.Status307TemporaryRedirect;
+            context.Response.Headers.Location = $"{client.BaseAddress}{targetPath}";
         });
     }
 }

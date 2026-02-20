@@ -1,4 +1,5 @@
 ﻿using BB.Common.Routes;
+using MarineLaceSpace.Catalog.Data.DBContexts;
 using MarineLaceSpace.DTO.Requests.Catalog;
 using MarineLaceSpace.DTO.Responses;
 using MarineLaceSpace.DTO.Responses.Catalog;
@@ -6,6 +7,7 @@ using MarineLaceSpace.Exceptions.Repositories;
 using MarineLaceSpace.Interfaces.Repositories;
 using MarineLaceSpace.Models.Database.Catalog;
 using MarineLaceSpace.Models.Routes;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
 namespace Catalog.WebHost.Routes;
@@ -188,6 +190,83 @@ internal class ShopHandlers
                         return Results.NotFound(RESTResult.Fail(ex.Message));
                     }
                 });
+
+    internal static Delegate GetShopsByOwnerHandler =>
+        async (string userId, IServiceProvider sp) =>
+            await RouteHandlers.RouteHandlerAsync<ShopServices>(sp, async services =>
+            {
+                try
+                {
+                    var dbContext = sp.GetRequiredService<CatalogDbContext>();
+                    var shops = await dbContext.Shops
+                        .Where(s => s.OwnerId == userId)
+                        .AsNoTracking()
+                        .Select(s => new ShopResponse
+                        {
+                            Id = s.Id,
+                            Name = s.Name,
+                            Description = s.Description,
+                            UrlSlug = s.UrlSlug,
+                            LogoUrl = s.LogoUrl,
+                            BannerUrl = s.BannerUrl,
+                            CreatedAt = s.CreatedAt
+                        })
+                        .ToListAsync();
+
+                    return Results.Ok(RESTResult<List<ShopResponse>>.Success(shops));
+                }
+                catch (Exception ex)
+                {
+                    return Results.BadRequest(RESTResult.Fail(ex.Message));
+                }
+            });
+
+    internal static Delegate GetShopReviewsHandler =>
+        async (string shopId, int page, int pageSize, IServiceProvider sp) =>
+            await RouteHandlers.RouteHandlerAsync<ShopServices>(sp, async services =>
+            {
+                try
+                {
+                    var dbContext = sp.GetRequiredService<CatalogDbContext>();
+
+                    var clampedPage = Math.Max(1, page);
+                    var clampedSize = Math.Clamp(pageSize, 1, 50);
+
+                    var shopProductIds = await dbContext.Products
+                        .Where(p => p.ShopId == shopId)
+                        .Select(p => p.Id)
+                        .ToListAsync();
+
+                    var totalCount = await dbContext.ProductReviews
+                        .Where(r => shopProductIds.Contains(r.ProductId))
+                        .CountAsync();
+
+                    var reviews = await dbContext.ProductReviews
+                        .Where(r => shopProductIds.Contains(r.ProductId))
+                        .OrderByDescending(r => r.CreatedAt)
+                        .Skip((clampedPage - 1) * clampedSize)
+                        .Take(clampedSize)
+                        .AsNoTracking()
+                        .Select(r => new ReviewResponse
+                        {
+                            Id = r.Id,
+                            ProductId = r.ProductId,
+                            Rating = r.Rating,
+                            Comment = r.Comment,
+                            UserName = r.UserName,
+                            CreatedAt = r.CreatedAt,
+                            IsVerified = r.IsVerified
+                        })
+                        .ToListAsync();
+
+                    var response = new { Items = reviews, TotalCount = totalCount, Page = clampedPage, PageSize = clampedSize };
+                    return Results.Ok(RESTResult<object>.Success(response));
+                }
+                catch (Exception ex)
+                {
+                    return Results.BadRequest(RESTResult.Fail(ex.Message));
+                }
+            });
 
     #region
     private static ShopResponse MapShopToResponse(Shop shop) => new()

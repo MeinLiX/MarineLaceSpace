@@ -14,6 +14,7 @@ internal class CategoryHandlers
     private record CategoryServices : BasicRouteServices
     {
         public required ICategoryRepository CategoryRepository { get; init; }
+        public required IProductRepository ProductRepository { get; init; }
         public required ILogger<CategoryHandlers> Logger { get; init; }
     }
 
@@ -114,6 +115,28 @@ internal class CategoryHandlers
                 catch (ValidationEntityException ex)
                 {
                     return Results.BadRequest(RESTResult.Fail(ex.Message));
+                }
+            });
+
+    internal static Delegate GetCategoryProductsHandler =>
+        async (string id, IServiceProvider sp) =>
+            await RouteHandlers.RouteHandlerAsync<CategoryServices>(sp, async (services) =>
+            {
+                try
+                {
+                    var products = await services.ProductRepository.GetByCategoryIdAsync(id);
+                    var response = products.Select(p => new ProductSummaryResponse
+                    {
+                        Id = p.Id,
+                        Name = p.Name,
+                        Price = p.ProductPrices.Any() ? p.ProductPrices.Min(pp => pp.BasePrice) : 0,
+                        MainImageUrl = p.Photos?.FirstOrDefault(ph => ph.IsMain)?.Url ?? p.Photos?.FirstOrDefault()?.Url
+                    });
+                    return Results.Ok(RESTResult<IEnumerable<ProductSummaryResponse>>.Success(response));
+                }
+                catch (NotFoundEntityException ex)
+                {
+                    return Results.NotFound(RESTResult.Fail(ex.Message));
                 }
             });
 

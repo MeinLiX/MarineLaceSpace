@@ -33,6 +33,20 @@ internal class PaymentHandlers
 
                     var email = services.HttpContextAccessor.HttpContext?.User.FindFirstValue(ClaimTypes.Email);
 
+                    // Check if a payment record already exists for this order (created by OrderCreatedEvent)
+                    var existingPayment = await services.DbContext.Payments
+                        .FirstOrDefaultAsync(p => p.OrderId == request.OrderId && p.StatusId == PaymentStatus.Pending.Id);
+
+                    if (existingPayment != null)
+                    {
+                        existingPayment.ProviderId = request.ProviderId;
+                        existingPayment.BuyerEmail = email;
+                        await services.DbContext.SaveChangesAsync();
+
+                        services.Logger.LogInformation("Existing payment {PaymentId} found for order {OrderId}", existingPayment.Id, existingPayment.OrderId);
+                        return Results.Ok(MapPaymentToResponse(existingPayment));
+                    }
+
                     var payment = new PaymentRecord
                     {
                         Id = Guid.NewGuid().ToString(),
@@ -40,7 +54,7 @@ internal class PaymentHandlers
                         ProviderId = request.ProviderId,
                         StatusId = PaymentStatus.Pending.Id,
                         BuyerEmail = email,
-                        Amount = 0 // Will be set from order data
+                        Amount = request.Amount
                     };
 
                     await services.DbContext.Payments.AddAsync(payment);
@@ -84,20 +98,47 @@ internal class PaymentHandlers
 
                 if (pendingPayment != null)
                 {
-                    pendingPayment.StatusId = PaymentStatus.Succeeded.Id;
-                    pendingPayment.CompletedAt = DateTime.UtcNow;
-                    pendingPayment.ProviderPaymentId = $"{provider}_{Guid.NewGuid():N}";
-                    await services.DbContext.SaveChangesAsync();
+                    // Simulate: 80% success, 20% failure for demo purposes
+                    var isSuccess = Random.Shared.Next(100) < 80;
 
-                    if (services.EventBus != null)
+                    if (isSuccess)
                     {
-                        await services.EventBus.PublishAsync(new PaymentSucceededEvent
+                        pendingPayment.StatusId = PaymentStatus.Succeeded.Id;
+                        pendingPayment.CompletedAt = DateTime.UtcNow;
+                        pendingPayment.ProviderPaymentId = $"{provider}_{Guid.NewGuid():N}";
+                        await services.DbContext.SaveChangesAsync();
+
+                        if (services.EventBus != null)
                         {
-                            PaymentId = pendingPayment.Id,
-                            OrderId = pendingPayment.OrderId,
-                            Amount = pendingPayment.Amount,
-                            BuyerEmail = pendingPayment.BuyerEmail
-                        });
+                            await services.EventBus.PublishAsync(new PaymentSucceededEvent
+                            {
+                                PaymentId = pendingPayment.Id,
+                                OrderId = pendingPayment.OrderId,
+                                Amount = pendingPayment.Amount,
+                                BuyerEmail = pendingPayment.BuyerEmail
+                            });
+                        }
+
+                        services.Logger.LogInformation("Payment {PaymentId} succeeded for order {OrderId}", pendingPayment.Id, pendingPayment.OrderId);
+                    }
+                    else
+                    {
+                        pendingPayment.StatusId = PaymentStatus.Failed.Id;
+                        pendingPayment.CompletedAt = DateTime.UtcNow;
+                        await services.DbContext.SaveChangesAsync();
+
+                        if (services.EventBus != null)
+                        {
+                            await services.EventBus.PublishAsync(new PaymentFailedEvent
+                            {
+                                PaymentId = pendingPayment.Id,
+                                OrderId = pendingPayment.OrderId,
+                                Reason = "Payment declined by provider.",
+                                BuyerEmail = pendingPayment.BuyerEmail
+                            });
+                        }
+
+                        services.Logger.LogWarning("Payment {PaymentId} failed for order {OrderId}", pendingPayment.Id, pendingPayment.OrderId);
                     }
                 }
 

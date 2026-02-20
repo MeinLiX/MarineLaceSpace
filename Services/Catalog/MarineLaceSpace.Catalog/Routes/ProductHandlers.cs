@@ -1,4 +1,5 @@
 ﻿using BB.Common.Routes;
+using MarineLaceSpace.Catalog.Data.DBContexts;
 using MarineLaceSpace.DTO.Requests.Catalog;
 using MarineLaceSpace.DTO.Responses;
 using MarineLaceSpace.DTO.Responses.Catalog;
@@ -6,6 +7,7 @@ using MarineLaceSpace.Exceptions.Repositories;
 using MarineLaceSpace.Interfaces.Repositories;
 using MarineLaceSpace.Models.Database.Catalog;
 using MarineLaceSpace.Models.Routes;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
 namespace Catalog.WebHost.Routes;
@@ -219,6 +221,124 @@ internal class ProductHandlers
                 });
 
 
+
+    internal static Delegate GetActiveProductsHandler =>
+        async (string? categoryId, string? search, decimal? minPrice, decimal? maxPrice,
+            int page, int pageSize, IServiceProvider sp) =>
+            await RouteHandlers.RouteHandlerAsync<ProductServices>(sp, async services =>
+            {
+                try
+                {
+                    var dbContext = sp.GetRequiredService<CatalogDbContext>();
+                    var query = dbContext.Products
+                        .Where(p => p.IsActive)
+                        .Include(p => p.Photos)
+                        .Include(p => p.ProductPrices)
+                        .AsNoTracking();
+
+                    if (!string.IsNullOrEmpty(categoryId))
+                        query = query.Where(p => p.CategoryId == categoryId);
+
+                    if (!string.IsNullOrEmpty(search))
+                        query = query.Where(p => p.Name.Contains(search) || (p.Description != null && p.Description.Contains(search)));
+
+                    if (minPrice.HasValue)
+                        query = query.Where(p => p.ProductPrices.Any(pp => pp.BasePrice >= minPrice.Value));
+
+                    if (maxPrice.HasValue)
+                        query = query.Where(p => p.ProductPrices.Any(pp => pp.BasePrice <= maxPrice.Value));
+
+                    var totalCount = await query.CountAsync();
+
+                    var clampedPage = Math.Max(1, page);
+                    var clampedSize = Math.Clamp(pageSize, 1, 50);
+
+                    var products = await query
+                        .OrderByDescending(p => p.CreatedAt)
+                        .Skip((clampedPage - 1) * clampedSize)
+                        .Take(clampedSize)
+                        .ToListAsync();
+
+                    var response = new
+                    {
+                        Items = products.Select(p => new ProductSummaryResponse
+                        {
+                            Id = p.Id,
+                            Name = p.Name,
+                            Price = p.ProductPrices.FirstOrDefault()?.BasePrice ?? 0,
+                            MainImageUrl = p.Photos.FirstOrDefault(ph => ph.IsMain)?.Url ?? p.Photos.FirstOrDefault()?.Url
+                        }),
+                        TotalCount = totalCount,
+                        Page = clampedPage,
+                        PageSize = clampedSize,
+                        TotalPages = (int)Math.Ceiling(totalCount / (double)clampedSize)
+                    };
+
+                    return Results.Ok(RESTResult<object>.Success(response));
+                }
+                catch (Exception ex)
+                {
+                    return Results.BadRequest(RESTResult.Fail(ex.Message));
+                }
+            });
+
+    internal static Delegate GetProductsBatchHandler =>
+        async (List<string> ids, IServiceProvider sp) =>
+            await RouteHandlers.RouteHandlerAsync<ProductServices>(sp, async services =>
+            {
+                try
+                {
+                    var dbContext = sp.GetRequiredService<CatalogDbContext>();
+                    var products = await dbContext.Products
+                        .Where(p => ids.Contains(p.Id))
+                        .Include(p => p.Photos)
+                        .Include(p => p.ProductPrices)
+                        .AsNoTracking()
+                        .ToListAsync();
+
+                    var response = products.Select(p => new ProductSummaryResponse
+                    {
+                        Id = p.Id,
+                        Name = p.Name,
+                        Price = p.ProductPrices.FirstOrDefault()?.BasePrice ?? 0,
+                        MainImageUrl = p.Photos.FirstOrDefault(ph => ph.IsMain)?.Url ?? p.Photos.FirstOrDefault()?.Url
+                    });
+
+                    return Results.Ok(RESTResult<IEnumerable<ProductSummaryResponse>>.Success(response));
+                }
+                catch (Exception ex)
+                {
+                    return Results.BadRequest(RESTResult.Fail(ex.Message));
+                }
+            });
+
+    internal static Delegate GetProductInventoryHandler =>
+        async (string productId, IServiceProvider sp) =>
+            await RouteHandlers.RouteHandlerAsync<ProductServices>(sp, async services =>
+            {
+                try
+                {
+                    var dbContext = sp.GetRequiredService<CatalogDbContext>();
+                    var inventory = await dbContext.ProductPrices
+                        .Where(pp => pp.ProductId == productId)
+                        .AsNoTracking()
+                        .Select(pp => new ProductInventoryItemResponse
+                        {
+                            SizeId = pp.ProductSizeId,
+                            ColorId = pp.ProductColorId,
+                            MaterialId = pp.ProductMaterialId,
+                            Price = pp.BasePrice,
+                            Quantity = pp.Quantity
+                        })
+                        .ToListAsync();
+
+                    return Results.Ok(RESTResult<List<ProductInventoryItemResponse>>.Success(inventory));
+                }
+                catch (Exception ex)
+                {
+                    return Results.NotFound(RESTResult.Fail(ex.Message));
+                }
+            });
 
     #region 
     private static ProductDetailResponse MapProductToDetailResponse(Product product)

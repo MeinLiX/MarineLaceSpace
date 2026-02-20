@@ -83,7 +83,9 @@ internal class AuthHandlers
                             Id = Guid.NewGuid().ToString(),
                             Email = registerDto.Email,
                             UserName = registerDto.Email,
-                            EmailConfirmed = true
+                            EmailConfirmed = true,
+                            FirstName = registerDto.FirstName,
+                            LastName = registerDto.LastName
                         };
 
                         if (!registerDto.IsAnonumous)
@@ -273,6 +275,78 @@ internal class AuthHandlers
                     catch (NotFoundEntityException)
                     {
                         return Results.NotFound(RESTResult.Fail("User not found."));
+                    }
+                });
+
+    internal static Delegate GetUserByIdHandler =>
+        async (string id, [FromServices] IServiceProvider serviceProvider) =>
+            await RouteHandlers.RouteHandlerAsync<AuthServices>(serviceProvider,
+                async (services) =>
+                {
+                    try
+                    {
+                        var user = await services.AuthUserRepository.GetByIdAsync(id);
+                        var roles = await services.UserManager.GetRolesAsync(user);
+
+                        return Results.Ok(RESTResult<UserProfileResponse>.Success(new UserProfileResponse
+                        {
+                            Id = user.Id,
+                            Email = user.Email ?? string.Empty,
+                            FirstName = user.FirstName,
+                            LastName = user.LastName,
+                            PhoneNumber = user.PhoneNumber,
+                            IsAnonymous = user.IsAnonimous,
+                            CreatedAt = user.CreatedAt,
+                            Roles = roles.ToList()
+                        }));
+                    }
+                    catch (NotFoundEntityException)
+                    {
+                        return Results.NotFound(RESTResult.Fail("User not found."));
+                    }
+                });
+
+    internal static Delegate UpdateCurrentUserProfileHandler =>
+        async ([FromBody] UpdateUserProfileDto dto,
+               [FromServices] IServiceProvider serviceProvider) =>
+            await RouteHandlers.RouteHandlerAsync<UpdateUserProfileDto, AuthServices>(dto, serviceProvider,
+                async (services) =>
+                {
+                    try
+                    {
+                        var httpContextAccessor = serviceProvider.GetRequiredService<IHttpContextAccessor>();
+                        var userId = httpContextAccessor.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier);
+                        if (string.IsNullOrEmpty(userId))
+                            return Results.Unauthorized();
+
+                        var user = await services.AuthUserRepository.GetByIdAsync(userId);
+
+                        if (dto.FirstName != null) user.FirstName = dto.FirstName;
+                        if (dto.LastName != null) user.LastName = dto.LastName;
+                        if (dto.PhoneNumber != null) user.PhoneNumber = dto.PhoneNumber;
+
+                        await services.AuthUserRepository.UpdateAsync(user);
+                        var roles = await services.UserManager.GetRolesAsync(user);
+
+                        return Results.Ok(RESTResult<UserProfileResponse>.Success(new UserProfileResponse
+                        {
+                            Id = user.Id,
+                            Email = user.Email ?? string.Empty,
+                            FirstName = user.FirstName,
+                            LastName = user.LastName,
+                            PhoneNumber = user.PhoneNumber,
+                            IsAnonymous = user.IsAnonimous,
+                            CreatedAt = user.CreatedAt,
+                            Roles = roles.ToList()
+                        }));
+                    }
+                    catch (NotFoundEntityException)
+                    {
+                        return Results.NotFound(RESTResult.Fail("User not found."));
+                    }
+                    catch (Exception ex)
+                    {
+                        return Results.BadRequest(RESTResult.Fail(ex.Message));
                     }
                 });
 }

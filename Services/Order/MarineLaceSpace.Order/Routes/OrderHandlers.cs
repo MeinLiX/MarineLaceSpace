@@ -63,6 +63,7 @@ internal class OrderHandlers
             await RouteHandlers.RouteHandlerAsync<OrderServices>(sp, async (services) =>
             {
                 var orders = await services.DbContext.Orders
+                    .Where(o => o.ShopId == shopId)
                     .Include(o => o.Items)
                     .OrderByDescending(o => o.CreatedAt)
                     .AsNoTracking()

@@ -51,5 +51,18 @@ public static class ProductRoutes
             .Produces<IRESTResult>(StatusCodes.Status403Forbidden)
             .Produces<IRESTResult>(StatusCodes.Status404NotFound)
             .RequireAuthorization("SellersOnly");
+
+        productsGroup.MapGet("/products/active", ProductHandlers.GetActiveProductsHandler)
+            .WithSummary("Get active products with optional filters and pagination")
+            .Produces<IRESTResult>(StatusCodes.Status200OK);
+
+        productsGroup.MapPost("/products/batch", ProductHandlers.GetProductsBatchHandler)
+            .WithSummary("Get multiple products by IDs")
+            .Produces<IRESTResult>(StatusCodes.Status200OK);
+
+        productsGroup.MapGet("/products/{productId}/inventory", ProductHandlers.GetProductInventoryHandler)
+            .WithSummary("Get inventory details for a specific product")
+            .Produces<IRESTResult>(StatusCodes.Status200OK)
+            .Produces<IRESTResult>(StatusCodes.Status404NotFound);
     }
 }

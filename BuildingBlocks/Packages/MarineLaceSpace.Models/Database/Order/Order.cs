@@ -12,6 +12,8 @@ public class Order
 
     public string? BuyerEmail { get; set; }
 
+    public string? ShopId { get; set; }
+
     public string ShippingFullName { get; set; } = string.Empty;
     public string ShippingAddressLine1 { get; set; } = string.Empty;
     public string? ShippingAddressLine2 { get; set; }

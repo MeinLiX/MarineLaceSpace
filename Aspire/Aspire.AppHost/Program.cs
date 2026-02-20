@@ -68,8 +68,12 @@ var payment = builder.AddProject<Payment_WebHost>("payment-api")
 #region projects references
 
 apiGateway.WithReference(redis).WaitFor(redis)
+          .WithReference(auth).WaitFor(auth)
+          .WithReference(catalog).WaitFor(catalog)
+          .WithReference(basket).WaitFor(basket)
           .WithReference(order).WaitFor(order)
-          .WithReference(basket).WaitFor(basket);
+          .WithReference(payment).WaitFor(payment)
+          .WithReference(notification).WaitFor(notification);
 
 auth.WithReference(rabbitmq).WaitFor(rabbitmq)
     .WithReference(identitydb).WaitFor(identitydb);

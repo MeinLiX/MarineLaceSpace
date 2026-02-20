@@ -34,6 +34,7 @@ public class BasketItemData
     public int Quantity { get; set; }
     public string? Personalization { get; set; }
     public string? ImageUrl { get; set; }
+    public string? ShopId { get; set; }
 }
 
 public class RedisBasketRepository : IBasketRepository

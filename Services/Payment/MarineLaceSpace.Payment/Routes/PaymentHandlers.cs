@@ -10,6 +10,7 @@ using MarineLaceSpace.Models.Routes;
 using Microsoft.EntityFrameworkCore;
 using Payment.WebHost.Data;
 using System.Security.Claims;
+using RefundStatus = MarineLaceSpace.Enumerations.RefundStatus;
 
 namespace Payment.WebHost.Routes;
 
@@ -58,6 +59,15 @@ internal class PaymentHandlers
                     };
 
                     await services.DbContext.Payments.AddAsync(payment);
+
+                    await services.DbContext.PaymentStatusHistory.AddAsync(new PaymentStatusHistory
+                    {
+                        PaymentId = payment.Id,
+                        OldStatusId = 0,
+                        NewStatusId = PaymentStatus.Pending.Id,
+                        Note = "Payment created via checkout."
+                    });
+
                     await services.DbContext.SaveChangesAsync();
 
                     services.Logger.LogInformation("Payment {PaymentId} created for order {OrderId}", payment.Id, payment.OrderId);
@@ -103,9 +113,19 @@ internal class PaymentHandlers
 
                     if (isSuccess)
                     {
+                        var oldStatusId = pendingPayment.StatusId;
                         pendingPayment.StatusId = PaymentStatus.Succeeded.Id;
                         pendingPayment.CompletedAt = DateTime.UtcNow;
                         pendingPayment.ProviderPaymentId = $"{provider}_{Guid.NewGuid():N}";
+
+                        await services.DbContext.PaymentStatusHistory.AddAsync(new PaymentStatusHistory
+                        {
+                            PaymentId = pendingPayment.Id,
+                            OldStatusId = oldStatusId,
+                            NewStatusId = PaymentStatus.Succeeded.Id,
+                            Note = $"Payment succeeded via {provider} webhook."
+                        });
+
                         await services.DbContext.SaveChangesAsync();
 
                         if (services.EventBus != null)
@@ -123,8 +143,18 @@ internal class PaymentHandlers
                     }
                     else
                     {
+                        var oldStatusId = pendingPayment.StatusId;
                         pendingPayment.StatusId = PaymentStatus.Failed.Id;
                         pendingPayment.CompletedAt = DateTime.UtcNow;
+
+                        await services.DbContext.PaymentStatusHistory.AddAsync(new PaymentStatusHistory
+                        {
+                            PaymentId = pendingPayment.Id,
+                            OldStatusId = oldStatusId,
+                            NewStatusId = PaymentStatus.Failed.Id,
+                            Note = $"Payment failed via {provider} webhook."
+                        });
+
                         await services.DbContext.SaveChangesAsync();
 
                         if (services.EventBus != null)
@@ -146,21 +176,113 @@ internal class PaymentHandlers
             });
 
     internal static Delegate RefundHandler =>
+        async (string id, RefundPaymentRequest request, IServiceProvider sp) =>
+            await RouteHandlers.RouteHandlerAsync<RefundPaymentRequest, PaymentServices>(request, sp,
+                async (services) =>
+                {
+                    var payment = await services.DbContext.Payments.FindAsync(id);
+                    if (payment == null) return Results.NotFound(RESTResult.Fail("Payment not found."));
+
+                    if (payment.StatusId != PaymentStatus.Succeeded.Id && payment.StatusId != PaymentStatus.PartiallyRefunded.Id)
+                        return Results.BadRequest(RESTResult.Fail("Only succeeded or partially refunded payments can be refunded."));
+
+                    var refundAmount = request.Amount ?? payment.Amount;
+
+                    // Calculate already refunded total
+                    var alreadyRefunded = await services.DbContext.Refunds
+                        .Where(r => r.PaymentId == id && (r.StatusId == RefundStatus.Completed.Id || r.StatusId == RefundStatus.Approved.Id))
+                        .SumAsync(r => r.Amount);
+
+                    if (refundAmount + alreadyRefunded > payment.Amount)
+                        return Results.BadRequest(RESTResult.Fail("Refund amount exceeds the remaining refundable amount."));
+
+                    var refund = new RefundRecord
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        PaymentId = id,
+                        Amount = refundAmount,
+                        Reason = request.Reason,
+                        StatusId = RefundStatus.Completed.Id,
+                        InitiatedBy = services.HttpContextAccessor.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier),
+                        CompletedAt = DateTime.UtcNow
+                    };
+                    await services.DbContext.Refunds.AddAsync(refund);
+
+                    var oldStatusId = payment.StatusId;
+                    var isFullRefund = refundAmount + alreadyRefunded >= payment.Amount;
+                    payment.StatusId = isFullRefund ? PaymentStatus.Refunded.Id : PaymentStatus.PartiallyRefunded.Id;
+                    payment.CompletedAt = DateTime.UtcNow;
+
+                    await services.DbContext.PaymentStatusHistory.AddAsync(new PaymentStatusHistory
+                    {
+                        PaymentId = id,
+                        OldStatusId = oldStatusId,
+                        NewStatusId = payment.StatusId,
+                        Note = isFullRefund
+                            ? $"Full refund of {refundAmount}. Reason: {request.Reason}"
+                            : $"Partial refund of {refundAmount}. Reason: {request.Reason}"
+                    });
+
+                    await services.DbContext.SaveChangesAsync();
+
+                    if (services.EventBus != null)
+                    {
+                        await services.EventBus.PublishAsync(new PaymentRefundedEvent
+                        {
+                            PaymentId = payment.Id,
+                            OrderId = payment.OrderId,
+                            RefundId = refund.Id,
+                            RefundAmount = refundAmount,
+                            BuyerEmail = payment.BuyerEmail,
+                            Reason = request.Reason
+                        });
+                    }
+
+                    services.Logger.LogInformation("Payment {PaymentId} refunded {Amount} (RefundId: {RefundId})", id, refundAmount, refund.Id);
+                    return Results.Ok(MapPaymentToResponse(payment));
+                });
+
+    internal static Delegate GetPaymentHistoryHandler =>
         async (string id, IServiceProvider sp) =>
             await RouteHandlers.RouteHandlerAsync<PaymentServices>(sp, async (services) =>
             {
-                var payment = await services.DbContext.Payments.FindAsync(id);
+                var payment = await services.DbContext.Payments
+                    .Include(p => p.StatusHistory)
+                    .Include(p => p.Refunds)
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(p => p.Id == id);
+
                 if (payment == null) return Results.NotFound(RESTResult.Fail("Payment not found."));
 
-                if (payment.StatusId != PaymentStatus.Succeeded.Id)
-                    return Results.BadRequest(RESTResult.Fail("Only succeeded payments can be refunded."));
+                var response = new PaymentHistoryResponse
+                {
+                    PaymentId = payment.Id,
+                    OrderId = payment.OrderId,
+                    Amount = payment.Amount,
+                    Status = PaymentStatus.FromId<PaymentStatus>(payment.StatusId)?.Name ?? "Unknown",
+                    StatusChanges = payment.StatusHistory
+                        .OrderBy(h => h.ChangedAt)
+                        .Select(h => new StatusChangeEntry
+                        {
+                            OldStatus = PaymentStatus.FromId<PaymentStatus>(h.OldStatusId)?.Name ?? "None",
+                            NewStatus = PaymentStatus.FromId<PaymentStatus>(h.NewStatusId)?.Name ?? "Unknown",
+                            Note = h.Note,
+                            ChangedAt = h.ChangedAt
+                        }).ToList(),
+                    Refunds = payment.Refunds
+                        .OrderByDescending(r => r.CreatedAt)
+                        .Select(r => new RefundEntry
+                        {
+                            Id = r.Id,
+                            Amount = r.Amount,
+                            Reason = r.Reason,
+                            Status = RefundStatus.FromId<RefundStatus>(r.StatusId)?.Name ?? "Unknown",
+                            CreatedAt = r.CreatedAt,
+                            CompletedAt = r.CompletedAt
+                        }).ToList()
+                };
 
-                payment.StatusId = PaymentStatus.Refunded.Id;
-                payment.CompletedAt = DateTime.UtcNow;
-                await services.DbContext.SaveChangesAsync();
-
-                services.Logger.LogInformation("Payment {PaymentId} refunded", id);
-                return Results.Ok(MapPaymentToResponse(payment));
+                return Results.Ok(response);
             });
 
     private static PaymentResponse MapPaymentToResponse(PaymentRecord p) => new()

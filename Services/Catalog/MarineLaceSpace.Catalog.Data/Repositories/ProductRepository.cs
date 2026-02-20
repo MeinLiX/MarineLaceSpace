@@ -69,6 +69,7 @@ public class ProductRepository(CatalogDbContext context) : IProductRepository
                 .ThenInclude(pc => pc.Color)
             .Include(p => p.AvailableMaterials)
                 .ThenInclude(pm => pm.Material)
+            .AsSplitQuery()
             .AsNoTracking()
             .FirstOrDefaultAsync(p => p.Id == id)
             ?? throw new NotFoundEntityException($"Product with ID '{id}' not found.");
@@ -88,6 +89,7 @@ public class ProductRepository(CatalogDbContext context) : IProductRepository
             .Where(p => categoryIds.Contains(p.CategoryId) && p.IsActive)
             .Include(p => p.Photos)
             .Include(p => p.ProductPrices)
+            .AsSplitQuery()
             .AsNoTracking()
             .ToListAsync();
     }

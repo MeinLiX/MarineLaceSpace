@@ -1,4 +1,5 @@
 ﻿using BB.Common.Extensions;
+using BB.Common.Middleware;
 using FluentValidation;
 using MarineLaceSpace.DTO.Validation;
 using Microsoft.AspNetCore.Builder;
@@ -58,6 +59,11 @@ public static class TBuilderExtensions
         {
             builder.Services.AddCommonOptions(builder.Configuration);
         }
+
+        builder.AddUseAfterBuild(
+            app => app.UseMiddleware<CorrelationLogMiddleware>(),
+            app => app.UseMiddleware<ServiceExceptionMiddleware>()
+        );
 
         builder.AddUseAfterBuild(app => app.MapDefaultEndpoints());
 

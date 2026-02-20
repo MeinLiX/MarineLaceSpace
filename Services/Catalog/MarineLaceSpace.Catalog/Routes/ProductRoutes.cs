@@ -56,6 +56,9 @@ public static class ProductRoutes
             .WithSummary("Get active products with optional filters and pagination")
             .Produces<IRESTResult>(StatusCodes.Status200OK);
 
+        productsGroup.MapGet("/products/search", ProductHandlers.SearchProductsHandler)
+            .WithSummary("Search products by name, description, or tags");
+
         productsGroup.MapPost("/products/batch", ProductHandlers.GetProductsBatchHandler)
             .WithSummary("Get multiple products by IDs")
             .Produces<IRESTResult>(StatusCodes.Status200OK);

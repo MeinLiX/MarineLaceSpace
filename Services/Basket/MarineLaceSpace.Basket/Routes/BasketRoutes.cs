@@ -25,6 +25,16 @@ public static class BasketRoutes
         basketGroup.MapDelete("/", BasketHandlers.ClearBasketHandler)
             .WithSummary("Clear the entire basket");
 
+        basketGroup.MapGet("/count", BasketHandlers.GetBasketCountHandler)
+            .WithSummary("Get basket item count");
+
+        basketGroup.MapGet("/total", BasketHandlers.GetBasketTotalHandler)
+            .WithSummary("Get basket total price");
+
+        basketGroup.MapPost("/merge", BasketHandlers.MergeBasketHandler)
+            .WithSummary("Merge anonymous basket into authenticated user's basket")
+            .RequireAuthorization();
+
         basketGroup.MapPost("/checkout", BasketHandlers.CheckoutHandler)
             .WithSummary("Checkout basket and create order")
             .RequireAuthorization()

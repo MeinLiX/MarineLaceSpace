@@ -47,6 +47,18 @@ public static class Routes
                  .Produces<IRESTResult>(StatusCodes.Status200OK)
                  .Produces<IRESTResult>(StatusCodes.Status400BadRequest);
 
+        authGroup.MapPost("change-password", AuthHandlers.ChangePasswordHandler)
+                 .RequireAuthorization()
+                 .WithSummary("Change current user password")
+                 .Produces<IRESTResult>(StatusCodes.Status200OK)
+                 .Produces<IRESTResult>(StatusCodes.Status400BadRequest)
+                 .AddValidationResponseType();
+
+        authGroup.MapPost("logout", AuthHandlers.LogoutHandler)
+                 .RequireAuthorization()
+                 .WithSummary("Logout and revoke all refresh tokens")
+                 .Produces<IRESTResult>(StatusCodes.Status200OK);
+
         return authGroup;
     }
 

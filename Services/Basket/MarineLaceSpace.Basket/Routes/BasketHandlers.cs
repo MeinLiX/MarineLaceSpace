@@ -52,8 +52,11 @@ internal class BasketHandlers
                 UnitPrice = i.UnitPrice,
                 Quantity = i.Quantity,
                 Personalization = i.Personalization,
-                ImageUrl = i.ImageUrl
-            }).ToList()
+                ImageUrl = i.ImageUrl,
+                ShopId = i.ShopId
+            }).ToList(),
+            TotalPrice = data.Items.Sum(i => i.UnitPrice * i.Quantity),
+            TotalItems = data.Items.Sum(i => i.Quantity)
         };
     }
 
@@ -101,7 +104,8 @@ internal class BasketHandlers
                             UnitPrice = request.UnitPrice,
                             Quantity = request.Quantity,
                             Personalization = request.Personalization,
-                            ImageUrl = request.ImageUrl
+                            ImageUrl = request.ImageUrl,
+                            ShopId = request.ShopId
                         });
                     }
 
@@ -156,6 +160,73 @@ internal class BasketHandlers
                 return Results.NoContent();
             });
 
+    internal static Delegate GetBasketCountHandler =>
+        async (IServiceProvider sp) =>
+            await RouteHandlers.RouteHandlerAsync<BasketServices>(sp, async (services) =>
+            {
+                var buyerId = GetBuyerId(services.HttpContextAccessor);
+                var basket = await services.BasketRepository.GetBasketAsync(buyerId);
+                var itemCount = basket?.Items.Sum(i => i.Quantity) ?? 0;
+                var uniqueItems = basket?.Items.Count ?? 0;
+                return Results.Ok(new { ItemCount = itemCount, UniqueItems = uniqueItems });
+            });
+
+    internal static Delegate GetBasketTotalHandler =>
+        async (IServiceProvider sp) =>
+            await RouteHandlers.RouteHandlerAsync<BasketServices>(sp, async (services) =>
+            {
+                var buyerId = GetBuyerId(services.HttpContextAccessor);
+                var basket = await services.BasketRepository.GetBasketAsync(buyerId);
+                if (basket == null || basket.Items.Count == 0)
+                    return Results.Ok(new { Total = 0m, ItemCount = 0, Currency = "UAH" });
+
+                var total = basket.Items.Sum(i => i.UnitPrice * i.Quantity);
+                var itemCount = basket.Items.Sum(i => i.Quantity);
+                return Results.Ok(new { Total = total, ItemCount = itemCount, Currency = "UAH" });
+            });
+
+    internal static Delegate MergeBasketHandler =>
+        async (MergeBasketRequest request, IServiceProvider sp) =>
+            await RouteHandlers.RouteHandlerAsync<MergeBasketRequest, BasketServices>(request, sp,
+                async (services) =>
+                {
+                    var httpContext = services.HttpContextAccessor.HttpContext;
+                    var userId = httpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier);
+                    if (string.IsNullOrEmpty(userId)) return Results.Unauthorized();
+
+                    var anonymousBasketId = $"anon-{request.SessionId}";
+                    var anonymousBasket = await services.BasketRepository.GetBasketAsync(anonymousBasketId);
+                    if (anonymousBasket == null || anonymousBasket.Items.Count == 0)
+                        return Results.Ok(RESTResult.Success("No anonymous basket to merge."));
+
+                    var userBasket = await services.BasketRepository.GetBasketAsync(userId)
+                                     ?? new BasketData { BuyerId = userId };
+
+                    foreach (var anonItem in anonymousBasket.Items)
+                    {
+                        var existingItem = userBasket.Items.FirstOrDefault(i =>
+                            i.ProductId == anonItem.ProductId &&
+                            i.SizeId == anonItem.SizeId &&
+                            i.ColorId == anonItem.ColorId &&
+                            i.MaterialId == anonItem.MaterialId);
+
+                        if (existingItem != null)
+                        {
+                            existingItem.Quantity += anonItem.Quantity;
+                        }
+                        else
+                        {
+                            anonItem.ItemId = Guid.NewGuid().ToString();
+                            userBasket.Items.Add(anonItem);
+                        }
+                    }
+
+                    await services.BasketRepository.UpdateBasketAsync(userId, userBasket);
+                    await services.BasketRepository.DeleteBasketAsync(anonymousBasketId);
+
+                    return Results.Ok(ToResponse(userId, userBasket));
+                });
+
     internal static Delegate CheckoutHandler =>
         async (BasketCheckoutRequest request, IServiceProvider sp) =>
             await RouteHandlers.RouteHandlerAsync<BasketCheckoutRequest, BasketServices>(request, sp,
@@ -191,7 +262,8 @@ internal class BasketHandlers
                             UnitPrice = i.UnitPrice,
                             Quantity = i.Quantity,
                             Personalization = i.Personalization,
-                            ImageUrl = i.ImageUrl
+                            ImageUrl = i.ImageUrl,
+                            ShopId = i.ShopId
                         }).ToList()
                     });
 

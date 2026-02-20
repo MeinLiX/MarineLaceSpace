@@ -29,6 +29,7 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options) : DbCo
         modelBuilder.Entity<Shop>(entity =>
         {
             entity.HasIndex(s => s.UrlSlug).IsUnique();
+            entity.HasIndex(s => s.OwnerId);
             entity.HasMany(s => s.Products)
                   .WithOne(p => p.Shop)
                   .HasForeignKey(p => p.ShopId)
@@ -41,6 +42,7 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options) : DbCo
                   .WithMany(c => c.Subcategories)
                   .HasForeignKey(c => c.ParentCategoryId)
                   .OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(c => c.ParentCategoryId);
         });
 
         modelBuilder.Entity<Product>(entity =>
@@ -62,6 +64,17 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options) : DbCo
 
             entity.HasIndex(p => new { p.ProductId, p.ProductSizeId, p.ProductColorId, p.ProductMaterialId })
                   .IsUnique();
+        });
+
+        modelBuilder.Entity<ProductReview>(entity =>
+        {
+            entity.HasIndex(r => r.ProductId);
+            entity.HasIndex(r => r.CreatedAt);
+        });
+
+        modelBuilder.Entity<ProductPhoto>(entity =>
+        {
+            entity.HasIndex(p => p.ProductId);
         });
 
         modelBuilder.Entity<ProductSize>(entity =>

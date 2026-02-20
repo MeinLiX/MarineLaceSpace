@@ -1,4 +1,5 @@
 using BB.Common.Routes;
+using Catalog.WebHost.Services;
 using MarineLaceSpace.DTO.Requests.Catalog;
 using MarineLaceSpace.DTO.Responses;
 using MarineLaceSpace.DTO.Responses.Catalog;
@@ -15,6 +16,7 @@ internal class CategoryHandlers
     {
         public required ICategoryRepository CategoryRepository { get; init; }
         public required IProductRepository ProductRepository { get; init; }
+        public required ICategoryCacheService CategoryCacheService { get; init; }
         public required ILogger<CategoryHandlers> Logger { get; init; }
     }
 
@@ -22,8 +24,14 @@ internal class CategoryHandlers
         async (IServiceProvider sp) =>
             await RouteHandlers.RouteHandlerAsync<CategoryServices>(sp, async (services) =>
             {
+                const string cacheKey = "categories:tree";
+                var cached = await services.CategoryCacheService.GetAsync<List<CategoryResponse>>(cacheKey);
+                if (cached != null) return Results.Ok(cached);
+
                 var rootCategories = await services.CategoryRepository.GetByParentIdAsync(null);
                 var response = rootCategories.Select(MapCategoryToResponse).ToList();
+
+                await services.CategoryCacheService.SetAsync(cacheKey, response, TimeSpan.FromMinutes(30));
                 return Results.Ok(response);
             });
 
@@ -73,6 +81,7 @@ internal class CategoryHandlers
                     };
 
                     var created = await services.CategoryRepository.AddAsync(newCategory);
+                    await services.CategoryCacheService.InvalidateCategoryTreeAsync();
                     return Results.Created($"/api/categories/{created.Id}", MapCategoryToResponse(created));
                 });
 
@@ -91,6 +100,7 @@ internal class CategoryHandlers
                             : request.Name;
 
                         await services.CategoryRepository.UpdateAsync(category);
+                        await services.CategoryCacheService.InvalidateCategoryTreeAsync();
                         return Results.Ok(MapCategoryToResponse(category));
                     }
                     catch (NotFoundEntityException ex)
@@ -106,6 +116,7 @@ internal class CategoryHandlers
                 try
                 {
                     await services.CategoryRepository.DeleteAsync(id);
+                    await services.CategoryCacheService.InvalidateCategoryTreeAsync();
                     return Results.NoContent();
                 }
                 catch (NotFoundEntityException ex)

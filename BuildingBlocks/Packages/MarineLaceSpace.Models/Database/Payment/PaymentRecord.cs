@@ -25,4 +25,7 @@ public class PaymentRecord
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? CompletedAt { get; set; }
+
+    public virtual ICollection<RefundRecord> Refunds { get; set; } = [];
+    public virtual ICollection<PaymentStatusHistory> StatusHistory { get; set; } = [];
 }

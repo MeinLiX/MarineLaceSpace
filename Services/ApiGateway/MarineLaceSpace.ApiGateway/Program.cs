@@ -18,6 +18,21 @@ builder.Services.AddCors(options =>
     });
 });
 
+// Response Compression
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.BrotliCompressionProvider>();
+    options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProvider>();
+    options.MimeTypes = Microsoft.AspNetCore.ResponseCompression.ResponseCompressionDefaults.MimeTypes.Concat(
+        ["application/json", "text/plain"]);
+});
+
+builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.BrotliCompressionProviderOptions>(options =>
+{
+    options.Level = System.IO.Compression.CompressionLevel.Fastest;
+});
+
 // Rate Limiting
 builder.Services.AddRateLimiter(options =>
 {
@@ -60,9 +75,10 @@ builder.Services.AddRateLimiter(options =>
     });
 });
 
-// Register CORS, Rate Limiter, and WebSockets before auth (from AddServiceDefaults)
+// Register CORS, Response Compression, Rate Limiter, and WebSockets before auth (from AddServiceDefaults)
 builder.AddUseAfterBuild(
     app => app.UseCors(),
+    app => app.UseResponseCompression(),
     app => app.UseRateLimiter(),
     app => app.UseWebSockets()
 );
@@ -73,6 +89,8 @@ var app = builder.BuildWithPostActions();
 
 // Middleware pipeline
 app.UseMiddleware<CorrelationMiddleware>();
+app.UseMiddleware<ExceptionHandlerMiddleware>();
+app.UseMiddleware<RequestTimeoutMiddleware>();
 app.UseMiddleware<RequestLoggerMiddleware>();
 
 // Reverse Proxy routes — forward to microservices
@@ -113,24 +131,43 @@ app.MapForward("/api/notifications/{**rest}", notificationClient, "/api/notifica
 app.MapGet("/api/health", async (IHttpClientFactory httpClientFactory) =>
 {
     var services = new[] { authClient, catalogClient, basketClient, orderClient, paymentClient, notificationClient };
-    var results = new Dictionary<string, string>();
+    var results = new Dictionary<string, object>();
+    var overallHealthy = true;
 
-    foreach (var service in services)
+    var tasks = services.Select(async service =>
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         try
         {
             var client = httpClientFactory.CreateClient(service);
             var response = await client.GetStringAsync("/health");
-            results[service] = response;
+            sw.Stop();
+            return (service, result: (object)new { status = "Healthy", responseTimeMs = sw.ElapsedMilliseconds, details = response });
         }
         catch (Exception ex)
         {
-            results[service] = $"Error: {ex.Message}";
+            sw.Stop();
+            return (service, result: (object)new { status = "Unhealthy", responseTimeMs = sw.ElapsedMilliseconds, error = ex.Message });
         }
+    });
+
+    var completedTasks = await Task.WhenAll(tasks);
+    foreach (var (service, result) in completedTasks)
+    {
+        results[service] = result;
+        if (result.GetType().GetProperty("status")?.GetValue(result)?.ToString() != "Healthy")
+            overallHealthy = false;
     }
 
-    return Results.Ok(results);
-}).WithTags("Health").WithSummary("Aggregated health check");
+    var healthResponse = new
+    {
+        status = overallHealthy ? "Healthy" : "Degraded",
+        timestamp = DateTime.UtcNow,
+        services = results
+    };
+
+    return overallHealthy ? Results.Ok(healthResponse) : Results.Json(healthResponse, statusCode: StatusCodes.Status207MultiStatus);
+}).WithTags("Health").WithSummary("Aggregated health check with timing");
 
 await app.RunAsync();
 
@@ -158,6 +195,13 @@ public static class GatewayExtensions
             {
                 if (!header.Key.StartsWith("Host", StringComparison.OrdinalIgnoreCase))
                     requestMessage.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
+            }
+
+            // Ensure correlation ID is forwarded
+            var correlationId = context.Items["CorrelationId"]?.ToString();
+            if (!string.IsNullOrEmpty(correlationId))
+            {
+                requestMessage.Headers.TryAddWithoutValidation("X-Correlation-ID", correlationId);
             }
 
             // Forward body for POST/PUT/PATCH

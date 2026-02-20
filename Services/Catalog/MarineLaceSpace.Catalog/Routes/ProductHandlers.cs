@@ -340,6 +340,50 @@ internal class ProductHandlers
                 }
             });
 
+    internal static Delegate SearchProductsHandler =>
+        async (string q, int? page, int? pageSize, IServiceProvider sp) =>
+            await RouteHandlers.RouteHandlerAsync<ProductServices>(sp, async (services) =>
+            {
+                if (string.IsNullOrWhiteSpace(q) || q.Length < 2)
+                    return Results.BadRequest(RESTResult.Fail("Search query must be at least 2 characters."));
+
+                var dbContext = sp.GetRequiredService<CatalogDbContext>();
+                var searchTerm = q.Trim().ToLower();
+                var query = dbContext.Products
+                    .Where(p => p.IsActive && (
+                        EF.Functions.ILike(p.Name, $"%{searchTerm}%") ||
+                        EF.Functions.ILike(p.Description ?? "", $"%{searchTerm}%")
+                    ));
+
+                var totalCount = await query.CountAsync();
+                var pg = page ?? 1;
+                var ps = Math.Clamp(pageSize ?? 20, 1, 100);
+
+                var products = await query
+                    .OrderByDescending(p => p.CreatedAt)
+                    .Skip((pg - 1) * ps)
+                    .Take(ps)
+                    .Include(p => p.Photos)
+                    .Include(p => p.ProductPrices)
+                    .AsNoTracking()
+                    .ToListAsync();
+
+                return Results.Ok(new
+                {
+                    TotalCount = totalCount,
+                    Page = pg,
+                    PageSize = ps,
+                    Query = q,
+                    Items = products.Select(p => new ProductSummaryResponse
+                    {
+                        Id = p.Id,
+                        Name = p.Name,
+                        Price = p.ProductPrices.FirstOrDefault()?.BasePrice ?? 0,
+                        MainImageUrl = p.Photos.FirstOrDefault(ph => ph.IsMain)?.Url ?? p.Photos.FirstOrDefault()?.Url
+                    })
+                });
+            });
+
     #region 
     private static ProductDetailResponse MapProductToDetailResponse(Product product)
     {

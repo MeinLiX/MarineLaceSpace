@@ -14,4 +14,5 @@ public class AddBasketItemRequest
     public int Quantity { get; set; } = 1;
     public string? Personalization { get; set; }
     public string? ImageUrl { get; set; }
+    public string? ShopId { get; set; }
 }

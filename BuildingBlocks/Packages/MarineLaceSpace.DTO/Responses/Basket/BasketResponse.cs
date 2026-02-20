@@ -4,7 +4,8 @@ public class BasketResponse
 {
     public string BuyerId { get; set; } = string.Empty;
     public List<BasketItemResponse> Items { get; set; } = [];
-    public decimal TotalPrice => Items.Sum(i => i.UnitPrice * i.Quantity);
+    public decimal TotalPrice { get; set; }
+    public int TotalItems { get; set; }
 }
 
 public class BasketItemResponse
@@ -22,4 +23,5 @@ public class BasketItemResponse
     public int Quantity { get; set; }
     public string? Personalization { get; set; }
     public string? ImageUrl { get; set; }
+    public string? ShopId { get; set; }
 }

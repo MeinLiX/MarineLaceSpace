@@ -6,6 +6,7 @@ using MarineLaceSpace.Enumerations;
 using MarineLaceSpace.Interfaces.EventBus;
 using MarineLaceSpace.Models.Events;
 using MarineLaceSpace.Models.Routes;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Order.WebHost.Data;
@@ -24,20 +25,31 @@ internal class OrderHandlers
     }
 
     internal static Delegate GetMyOrdersHandler =>
-        async (IServiceProvider sp) =>
+        async ([AsParameters] OrderFilterRequest filter, IServiceProvider sp) =>
             await RouteHandlers.RouteHandlerAsync<OrderServices>(sp, async (services) =>
             {
                 var userId = services.HttpContextAccessor.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier);
                 if (string.IsNullOrEmpty(userId)) return Results.Unauthorized();
 
-                var orders = await services.DbContext.Orders
+                var query = services.DbContext.Orders
                     .Where(o => o.BuyerId == userId)
+                    .AsNoTracking();
+
+                query = ApplyFilters(query, filter);
+                var totalCount = await query.CountAsync();
+                query = ApplySorting(query, filter.SortBy, filter.SortDesc ?? true);
+
+                var page = Math.Max(1, filter.Page ?? 1);
+                var pageSize = Math.Clamp(filter.PageSize ?? 20, 1, 100);
+
+                var orders = await query
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
                     .Include(o => o.Items)
-                    .OrderByDescending(o => o.CreatedAt)
-                    .AsNoTracking()
                     .ToListAsync();
 
-                return Results.Ok(orders.Select(MapOrderToResponse));
+                var response = new { TotalCount = totalCount, Page = page, PageSize = pageSize, Items = orders.Select(MapOrderToResponse) };
+                return Results.Ok(response);
             });
 
     internal static Delegate GetOrderByIdHandler =>
@@ -59,17 +71,63 @@ internal class OrderHandlers
             });
 
     internal static Delegate GetShopOrdersHandler =>
+        async (string shopId, [AsParameters] OrderFilterRequest filter, IServiceProvider sp) =>
+            await RouteHandlers.RouteHandlerAsync<OrderServices>(sp, async (services) =>
+            {
+                var query = services.DbContext.Orders
+                    .Where(o => o.ShopId == shopId)
+                    .AsNoTracking();
+
+                query = ApplyFilters(query, filter);
+                var totalCount = await query.CountAsync();
+                query = ApplySorting(query, filter.SortBy, filter.SortDesc ?? true);
+
+                var page = Math.Max(1, filter.Page ?? 1);
+                var pageSize = Math.Clamp(filter.PageSize ?? 20, 1, 100);
+
+                var orders = await query
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .Include(o => o.Items)
+                    .ToListAsync();
+
+                var response = new { TotalCount = totalCount, Page = page, PageSize = pageSize, Items = orders.Select(MapOrderToResponse) };
+                return Results.Ok(response);
+            });
+
+    internal static Delegate GetShopOrderStatisticsHandler =>
         async (string shopId, IServiceProvider sp) =>
             await RouteHandlers.RouteHandlerAsync<OrderServices>(sp, async (services) =>
             {
                 var orders = await services.DbContext.Orders
                     .Where(o => o.ShopId == shopId)
-                    .Include(o => o.Items)
-                    .OrderByDescending(o => o.CreatedAt)
                     .AsNoTracking()
                     .ToListAsync();
 
-                return Results.Ok(orders.Select(MapOrderToResponse));
+                var totalOrders = orders.Count;
+                var totalRevenue = orders.Sum(o => o.TotalPrice);
+                var averageOrderValue = totalOrders > 0 ? Math.Round(totalRevenue / totalOrders, 2) : 0m;
+
+                var ordersByStatus = orders
+                    .GroupBy(o => o.StatusId)
+                    .Select(g => new
+                    {
+                        Status = OrderStatus.FromId<OrderStatus>(g.Key)?.Name ?? "Unknown",
+                        Count = g.Count(),
+                        Revenue = g.Sum(o => o.TotalPrice)
+                    })
+                    .OrderBy(s => s.Status)
+                    .ToList();
+
+                var response = new
+                {
+                    TotalOrders = totalOrders,
+                    TotalRevenue = totalRevenue,
+                    AverageOrderValue = averageOrderValue,
+                    OrdersByStatus = ordersByStatus
+                };
+
+                return Results.Ok(response);
             });
 
     internal static Delegate UpdateOrderStatusHandler =>
@@ -147,6 +205,11 @@ internal class OrderHandlers
                 if (currentStatus == OrderStatus.Shipped || currentStatus == OrderStatus.Delivered || currentStatus == OrderStatus.Completed)
                     return Results.BadRequest(RESTResult.Fail("Cannot cancel order in current status."));
 
+                if (currentStatus != OrderStatus.New
+                    && (currentStatus == OrderStatus.Paid || currentStatus == OrderStatus.Processing)
+                    && (DateTime.UtcNow - order.CreatedAt).TotalHours > 24)
+                    return Results.BadRequest(RESTResult.Fail("Cancellation window has expired. Please contact support."));
+
                 var oldStatus = currentStatus?.Name ?? "Unknown";
                 order.StatusId = OrderStatus.Canceled.Id;
                 order.UpdatedAt = DateTime.UtcNow;
@@ -166,6 +229,29 @@ internal class OrderHandlers
 
                 return Results.Ok(MapOrderToResponse(order));
             });
+
+    private static IQueryable<MarineLaceSpace.Models.Database.Order.Order> ApplyFilters(
+        IQueryable<MarineLaceSpace.Models.Database.Order.Order> query, OrderFilterRequest filter)
+    {
+        if (filter.StatusId.HasValue)
+            query = query.Where(o => o.StatusId == filter.StatusId.Value);
+        if (filter.FromDate.HasValue)
+            query = query.Where(o => o.CreatedAt >= filter.FromDate.Value);
+        if (filter.ToDate.HasValue)
+            query = query.Where(o => o.CreatedAt <= filter.ToDate.Value);
+        return query;
+    }
+
+    private static IQueryable<MarineLaceSpace.Models.Database.Order.Order> ApplySorting(
+        IQueryable<MarineLaceSpace.Models.Database.Order.Order> query, string? sortBy, bool sortDesc)
+    {
+        return (sortBy?.ToLowerInvariant()) switch
+        {
+            "totalprice" => sortDesc ? query.OrderByDescending(o => o.TotalPrice) : query.OrderBy(o => o.TotalPrice),
+            "status" => sortDesc ? query.OrderByDescending(o => o.StatusId) : query.OrderBy(o => o.StatusId),
+            _ => sortDesc ? query.OrderByDescending(o => o.CreatedAt) : query.OrderBy(o => o.CreatedAt),
+        };
+    }
 
     private static OrderResponse MapOrderToResponse(MarineLaceSpace.Models.Database.Order.Order order) => new()
     {

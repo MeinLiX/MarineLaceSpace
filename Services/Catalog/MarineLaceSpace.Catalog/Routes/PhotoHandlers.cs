@@ -1,4 +1,5 @@
 using BB.Common.Routes;
+using MarineLaceSpace.DTO.Requests.Catalog;
 using MarineLaceSpace.DTO.Responses;
 using MarineLaceSpace.DTO.Responses.Catalog;
 using MarineLaceSpace.Exceptions.Repositories;
@@ -91,6 +92,35 @@ internal class PhotoHandlers
                     return Results.NotFound(RESTResult.Fail(ex.Message));
                 }
             });
+
+    internal static Delegate UpdatePhotoHandler =>
+        async (string imageId, UpdatePhotoRequest request, IServiceProvider sp) =>
+            await RouteHandlers.RouteHandlerAsync<UpdatePhotoRequest, PhotoServices>(request, sp,
+                async (services) =>
+                {
+                    try
+                    {
+                        var photo = await services.PhotoRepository.GetByIdAsync(imageId);
+
+                        if (request.AltText != null) photo.Title = request.AltText;
+                        if (request.SortOrder.HasValue) photo.SortOrder = request.SortOrder.Value;
+                        if (request.IsMain.HasValue) photo.IsMain = request.IsMain.Value;
+
+                        await services.PhotoRepository.UpdateAsync(photo);
+                        return Results.Ok(new ProductPhotoResponse
+                        {
+                            Id = photo.Id,
+                            Url = photo.Url,
+                            AltText = photo.Title,
+                            SortOrder = photo.SortOrder,
+                            IsMain = photo.IsMain
+                        });
+                    }
+                    catch (NotFoundEntityException ex)
+                    {
+                        return Results.NotFound(RESTResult.Fail(ex.Message));
+                    }
+                });
 
     private static ProductPhotoResponse MapPhotoToResponse(ProductPhoto p) => new()
     {

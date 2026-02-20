@@ -1,4 +1,5 @@
 using Catalog.WebHost.Routes;
+using Catalog.WebHost.Services;
 using MarineLaceSpace.Catalog.Data.DBContexts;
 using MarineLaceSpace.Catalog.Data.Repositories;
 using MarineLaceSpace.Interfaces.Repositories;
@@ -10,6 +11,18 @@ builder.Services.AddDbContext<CatalogDbContext>(options =>
 {
     options.UseNpgsql(connectionString);
 });
+
+var redisConnectionString = builder.Configuration.GetConnectionString("redis");
+if (!string.IsNullOrEmpty(redisConnectionString))
+{
+    builder.Services.AddStackExchangeRedisCache(options => { options.Configuration = redisConnectionString; });
+}
+else
+{
+    builder.Services.AddDistributedMemoryCache();
+}
+
+builder.Services.AddSingleton<ICategoryCacheService, CategoryCacheService>();
 
 builder.Services.AddScoped<IShopRepository, ShopRepository>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();

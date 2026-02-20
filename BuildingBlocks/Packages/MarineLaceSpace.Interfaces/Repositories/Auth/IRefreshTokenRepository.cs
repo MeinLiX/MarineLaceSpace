@@ -6,4 +6,6 @@ public interface IRefreshTokenRepository : IRepository<RefreshToken>
 {
     Task<RefreshToken> GetByTokenAsync(string token, bool includeUser = true);
     Task DeleteExpiredTokensAsync();
+    Task RevokeTokenFamilyAsync(string tokenFamily);
+    Task RevokeAllUserTokensAsync(string userId);
 }

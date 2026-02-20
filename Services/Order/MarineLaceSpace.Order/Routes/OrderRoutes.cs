@@ -36,5 +36,9 @@ public static class OrderRoutes
         shopOrdersGroup.MapGet("/", OrderHandlers.GetShopOrdersHandler)
             .WithSummary("Get orders for a shop")
             .RequireAuthorization("SellersOnly");
+
+        shopOrdersGroup.MapGet("/statistics", OrderHandlers.GetShopOrderStatisticsHandler)
+            .WithSummary("Get order statistics for a shop")
+            .RequireAuthorization("SellersOnly");
     }
 }

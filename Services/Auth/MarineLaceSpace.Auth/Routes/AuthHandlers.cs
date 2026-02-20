@@ -22,6 +22,7 @@ internal class AuthHandlers
         public required IAuthUserRepository AuthUserRepository { get; init; }
         public required IRefreshTokenRepository RefreshTokenRepository { get; init; }
         public required UserManager<AuthUser> UserManager { get; init; }
+        public required SignInManager<AuthUser> SignInManager { get; init; }
         public required JwtTokenService JwtTokenService { get; init; }
         public required ILogger<AuthHandlers> Logger { get; init; }
         public IEventBus? EventBus { get; init; }
@@ -42,8 +43,14 @@ internal class AuthHandlers
                             return Results.BadRequest(RESTResult.Fail("Invalid credentials."));
                         }
 
-                        var isPasswordValid = await services.UserManager.CheckPasswordAsync(user, loginDto.Password);
-                        if (!isPasswordValid)
+                        var signInResult = await services.SignInManager.CheckPasswordSignInAsync(user, loginDto.Password, lockoutOnFailure: true);
+
+                        if (signInResult.IsLockedOut)
+                        {
+                            return Results.BadRequest(RESTResult.Fail("Account is temporarily locked. Try again later."));
+                        }
+
+                        if (!signInResult.Succeeded)
                         {
                             return Results.BadRequest(RESTResult.Fail("Invalid credentials."));
                         }
@@ -110,7 +117,7 @@ internal class AuthHandlers
                         }
 
                         var (accessToken, accessExpiresAt) = await services.JwtTokenService.GenerateAccessTokenAsync(newUser);
-                        var refreshToken = services.JwtTokenService.GenerateRefreshToken(newUser.Id);
+                        var refreshToken = services.JwtTokenService.GenerateRefreshToken(newUser.Id, Guid.NewGuid().ToString());
                         await services.RefreshTokenRepository.AddAsync(refreshToken);
 
                         if (services.EventBus != null)
@@ -151,7 +158,14 @@ internal class AuthHandlers
                     {
                         var existingToken = await services.RefreshTokenRepository.GetByTokenAsync(refreshTokenDto.RefreshToken);
 
-                        if (existingToken.IsRevoked || existingToken.ExpiryDate < DateTime.UtcNow)
+                        if (existingToken.IsRevoked)
+                        {
+                            services.Logger.LogWarning("Token reuse detected for family {TokenFamily}, user {UserId}", existingToken.TokenFamily, existingToken.UserId);
+                            await services.RefreshTokenRepository.RevokeTokenFamilyAsync(existingToken.TokenFamily);
+                            return Results.Json(RESTResult.Fail("Token reuse detected. All sessions have been revoked."), statusCode: StatusCodes.Status401Unauthorized);
+                        }
+
+                        if (existingToken.ExpiryDate < DateTime.UtcNow)
                         {
                             return Results.BadRequest(RESTResult.Fail("Invalid or expired refresh token."));
                         }
@@ -161,7 +175,7 @@ internal class AuthHandlers
                         await services.RefreshTokenRepository.DeleteAsync(existingToken.Id);
 
                         var (accessToken, accessExpiresAt) = await services.JwtTokenService.GenerateAccessTokenAsync(user);
-                        var newRefreshToken = services.JwtTokenService.GenerateRefreshToken(user.Id);
+                        var newRefreshToken = services.JwtTokenService.GenerateRefreshToken(user.Id, existingToken.TokenFamily);
                         await services.RefreshTokenRepository.AddAsync(newRefreshToken);
 
                         return Results.Ok(RESTResult<RefreshTokenResponseDto>.Success(new RefreshTokenResponseDto
@@ -348,5 +362,56 @@ internal class AuthHandlers
                     {
                         return Results.BadRequest(RESTResult.Fail(ex.Message));
                     }
+                });
+
+    internal static Delegate ChangePasswordHandler =>
+        async ([FromBody] ChangePasswordDto dto,
+               [FromServices] IServiceProvider serviceProvider) =>
+            await RouteHandlers.RouteHandlerAsync<ChangePasswordDto, AuthServices>(dto, serviceProvider,
+                async (services) =>
+                {
+                    var httpContextAccessor = serviceProvider.GetRequiredService<IHttpContextAccessor>();
+                    var userId = httpContextAccessor.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier);
+                    if (string.IsNullOrEmpty(userId))
+                        return Results.Unauthorized();
+
+                    try
+                    {
+                        var user = await services.AuthUserRepository.GetByIdAsync(userId);
+
+                        var result = await services.UserManager.ChangePasswordAsync(user, dto.CurrentPassword, dto.NewPassword);
+                        if (!result.Succeeded)
+                        {
+                            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+                            return Results.BadRequest(RESTResult.Fail(errors));
+                        }
+
+                        await services.RefreshTokenRepository.RevokeAllUserTokensAsync(userId);
+
+                        services.Logger.LogInformation("User {UserId} changed password successfully", userId);
+
+                        return Results.Ok(RESTResult.Success("Password changed successfully. Please log in again."));
+                    }
+                    catch (NotFoundEntityException)
+                    {
+                        return Results.NotFound(RESTResult.Fail("User not found."));
+                    }
+                });
+
+    internal static Delegate LogoutHandler =>
+        async ([FromServices] IServiceProvider serviceProvider) =>
+            await RouteHandlers.RouteHandlerAsync<AuthServices>(serviceProvider,
+                async (services) =>
+                {
+                    var httpContextAccessor = serviceProvider.GetRequiredService<IHttpContextAccessor>();
+                    var userId = httpContextAccessor.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier);
+                    if (string.IsNullOrEmpty(userId))
+                        return Results.Unauthorized();
+
+                    await services.RefreshTokenRepository.RevokeAllUserTokensAsync(userId);
+
+                    services.Logger.LogInformation("User {UserId} logged out, all refresh tokens revoked", userId);
+
+                    return Results.Ok(RESTResult.Success("Logged out successfully."));
                 });
 }

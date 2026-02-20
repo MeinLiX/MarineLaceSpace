@@ -27,14 +27,23 @@ builder.Services.AddIdentityCore<AuthUser>(options =>
     options.User.RequireUniqueEmail = true;
 })
 .AddRoles<IdentityRole>()
+.AddSignInManager()
 .AddEntityFrameworkStores<AuthIdentityDbContext>()
 .AddDefaultTokenProviders();
+
+builder.Services.Configure<IdentityOptions>(options =>
+{
+    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+    options.Lockout.MaxFailedAccessAttempts = 5;
+    options.Lockout.AllowedForNewUsers = true;
+});
 
 builder.Services.AddScoped<BB.Common.Data.DBContexts.AuthDbContext>(sp =>
     sp.GetRequiredService<AuthIdentityDbContext>());
 builder.Services.AddScoped<IAuthUserRepository, AuthUserRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped<JwtTokenService>();
+builder.Services.AddHostedService<TokenCleanupService>();
 
 var rabbitConnectionString = builder.Configuration.GetConnectionString("rabbitmq");
 if (!string.IsNullOrEmpty(rabbitConnectionString))

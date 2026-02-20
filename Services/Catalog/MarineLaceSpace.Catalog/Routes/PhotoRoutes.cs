@@ -22,5 +22,9 @@ public static class PhotoRoutes
         photosGroup.MapDelete("/shops/{shopId}/products/{productId}/images/{imageId}", PhotoHandlers.DeletePhotoHandler)
             .WithSummary("Delete a product photo")
             .RequireAuthorization("SellersOnly");
+
+        photosGroup.MapPut("/images/{imageId}", PhotoHandlers.UpdatePhotoHandler)
+            .WithSummary("Update photo metadata")
+            .RequireAuthorization("SellersOnly");
     }
 }

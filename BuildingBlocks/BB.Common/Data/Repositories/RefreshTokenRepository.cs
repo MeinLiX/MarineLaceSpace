@@ -41,6 +41,20 @@ public class RefreshTokenRepository : IRefreshTokenRepository
                         .ExecuteDeleteAsync();
     }
 
+    public async Task RevokeTokenFamilyAsync(string tokenFamily)
+    {
+        await _dbContext.RefreshTokens
+                        .Where(rt => rt.TokenFamily == tokenFamily && !rt.IsRevoked)
+                        .ExecuteUpdateAsync(s => s.SetProperty(rt => rt.IsRevoked, true));
+    }
+
+    public async Task RevokeAllUserTokensAsync(string userId)
+    {
+        await _dbContext.RefreshTokens
+                        .Where(rt => rt.UserId == userId && !rt.IsRevoked)
+                        .ExecuteUpdateAsync(s => s.SetProperty(rt => rt.IsRevoked, true));
+    }
+
     public async Task<RefreshToken> GetByIdAsync(string entityId)
     {
         return await _dbContext.RefreshTokens.FindAsync(entityId) ?? throw new NotFoundEntityException();

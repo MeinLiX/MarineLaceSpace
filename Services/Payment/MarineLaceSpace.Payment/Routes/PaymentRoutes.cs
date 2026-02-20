@@ -25,6 +25,10 @@ public static class PaymentRoutes
             .WithSummary("Refund a payment")
             .RequireAuthorization("AdminOnly");
 
+        paymentsGroup.MapGet("/{id}/history", PaymentHandlers.GetPaymentHistoryHandler)
+            .WithSummary("Get payment history")
+            .RequireAuthorization();
+
         app.MapGroup("/api/orders/{orderId}/payments")
             .WithTags("Payments")
             .MapGet("/", PaymentHandlers.GetPaymentsByOrderHandler)

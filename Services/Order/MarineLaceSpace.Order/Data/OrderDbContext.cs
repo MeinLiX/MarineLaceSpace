@@ -14,6 +14,9 @@ public class OrderDbContext(DbContextOptions<OrderDbContext> options) : DbContex
         modelBuilder.Entity<MarineLaceSpace.Models.Database.Order.Order>(entity =>
         {
             entity.HasIndex(o => o.BuyerId);
+            entity.HasIndex(o => o.ShopId);
+            entity.HasIndex(o => o.StatusId);
+            entity.HasIndex(o => o.CreatedAt);
             entity.Property(o => o.TotalPrice).HasPrecision(18, 2);
             entity.HasMany(o => o.Items)
                   .WithOne(i => i.Order)
@@ -23,6 +26,7 @@ public class OrderDbContext(DbContextOptions<OrderDbContext> options) : DbContex
 
         modelBuilder.Entity<MarineLaceSpace.Models.Database.Order.OrderItem>(entity =>
         {
+            entity.HasIndex(i => i.OrderId);
             entity.Property(i => i.UnitPrice).HasPrecision(18, 2);
         });
     }

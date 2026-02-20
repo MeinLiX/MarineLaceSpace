@@ -20,6 +20,9 @@ public class RefreshToken
     [Required]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    [Required]
+    public string TokenFamily { get; set; } = Guid.NewGuid().ToString();
+
     [ForeignKey("User")]
     public string UserId { get; set; }
     public AuthUser User { get; set; }

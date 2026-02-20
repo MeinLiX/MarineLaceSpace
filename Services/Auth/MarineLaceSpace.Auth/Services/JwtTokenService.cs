@@ -49,7 +49,7 @@ public class JwtTokenService
         return (new JwtSecurityTokenHandler().WriteToken(token), expiresAt);
     }
 
-    public RefreshToken GenerateRefreshToken(string userId)
+    public RefreshToken GenerateRefreshToken(string userId, string? tokenFamily = null)
     {
         return new RefreshToken
         {
@@ -58,7 +58,8 @@ public class JwtTokenService
             UserId = userId,
             ExpiryDate = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenExpirationDays),
             CreatedAt = DateTime.UtcNow,
-            IsRevoked = false
+            IsRevoked = false,
+            TokenFamily = tokenFamily ?? Guid.NewGuid().ToString()
         };
     }
 }

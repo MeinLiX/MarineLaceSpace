@@ -18,6 +18,12 @@ public static class OrderEventConsumers
             var bus = scope.ServiceProvider.GetService<IEventBus>();
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<OrderDbContext>>();
 
+            var distinctShopIds = @event.Items
+                .Where(i => !string.IsNullOrEmpty(i.ShopId))
+                .Select(i => i.ShopId)
+                .Distinct()
+                .ToList();
+
             var order = new MarineLaceSpace.Models.Database.Order.Order
             {
                 Id = Guid.NewGuid().ToString(),
@@ -25,6 +31,7 @@ public static class OrderEventConsumers
                 BuyerEmail = @event.BuyerEmail,
                 TotalPrice = @event.TotalPrice,
                 StatusId = OrderStatus.New.Id,
+                ShopId = distinctShopIds.Count == 1 ? distinctShopIds.First() : null,
                 ShippingFullName = @event.ShippingAddress.FullName,
                 ShippingAddressLine1 = @event.ShippingAddress.AddressLine1,
                 ShippingAddressLine2 = @event.ShippingAddress.AddressLine2,

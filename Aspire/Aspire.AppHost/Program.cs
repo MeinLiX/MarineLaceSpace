@@ -82,7 +82,8 @@ basket.WithReference(redis).WaitFor(redis)
       .WithReference(rabbitmq).WaitFor(rabbitmq);
 
 
-catalog.WithReference(catalogdb).WaitFor(catalogdb)
+catalog.WithReference(redis).WaitFor(redis)
+       .WithReference(catalogdb).WaitFor(catalogdb)
        .WithReference(rabbitmq).WaitFor(rabbitmq);
 
 

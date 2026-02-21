@@ -29,37 +29,37 @@ var rabbitmq = builder.AddRabbitMQ("rabbitmq")
 
 var apiGateway = builder.AddProject<ApiGateway_WebHost>("api-gateway")
                         .AddCommonConfiguration(builder.Configuration)
-                        .WithHttpsHealthCheck("/health");
+                        .WithHttpHealthCheck("/health");
 
 
 var auth = builder.AddProject<Auth_WebHost>("auth-api")
                   .AddCommonConfiguration(builder.Configuration)
-                  .WithHttpsHealthCheck("/health");
+                  .WithHttpHealthCheck("/health");
 
 
 var basket = builder.AddProject<Basket_WebHost>("basket-api")
                     .AddCommonConfiguration(builder.Configuration)
-                    .WithHttpsHealthCheck("/health");
+                    .WithHttpHealthCheck("/health");
 
 
 var catalog = builder.AddProject<Catalog_WebHost>("catalog-api")
                      .AddCommonConfiguration(builder.Configuration)
-                     .WithHttpsHealthCheck("/health");
+                     .WithHttpHealthCheck("/health");
 
 
 var notification = builder.AddProject<Notification_WebHost>("notification-api")
                           .AddCommonConfiguration(builder.Configuration)
-                          .WithHttpsHealthCheck("/health");
+                          .WithHttpHealthCheck("/health");
 
 
 var order = builder.AddProject<Order_WebHost>("order-api")
                    .AddCommonConfiguration(builder.Configuration)
-                   .WithHttpsHealthCheck("/health");
+                   .WithHttpHealthCheck("/health");
 
 
 var payment = builder.AddProject<Payment_WebHost>("payment-api")
                      .AddCommonConfiguration(builder.Configuration)
-                     .WithHttpsHealthCheck("/health");
+                     .WithHttpHealthCheck("/health");
 
 #endregion Add projects
 

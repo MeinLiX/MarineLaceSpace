@@ -35,6 +35,12 @@ builder.AddServiceDefaults();
 
 var app = builder.BuildWithPostActions();
 
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
+    await db.Database.EnsureCreatedAsync();
+}
+
 app.MapShopRoutes();
 app.MapProductRoutes();
 app.MapCategoryRoutes();

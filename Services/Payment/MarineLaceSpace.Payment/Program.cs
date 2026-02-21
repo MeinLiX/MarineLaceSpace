@@ -26,7 +26,7 @@ var app = builder.BuildWithPostActions();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
-    await db.Database.MigrateAsync();
+    await db.Database.EnsureCreatedAsync();
 
     var eventBus = scope.ServiceProvider.GetService<IEventBus>();
     if (eventBus != null)

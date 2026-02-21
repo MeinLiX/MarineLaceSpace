@@ -33,7 +33,8 @@ internal class ProductHandlers
                     try
                     {
                         var shop = await services.ShopRepository.GetByIdAsync(shopId);
-                        if (shop.OwnerId != currentUserId) return Results.Forbid();
+                        var isAdmin = httpContext.User.IsInRole("Admin");
+                        if (!isAdmin && shop.OwnerId != currentUserId) return Results.Forbid();
                     }
                     catch (NotFoundEntityException)
                     {
@@ -106,7 +107,8 @@ internal class ProductHandlers
                     try
                     {
                         var productToUpdate = await services.ProductRepository.GetByIdAsync(productId);
-                        if (productToUpdate.Shop.OwnerId != currentUserId) return Results.Forbid();
+                        var isAdmin = httpContext.User.IsInRole("Admin");
+                        if (!isAdmin && productToUpdate.Shop.OwnerId != currentUserId) return Results.Forbid();
 
                         productToUpdate.Name = request.Name;
                         productToUpdate.Description = request.Description;
@@ -143,8 +145,9 @@ internal class ProductHandlers
                     try
                     {
                         var productToDelete = await services.ProductRepository.GetByIdAsync(productId);
+                        var isAdmin = httpContext.User.IsInRole("Admin");
 
-                        if (productToDelete.Shop.OwnerId != currentUserId)
+                        if (!isAdmin && productToDelete.Shop.OwnerId != currentUserId)
                         {
                             return Results.Forbid();
                         }
@@ -169,7 +172,8 @@ internal class ProductHandlers
                     try
                     {
                         var product = await services.ProductRepository.GetByIdAsync(productId);
-                        if (product.Shop.OwnerId != currentUserId)
+                        var isAdmin = httpContext.User.IsInRole("Admin");
+                        if (!isAdmin && product.Shop.OwnerId != currentUserId)
                         {
                             return Results.Forbid();
                         }
@@ -205,7 +209,8 @@ internal class ProductHandlers
                     try
                     {
                         var product = await services.ProductRepository.GetByIdAsync(productId);
-                        if (product.Shop.OwnerId != currentUserId)
+                        var isAdmin = httpContext.User.IsInRole("Admin");
+                        if (!isAdmin && product.Shop.OwnerId != currentUserId)
                         {
                             return Results.Forbid();
                         }
@@ -220,6 +225,71 @@ internal class ProductHandlers
                     }
                 });
 
+
+    internal static Delegate GetAllProductsAdminHandler =>
+        async (string? search, string? categoryId, string? shopId, int? page, int? pageSize, IServiceProvider sp) =>
+            await RouteHandlers.RouteHandlerAsync<ProductServices>(sp, async services =>
+            {
+                try
+                {
+                    var dbContext = sp.GetRequiredService<CatalogDbContext>();
+                    var query = dbContext.Products
+                        .Include(p => p.Photos)
+                        .Include(p => p.ProductPrices)
+                        .Include(p => p.Shop)
+                        .Include(p => p.Category)
+                        .AsNoTracking();
+
+                    if (!string.IsNullOrEmpty(search))
+                        query = query.Where(p => p.Name.Contains(search) || (p.Description != null && p.Description.Contains(search)));
+
+                    if (!string.IsNullOrEmpty(categoryId))
+                        query = query.Where(p => p.CategoryId == categoryId);
+
+                    if (!string.IsNullOrEmpty(shopId))
+                        query = query.Where(p => p.ShopId == shopId);
+
+                    var totalCount = await query.CountAsync();
+                    var pg = Math.Max(1, page ?? 1);
+                    var ps = Math.Clamp(pageSize ?? 20, 1, 100);
+
+                    var products = await query
+                        .OrderByDescending(p => p.CreatedAt)
+                        .Skip((pg - 1) * ps)
+                        .Take(ps)
+                        .ToListAsync();
+
+                    var response = new
+                    {
+                        Items = products.Select(p => new
+                        {
+                            p.Id,
+                            p.Name,
+                            p.Description,
+                            p.CategoryId,
+                            CategoryName = p.Category?.Name,
+                            p.ShopId,
+                            ShopName = p.Shop?.Name,
+                            p.IsActive,
+                            p.AllowPersonalization,
+                            Price = p.ProductPrices.Any() ? p.ProductPrices.Min(pp => pp.BasePrice) : 0,
+                            MainImageUrl = p.Photos.FirstOrDefault(ph => ph.IsMain)?.Url ?? p.Photos.FirstOrDefault()?.Url,
+                            p.CreatedAt,
+                            p.UpdatedAt
+                        }),
+                        TotalCount = totalCount,
+                        Page = pg,
+                        PageSize = ps,
+                        TotalPages = (int)Math.Ceiling(totalCount / (double)ps)
+                    };
+
+                    return Results.Ok(response);
+                }
+                catch (Exception ex)
+                {
+                    return Results.BadRequest(RESTResult.Fail(ex.Message));
+                }
+            });
 
 
     internal static Delegate GetActiveProductsHandler =>

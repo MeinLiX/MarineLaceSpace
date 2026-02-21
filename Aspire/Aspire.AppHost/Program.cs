@@ -104,7 +104,7 @@ payment.WithReference(paymentdb).WaitFor(paymentdb)
 
 var web = builder.AddViteApp("web", "../../Web/marinelacespace-web", "dev")
                 .WithReference(apiGateway)
-                .WaitFor(apiGateway)
+                //.WaitFor(apiGateway)
                 .WithExternalHttpEndpoints();
 
 #endregion Frontend

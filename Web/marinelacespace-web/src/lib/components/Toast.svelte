@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { i18n } from '$i18n/index.svelte';
+
   interface Notification {
     id: string;
     type: 'success' | 'error' | 'warning' | 'info';
@@ -43,7 +45,7 @@
 </script>
 
 {#if notifications.length > 0}
-  <div class="toast-container" aria-live="polite" aria-label="Notifications">
+  <div class="toast-container" aria-live="polite" aria-label={i18n.t('common.notifications')}>
     {#each notifications as notification (notification.id)}
       <div class="toast toast-{notification.type}" role="alert">
         <svg class="toast-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -52,8 +54,8 @@
         <p class="toast-message">{notification.message}</p>
         <button
           class="toast-close"
-          aria-label="Dismiss notification"
-          on:click={() => removeNotification(notification.id)}
+          aria-label={i18n.t('common.dismiss')}
+          onclick={() => removeNotification(notification.id)}
         >
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <line x1="18" y1="6" x2="6" y2="18" />

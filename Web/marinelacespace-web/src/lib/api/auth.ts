@@ -44,9 +44,13 @@ export async function getUserById(id: string): Promise<AuthUser> {
 }
 
 export async function assignRoles(userId: string, roles: string[]): Promise<void> {
-	return api.post<void>(`/users/${userId}/roles`, roles);
+	return api.post<void>(`/users/${userId}/roles`, { roles });
 }
 
 export async function getUsers(params?: { page?: number; pageSize?: number; search?: string }): Promise<PaginatedResponse<AuthUser>> {
 	return api.get<PaginatedResponse<AuthUser>>('/users', params as Record<string, string | number | boolean | undefined>);
+}
+
+export async function changePassword(data: { currentPassword: string; newPassword: string }): Promise<void> {
+	return api.post<void>('/auth/change-password', data);
 }

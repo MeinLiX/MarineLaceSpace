@@ -1,6 +1,7 @@
 <script lang="ts">
   import ReviewStars from './ReviewStars.svelte';
   import PriceDisplay from './PriceDisplay.svelte';
+  import { i18n } from '$i18n/index.svelte';
 
   interface Product {
     id: string;
@@ -47,7 +48,7 @@
   href="/products/{product.id}"
   class="product-card"
   class:compact
-  aria-label="View {product.title}"
+  aria-label={i18n.t('product.view', { title: product.title })}
 >
   <div class="image-wrapper">
     {#if product.imageUrl}
@@ -194,6 +195,7 @@
     line-height: 1.4;
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
@@ -201,6 +203,7 @@
   .product-title.compact {
     font-size: 0.8125rem;
     -webkit-line-clamp: 1;
+    line-clamp: 1;
   }
 
   .product-rating {

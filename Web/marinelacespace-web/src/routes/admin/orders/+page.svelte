@@ -3,7 +3,8 @@
   import LoadingSpinner from '$components/LoadingSpinner.svelte';
   import Pagination from '$components/Pagination.svelte';
   import EmptyState from '$components/EmptyState.svelte';
-  import { notificationStore } from '$stores/notification';
+  import { notificationStore } from '$stores/notification.svelte';
+  import { i18n } from '$i18n/index.svelte';
   import type { Order, OrderStatus } from '$types';
 
   let loading = $state(true);
@@ -11,47 +12,42 @@
   let totalPages = $state(1);
   let currentPage = $state(1);
   let search = $state('');
-  let activeStatus = $state<string>('');
+  let activeStatusId = $state<number | null>(null);
 
-  const statusTabs: { label: string; value: string }[] = [
-    { label: 'Всі', value: '' },
-    { label: 'Нові', value: 'New' },
-    { label: 'Оплачені', value: 'Paid' },
-    { label: 'В обробці', value: 'Processing' },
-    { label: 'Відправлені', value: 'Shipped' },
-    { label: 'Доставлені', value: 'Delivered' },
-    { label: 'Скасовані', value: 'Canceled' },
-  ];
+  let statusTabs = $derived([
+    { label: i18n.t('admin.all'), value: null as number | null },
+    { label: i18n.t('admin.orderStatus.newPlural'), value: 1 },
+    { label: i18n.t('admin.orderStatus.paidPlural'), value: 3 },
+    { label: i18n.t('admin.orderStatus.processing'), value: 4 },
+    { label: i18n.t('admin.orderStatus.shippedPlural'), value: 5 },
+    { label: i18n.t('admin.orderStatus.deliveredPlural'), value: 6 },
+    { label: i18n.t('admin.orderStatus.canceledPlural'), value: 8 },
+  ]);
 
   $effect(() => {
-    loadOrders(currentPage, activeStatus);
+    loadOrders(currentPage, activeStatusId);
   });
 
-  async function loadOrders(page: number, status: string) {
+  async function loadOrders(page: number, statusId: number | null) {
     try {
       loading = true;
-      const result = await orderApi.getOrders({
+      const result = await orderApi.getAdminOrders({
         page,
         pageSize: 20,
-        status: status || undefined,
+        statusId: statusId ?? undefined,
+        search: search || undefined,
       });
-      orders = search
-        ? result.items.filter(
-            (o) =>
-              o.id.toLowerCase().includes(search.toLowerCase()) ||
-              o.buyerEmail.toLowerCase().includes(search.toLowerCase())
-          )
-        : result.items;
+      orders = result.items;
       totalPages = result.totalPages;
     } catch {
-      notificationStore.error('Помилка завантаження замовлень');
+      notificationStore.error(i18n.t('admin.errorLoadingOrders'));
     } finally {
       loading = false;
     }
   }
 
-  function setStatusFilter(status: string) {
-    activeStatus = status;
+  function setStatusFilter(statusId: number | null) {
+    activeStatusId = statusId;
     currentPage = 1;
   }
 
@@ -90,29 +86,29 @@
 
   function statusLabel(status: string): string {
     const map: Record<string, string> = {
-      New: 'Нове',
-      PendingPayment: 'Очікує оплати',
-      Paid: 'Оплачено',
-      Processing: 'В обробці',
-      Shipped: 'Відправлено',
-      Delivered: 'Доставлено',
-      Completed: 'Завершено',
-      Canceled: 'Скасовано',
-      Refunded: 'Повернення',
+      New: i18n.t('admin.orderStatus.new'),
+      PendingPayment: i18n.t('admin.orderStatus.pendingPayment'),
+      Paid: i18n.t('admin.orderStatus.paid'),
+      Processing: i18n.t('admin.orderStatus.processing'),
+      Shipped: i18n.t('admin.orderStatus.shipped'),
+      Delivered: i18n.t('admin.orderStatus.delivered'),
+      Completed: i18n.t('admin.orderStatus.completed'),
+      Canceled: i18n.t('admin.orderStatus.canceled'),
+      Refunded: i18n.t('admin.orderStatus.refunded'),
     };
     return map[status] ?? status;
   }
 </script>
 
 <div class="orders-page">
-  <h1 class="page-title">Замовлення</h1>
+  <h1 class="page-title">{i18n.t('admin.orders')}</h1>
 
   <div class="status-tabs">
     {#each statusTabs as tab}
       <button
         class="status-tab"
-        class:active={activeStatus === tab.value}
-        on:click={() => setStatusFilter(tab.value)}
+        class:active={activeStatusId === tab.value}
+        onclick={() => setStatusFilter(tab.value)}
       >
         {tab.label}
       </button>
@@ -123,18 +119,18 @@
     <input
       class="input input-sm search-input"
       type="search"
-      placeholder="Пошук за номером або email..."
+      placeholder={i18n.t('admin.searchByNumberOrEmail')}
       bind:value={search}
-      on:input={() => loadOrders(currentPage, activeStatus)}
+      oninput={() => loadOrders(currentPage, activeStatusId)}
     />
   </div>
 
   {#if loading}
-    <LoadingSpinner message="Завантаження замовлень..." />
+    <LoadingSpinner message={i18n.t('admin.loadingOrders')} />
   {:else if orders.length === 0}
     <EmptyState
-      title="Замовлень не знайдено"
-      description="Немає замовлень з обраним фільтром"
+      title={i18n.t('admin.noOrdersFound')}
+      description={i18n.t('admin.noOrdersWithFilter')}
       icon="📋"
     />
   {:else}
@@ -143,13 +139,13 @@
         <thead>
           <tr>
             <th>№</th>
-            <th>Дата</th>
-            <th>Покупець</th>
+            <th>{i18n.t('admin.date')}</th>
+            <th>{i18n.t('admin.buyer')}</th>
             <th>Email</th>
-            <th>Товари</th>
-            <th>Сума</th>
-            <th>Статус</th>
-            <th>Дії</th>
+            <th>{i18n.t('admin.items')}</th>
+            <th>{i18n.t('admin.amount')}</th>
+            <th>{i18n.t('admin.status')}</th>
+            <th>{i18n.t('admin.actions')}</th>
           </tr>
         </thead>
         <tbody>
@@ -168,7 +164,7 @@
               </td>
               <td>
                 <a href="/admin/orders/{order.id}" class="btn btn-sm btn-ghost">
-                  Деталі
+                  {i18n.t('admin.details')}
                 </a>
               </td>
             </tr>

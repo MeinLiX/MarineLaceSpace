@@ -1,24 +1,24 @@
 <script lang="ts">
+  import { i18n } from '$i18n/index.svelte';
   import { page } from '$app/stores';
-  import Breadcrumb from '$components/Breadcrumb.svelte';
   import ReviewStars from '$components/ReviewStars.svelte';
   import PriceDisplay from '$components/PriceDisplay.svelte';
   import LoadingSpinner from '$components/LoadingSpinner.svelte';
   import Pagination from '$components/Pagination.svelte';
-  import { getProductById, getProductReviews, getReviewSummary, createReview, getCategoryById } from '$api/catalog';
+  import { getProductById, getProductReviews, getReviewSummary, createReview, getCategoryById, getSizes, getColors } from '$api/catalog';
   import { addItem } from '$api/basket';
-  import { basketStore } from '$stores/basket';
-  import { notificationStore } from '$stores/notification';
+  import { basketStore } from '$stores/basket.svelte';
+  import { authStore } from '$stores/auth.svelte';
+  import { notificationStore } from '$stores/notification.svelte';
   import type {
     ProductDetail,
-    ProductImage,
-    ProductSize,
-    ProductColor,
-    ProductMaterial,
-    ProductPrice,
+    ProductPhoto,
+    ProductInventoryItem,
     ProductReview,
     ReviewSummary,
     Category,
+    Size,
+    Color,
     PaginatedResponse,
     AddToBasketRequest,
   } from '$types';
@@ -34,13 +34,17 @@
   let reviewTotalPages = $state(1);
   let isReviewsLoading = $state(false);
 
+  // Dictionaries for variant names
+  let allSizes = $state<Size[]>([]);
+  let allColors = $state<Color[]>([]);
+
   // ─── Gallery ───────────────────────────────────────────────────────────────
 
   let selectedImageIndex = $state(0);
 
-  let filteredImages = $derived.by<ProductImage[]>(() => {
+  let filteredImages = $derived.by<ProductPhoto[]>(() => {
     if (!product) return [];
-    const imgs = product.images;
+    const imgs = product.photos;
     if (!selectedColor && !selectedMaterial) return imgs;
     const variantImgs = imgs.filter((img) => {
       if (selectedColor && img.colorId === selectedColor) return true;
@@ -62,9 +66,9 @@
 
   // ─── Derived Price ─────────────────────────────────────────────────────────
 
-  let matchedPrice = $derived.by<ProductPrice | undefined>(() => {
+  let matchedInventory = $derived.by<ProductInventoryItem | undefined>(() => {
     if (!product) return undefined;
-    return product.prices.find(
+    return product.inventory.find(
       (p) =>
         (!selectedSize || p.sizeId === selectedSize) &&
         (!selectedColor || p.colorId === selectedColor) &&
@@ -72,26 +76,24 @@
     );
   });
 
-  let displayPrice = $derived(matchedPrice?.basePrice ?? product?.minPrice ?? 0);
-  let displayOldPrice = $derived(matchedPrice?.oldPrice ?? undefined);
-  let displayDiscount = $derived(matchedPrice?.discountPercentage ?? undefined);
-  let inStock = $derived((matchedPrice?.quantity ?? 0) > 0);
+  let displayPrice = $derived(matchedInventory?.price ?? product?.price ?? 0);
+  let inStock = $derived((matchedInventory?.quantity ?? 0) > 0);
 
-  // ─── Status Badge ──────────────────────────────────────────────────────────
+  // ─── Resolved variant lists from dictionaries + inventory ─────────────────
 
-  const statusLabel: Record<string, string> = {
-    Active: 'В наявності',
-    SoldOut: 'Розпродано',
-    Draft: 'Чернетка',
-    Inactive: 'Неактивний',
-  };
+  let productSizes = $derived.by(() => {
+    if (!product) return [];
+    const sizeIds = [...new Set(product.inventory.map(i => i.sizeId).filter(Boolean) as string[])];
+    return allSizes.filter(s => sizeIds.includes(s.id));
+  });
 
-  const statusClass: Record<string, string> = {
-    Active: 'badge-success',
-    SoldOut: 'badge-error',
-    Draft: 'badge-outline',
-    Inactive: 'badge-warning',
-  };
+  let productColors = $derived.by(() => {
+    if (!product) return [];
+    const colorIds = [...new Set(product.inventory.map(i => i.colorId).filter(Boolean) as string[])];
+    return allColors.filter(c => colorIds.includes(c.id));
+  });
+
+  let productMaterials = $derived(product?.materials ?? []);
 
   // ─── Add to Cart ───────────────────────────────────────────────────────────
 
@@ -107,13 +109,13 @@
         colorId: selectedColor,
         materialId: selectedMaterial,
         quantity,
-        personalization: product.isPersonalizationEnabled && personalization.trim() ? personalization.trim() : undefined,
+        personalization: product.allowPersonalization && personalization.trim() ? personalization.trim() : undefined,
       };
       await addItem(request);
       await basketStore.loadBasket();
-      notificationStore.success('Товар додано до кошика!');
+      notificationStore.success(i18n.t('product.addedToBasket'));
     } catch (err) {
-      notificationStore.error('Не вдалося додати товар до кошика');
+      notificationStore.error(i18n.t('product.addToBasketError'));
       console.error(err);
     } finally {
       isAddingToCart = false;
@@ -137,7 +139,7 @@
         title: reviewTitle.trim() || undefined,
         text: reviewText.trim(),
       });
-      notificationStore.success('Відгук надіслано!');
+      notificationStore.success(i18n.t('product.reviewSubmitted'));
       showReviewForm = false;
       reviewRating = 0;
       reviewTitle = '';
@@ -145,7 +147,7 @@
       await loadReviews();
       reviewSummary = await getReviewSummary(product.id);
     } catch {
-      notificationStore.error('Не вдалося надіслати відгук');
+      notificationStore.error(i18n.t('product.reviewSubmitError'));
     } finally {
       isSubmittingReview = false;
     }
@@ -156,13 +158,25 @@
   async function loadProduct(id: string) {
     isLoading = true;
     try {
-      product = await getProductById(id);
-      // Pre-select first available variants
-      if (product.sizes.length > 0) selectedSize = product.sizes[0].sizeId;
-      if (product.colors.length > 0) selectedColor = product.colors[0].colorId;
-      if (product.materials.length > 0) selectedMaterial = product.materials[0].materialId;
+      const [productRes, sizesRes, colorsRes] = await Promise.all([
+        getProductById(id),
+        getSizes(),
+        getColors(),
+      ]);
+      product = productRes;
+      allSizes = sizesRes;
+      allColors = colorsRes;
 
-      // Load category for breadcrumb
+      // Pre-select first available variants from inventory
+      const sizeIds = [...new Set(productRes.inventory.map(i => i.sizeId).filter(Boolean) as string[])];
+      const colorIds = [...new Set(productRes.inventory.map(i => i.colorId).filter(Boolean) as string[])];
+      const materialNames = productRes.materials ?? [];
+
+      if (sizeIds.length > 0) selectedSize = sizeIds[0];
+      if (colorIds.length > 0) selectedColor = colorIds[0];
+      if (materialNames.length > 0) selectedMaterial = materialNames[0];
+
+      // Load category
       if (product.categoryId) {
         try { category = await getCategoryById(product.categoryId); } catch { /* noop */ }
       }
@@ -215,15 +229,6 @@
     selectedImageIndex = 0;
   });
 
-  // ─── Breadcrumb ────────────────────────────────────────────────────────────
-
-  let breadcrumbItems = $derived([
-    { label: 'Головна', href: '/' },
-    { label: 'Каталог', href: '/catalog' },
-    ...(category ? [{ label: category.name, href: `/catalog?category=${category.id}` }] : []),
-    ...(product ? [{ label: product.title }] : []),
-  ]);
-
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
   function formatDate(iso: string): string {
@@ -232,25 +237,23 @@
 
   function getInventoryForSize(sizeId: string): number {
     if (!product) return 0;
-    return product.prices
+    return product.inventory
       .filter((p) => p.sizeId === sizeId && (!selectedColor || p.colorId === selectedColor) && (!selectedMaterial || p.materialId === selectedMaterial))
       .reduce((sum, p) => sum + p.quantity, 0);
   }
 </script>
 
 <svelte:head>
-  <title>{product?.title ?? 'Товар'} — MarineLaceSpace</title>
+  <title>{product?.name ?? i18n.t('product.product')} — MarineLaceSpace</title>
 </svelte:head>
 
 {#if isLoading}
   <div class="container product-loading">
-    <LoadingSpinner size="lg" message="Завантаження товару…" />
+    <LoadingSpinner size="lg" message={i18n.t('common.loading')} />
   </div>
 {:else if product}
   <div class="product-page">
     <div class="container">
-      <Breadcrumb items={breadcrumbItems} />
-
       <div class="product-main">
         <!-- ─── Gallery ──────────────────────────────────────────────────── -->
         <div class="gallery">
@@ -258,7 +261,7 @@
             {#if mainImage}
               <img
                 src={mainImage.url}
-                alt={mainImage.altText ?? product.title}
+                alt={mainImage.altText ?? product.name}
                 class="gallery-main-image"
               />
             {:else}
@@ -272,16 +275,15 @@
             {/if}
           </div>
           {#if filteredImages.length > 1}
-            <div class="gallery-thumbs" role="list" aria-label="Зображення товару">
+            <div class="gallery-thumbs" role="list" aria-label={i18n.t('product.images')}>
               {#each filteredImages as img, i (img.id)}
                 <button
                   class="thumb"
                   class:active={i === selectedImageIndex}
-                  on:click={() => (selectedImageIndex = i)}
-                  aria-label="Зображення {i + 1}"
-                  role="listitem"
+                  onclick={() => (selectedImageIndex = i)}
+                  aria-label={i18n.t('product.imageN', { n: i + 1 })}
                 >
-                  <img src={img.url} alt={img.altText ?? `${product.title} — ${i + 1}`} />
+                  <img src={img.url} alt={img.altText ?? `${product.name} — ${i + 1}`} />
                 </button>
               {/each}
             </div>
@@ -292,34 +294,35 @@
         <div class="product-info">
           <a href="/shops/{product.shopId}" class="shop-link">{product.shopName}</a>
 
-          <h1 class="product-title">{product.title}</h1>
+          <h1 class="product-title">{product.name}</h1>
 
           <div class="product-meta">
-            <ReviewStars rating={product.averageRating} count={product.reviewCount} />
-            <span class="badge {statusClass[product.status] ?? 'badge-outline'}">{statusLabel[product.status] ?? product.status}</span>
+            {#if reviewSummary}
+              <ReviewStars rating={reviewSummary.averageRating} count={reviewSummary.totalCount} />
+            {/if}
           </div>
 
           <div class="product-price-display">
-            <PriceDisplay price={displayPrice} oldPrice={displayOldPrice} discountPercentage={displayDiscount} />
+            <PriceDisplay price={displayPrice} />
           </div>
 
           <!-- ─── Size Selector ──────────────────────────────────────────── -->
-          {#if product.sizes.length > 0}
+          {#if productSizes.length > 0}
             <div class="variant-section">
-              <h3 class="variant-label">Розмір</h3>
+              <h3 class="variant-label">{i18n.t('product.size')}</h3>
               <div class="variant-options">
-                {#each product.sizes as size (size.sizeId)}
-                  {@const stock = getInventoryForSize(size.sizeId)}
+                {#each productSizes as size (size.id)}
+                  {@const stock = getInventoryForSize(size.id)}
                   <button
                     class="variant-btn"
-                    class:selected={selectedSize === size.sizeId}
+                    class:selected={selectedSize === size.id}
                     class:out-of-stock={stock === 0}
-                    on:click={() => (selectedSize = size.sizeId)}
+                    onclick={() => (selectedSize = size.id)}
                     disabled={stock === 0}
-                    aria-pressed={selectedSize === size.sizeId}
-                    title={stock === 0 ? 'Немає в наявності' : size.sizeName}
+                    aria-pressed={selectedSize === size.id}
+                    title={stock === 0 ? i18n.t('product.outOfStock') : size.name}
                   >
-                    {size.sizeName}
+                    {size.name}
                   </button>
                 {/each}
               </div>
@@ -327,19 +330,19 @@
           {/if}
 
           <!-- ─── Color Selector ─────────────────────────────────────────── -->
-          {#if product.colors.length > 0}
+          {#if productColors.length > 0}
             <div class="variant-section">
-              <h3 class="variant-label">Колір</h3>
+              <h3 class="variant-label">{i18n.t('product.color')}</h3>
               <div class="variant-options color-options">
-                {#each product.colors as color (color.colorId)}
+                {#each productColors as color (color.id)}
                   <button
                     class="color-circle"
-                    class:selected={selectedColor === color.colorId}
+                    class:selected={selectedColor === color.id}
                     style="--clr: {color.hexCode}"
-                    on:click={() => (selectedColor = color.colorId)}
-                    aria-label={color.colorName}
-                    aria-pressed={selectedColor === color.colorId}
-                    title={color.colorName}
+                    onclick={() => (selectedColor = color.id)}
+                    aria-label={color.name}
+                    aria-pressed={selectedColor === color.id}
+                    title={color.name}
                   ></button>
                 {/each}
               </div>
@@ -347,18 +350,18 @@
           {/if}
 
           <!-- ─── Material Selector ──────────────────────────────────────── -->
-          {#if product.materials.length > 0}
+          {#if productMaterials.length > 0}
             <div class="variant-section">
-              <h3 class="variant-label">Матеріал</h3>
+              <h3 class="variant-label">{i18n.t('product.materials')}</h3>
               <div class="variant-options">
-                {#each product.materials as material (material.materialId)}
+                {#each productMaterials as material}
                   <button
                     class="variant-btn"
-                    class:selected={selectedMaterial === material.materialId}
-                    on:click={() => (selectedMaterial = material.materialId)}
-                    aria-pressed={selectedMaterial === material.materialId}
+                    class:selected={selectedMaterial === material}
+                    onclick={() => (selectedMaterial = material)}
+                    aria-pressed={selectedMaterial === material}
                   >
-                    {material.materialName}
+                    {material}
                   </button>
                 {/each}
               </div>
@@ -366,17 +369,14 @@
           {/if}
 
           <!-- ─── Personalization ────────────────────────────────────────── -->
-          {#if product.isPersonalizationEnabled}
+          {#if product.allowPersonalization}
             <div class="variant-section">
-              <h3 class="variant-label">Персоналізація</h3>
-              {#if product.personalizationPrompt}
-                <p class="personalization-prompt">{product.personalizationPrompt}</p>
-              {/if}
+              <h3 class="variant-label">{i18n.t('product.personalization')}</h3>
               <textarea
                 class="input personalization-input"
                 bind:value={personalization}
                 maxlength="512"
-                placeholder="Введіть ваш текст…"
+                placeholder={i18n.t('product.personalizationPlaceholder')}
                 rows="3"
               ></textarea>
               <small class="text-muted">{personalization.length}/512</small>
@@ -388,50 +388,50 @@
             <div class="quantity-selector">
               <button
                 class="btn btn-icon quantity-btn"
-                on:click={() => (quantity = Math.max(1, quantity - 1))}
+                onclick={() => (quantity = Math.max(1, quantity - 1))}
                 disabled={quantity <= 1}
-                aria-label="Зменшити кількість"
+                aria-label={i18n.t('product.decreaseQuantity')}
               >−</button>
               <span class="quantity-value" aria-live="polite">{quantity}</span>
               <button
                 class="btn btn-icon quantity-btn"
-                on:click={() => (quantity = quantity + 1)}
-                aria-label="Збільшити кількість"
+                onclick={() => (quantity = quantity + 1)}
+                aria-label={i18n.t('product.increaseQuantity')}
               >+</button>
             </div>
             <button
               class="btn btn-primary btn-lg add-to-cart-btn"
-              on:click={handleAddToCart}
+              onclick={handleAddToCart}
               disabled={isAddingToCart || !inStock}
             >
               {#if isAddingToCart}
-                Додаємо…
+                {i18n.t('product.adding')}
               {:else if !inStock}
-                Немає в наявності
+                {i18n.t('product.outOfStock')}
               {:else}
-                Додати в кошик
+                {i18n.t('product.addToBasket')}
               {/if}
             </button>
           </div>
 
           <!-- ─── Description ────────────────────────────────────────────── -->
           <div class="product-description">
-            <h2>Опис</h2>
+            <h2>{i18n.t('product.description')}</h2>
             <div class="description-text">{product.description}</div>
           </div>
         </div>
       </div>
 
       <!-- ─── Reviews Section ──────────────────────────────────────────────── -->
-      <section class="reviews-section" aria-label="Відгуки">
-        <h2>Відгуки</h2>
+      <section class="reviews-section" aria-label={i18n.t('product.reviews')}>
+        <h2>{i18n.t('product.reviews')}</h2>
 
         {#if reviewSummary}
           <div class="review-summary-bar">
             <div class="summary-overall">
               <span class="summary-avg">{reviewSummary.averageRating.toFixed(1)}</span>
               <ReviewStars rating={reviewSummary.averageRating} size="lg" />
-              <span class="summary-count">{reviewSummary.totalCount} відгуків</span>
+              <span class="summary-count">{i18n.t('product.reviewsCount', { count: reviewSummary.totalCount })}</span>
             </div>
             <div class="summary-distribution">
               {#each [5, 4, 3, 2, 1] as star (star)}
@@ -449,47 +449,51 @@
           </div>
         {/if}
 
-        <button class="btn btn-outline" on:click={() => (showReviewForm = !showReviewForm)}>
-          {showReviewForm ? 'Скасувати' : 'Залишити відгук'}
-        </button>
+        {#if authStore.isAuthenticated}
+          <button class="btn btn-outline" onclick={() => (showReviewForm = !showReviewForm)}>
+            {showReviewForm ? i18n.t('common.cancel') : i18n.t('product.writeReview')}
+          </button>
+        {:else}
+          <a href="/auth/login" class="btn btn-outline">{i18n.t('product.loginToReview')}</a>
+        {/if}
 
         {#if showReviewForm}
-          <form class="review-form" on:submit|preventDefault={submitReview}>
+          <form class="review-form" onsubmit={(e) => { e.preventDefault(); submitReview(); }}>
             <div class="review-form-rating">
-              <span class="variant-label">Оцінка</span>
+              <span class="variant-label">{i18n.t('product.rating')}</span>
               <div class="star-picker">
                 {#each [1, 2, 3, 4, 5] as star (star)}
                   <button
                     type="button"
                     class="star-pick"
                     class:filled={star <= reviewRating}
-                    on:click={() => (reviewRating = star)}
-                    aria-label="Оцінка {star}"
+                    onclick={() => (reviewRating = star)}
+                    aria-label={i18n.t('product.ratingN', { n: star })}
                   >★</button>
                 {/each}
               </div>
             </div>
             <input
               class="input"
-              placeholder="Заголовок (необов'язково)"
+              placeholder={i18n.t('product.reviewTitlePlaceholder')}
               bind:value={reviewTitle}
             />
             <textarea
               class="input"
-              placeholder="Ваш відгук…"
+              placeholder={i18n.t('product.reviewTextPlaceholder')}
               bind:value={reviewText}
               rows="4"
               required
             ></textarea>
             <button class="btn btn-primary" type="submit" disabled={isSubmittingReview || reviewRating < 1 || !reviewText.trim()}>
-              {isSubmittingReview ? 'Надсилаємо…' : 'Надіслати відгук'}
+              {isSubmittingReview ? i18n.t('product.submittingReview') : i18n.t('product.submitReview')}
             </button>
           </form>
         {/if}
 
         <!-- Review List -->
         {#if isReviewsLoading}
-          <LoadingSpinner message="Завантаження відгуків…" />
+          <LoadingSpinner message={i18n.t('common.loading')} />
         {:else if reviews.length > 0}
           <ul class="review-list">
             {#each reviews as review (review.id)}
@@ -498,7 +502,7 @@
                   <div class="review-header">
                     <ReviewStars rating={review.rating} size="sm" />
                     {#if review.isVerifiedPurchase}
-                      <span class="badge badge-success">Підтверджена покупка</span>
+                      <span class="badge badge-success">{i18n.t('product.verifiedPurchase')}</span>
                     {/if}
                   </div>
                   {#if review.title}
@@ -507,7 +511,7 @@
                   <p class="review-text">{review.text}</p>
                   <div class="review-footer">
                     <span class="text-muted text-sm">
-                      {review.guestName ?? 'Покупець'} • {formatDate(review.createdAt)}
+                      {review.guestName ?? i18n.t('product.buyer')} • {formatDate(review.createdAt)}
                     </span>
                   </div>
                 </div>
@@ -525,14 +529,14 @@
             </div>
           {/if}
         {:else}
-          <p class="text-muted mt-4">Ще немає відгуків. Будьте першими!</p>
+          <p class="text-muted mt-4">{i18n.t('product.noReviews')}</p>
         {/if}
       </section>
     </div>
   </div>
 {:else}
   <div class="container product-loading">
-    <p>Товар не знайдено.</p>
+    <p>{i18n.t('product.notFound')}</p>
   </div>
 {/if}
 
@@ -727,12 +731,6 @@
   .color-circle.selected {
     border-color: var(--color-primary);
     box-shadow: 0 0 0 2px var(--color-primary-light);
-  }
-
-  .personalization-prompt {
-    font-size: 0.875rem;
-    color: var(--color-text-light);
-    margin: 0;
   }
 
   .personalization-input {

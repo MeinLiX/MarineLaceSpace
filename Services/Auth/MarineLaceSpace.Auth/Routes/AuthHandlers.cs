@@ -11,6 +11,7 @@ using MarineLaceSpace.Models.Events;
 using MarineLaceSpace.Models.Routes;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
 namespace Auth.WebHost.Routes;
@@ -210,6 +211,8 @@ internal class AuthHandlers
                         {
                             user.Id,
                             user.Email,
+                            user.FirstName,
+                            user.LastName,
                             user.IsAnonimous,
                             Roles = roles,
                             user.CreatedAt
@@ -413,5 +416,70 @@ internal class AuthHandlers
                     services.Logger.LogInformation("User {UserId} logged out, all refresh tokens revoked", userId);
 
                     return Results.Ok(RESTResult.Success("Logged out successfully."));
+                });
+
+    internal static Delegate GetUsersHandler =>
+        async (int? page, int? pageSize, string? search, string? role,
+               [FromServices] IServiceProvider serviceProvider) =>
+            await RouteHandlers.RouteHandlerAsync<AuthServices>(serviceProvider,
+                async (services) =>
+                {
+                    var currentPage = page ?? 1;
+                    var currentPageSize = Math.Min(pageSize ?? 20, 100);
+                    var skip = (currentPage - 1) * currentPageSize;
+
+                    var usersQuery = services.UserManager.Users.AsQueryable();
+
+                    if (!string.IsNullOrWhiteSpace(search))
+                    {
+                        var searchLower = search.ToLower();
+                        usersQuery = usersQuery.Where(u =>
+                            (u.Email != null && u.Email.ToLower().Contains(searchLower)) ||
+                            (u.FirstName != null && u.FirstName.ToLower().Contains(searchLower)) ||
+                            (u.LastName != null && u.LastName.ToLower().Contains(searchLower)));
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(role))
+                    {
+                        var usersInRole = await services.UserManager.GetUsersInRoleAsync(role);
+                        var userIds = usersInRole.Select(u => u.Id).ToHashSet();
+                        usersQuery = usersQuery.Where(u => userIds.Contains(u.Id));
+                    }
+
+                    var totalCount = await usersQuery.CountAsync();
+                    var users = await usersQuery
+                        .OrderByDescending(u => u.CreatedAt)
+                        .Skip(skip)
+                        .Take(currentPageSize)
+                        .ToListAsync();
+
+                    var userResponses = new List<object>();
+                    foreach (var user in users)
+                    {
+                        var roles = await services.UserManager.GetRolesAsync(user);
+                        userResponses.Add(new
+                        {
+                            user.Id,
+                            user.Email,
+                            user.FirstName,
+                            user.LastName,
+                            user.PhoneNumber,
+                            user.IsAnonimous,
+                            Roles = roles.ToList(),
+                            user.CreatedAt,
+                            user.EmailConfirmed,
+                            user.LockoutEnd,
+                            user.AccessFailedCount
+                        });
+                    }
+
+                    return Results.Ok(RESTResult<object>.Success(new
+                    {
+                        Items = userResponses,
+                        TotalCount = totalCount,
+                        Page = currentPage,
+                        PageSize = currentPageSize,
+                        TotalPages = (int)Math.Ceiling(totalCount / (double)currentPageSize)
+                    }));
                 });
 }

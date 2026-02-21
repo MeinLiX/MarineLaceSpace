@@ -127,8 +127,9 @@ internal class ShopHandlers
                     try
                     {
                         var shopToUpdate = await services.ShopRepository.GetByIdAsync(id);
+                        var isAdmin = httpContext.User.IsInRole("Admin");
 
-                        if (shopToUpdate.OwnerId != currentUserId)
+                        if (!isAdmin && shopToUpdate.OwnerId != currentUserId)
                         {
                             services.Logger.LogWarning("User {CurrentUserId} attempted to update shop {ShopId} owned by {OwnerId}.", currentUserId, id, shopToUpdate.OwnerId);
                             return Results.Forbid();
@@ -171,8 +172,9 @@ internal class ShopHandlers
                     try
                     {
                         var shopToDelete = await services.ShopRepository.GetByIdAsync(id);
+                        var isAdmin = httpContext.User.IsInRole("Admin");
 
-                        if (shopToDelete.OwnerId != currentUserId)
+                        if (!isAdmin && shopToDelete.OwnerId != currentUserId)
                         {
                             services.Logger.LogWarning("User {CurrentUserId} attempted to DELETE shop {ShopId} owned by {OwnerId}.", currentUserId, id, shopToDelete.OwnerId);
                             return Results.Forbid();
@@ -190,6 +192,98 @@ internal class ShopHandlers
                         return Results.NotFound(RESTResult.Fail(ex.Message));
                     }
                 });
+
+    internal static Delegate GetAllShopsHandler =>
+        async (string? search, int? page, int? pageSize, IServiceProvider sp) =>
+            await RouteHandlers.RouteHandlerAsync<ShopServices>(sp, async services =>
+            {
+                try
+                {
+                    var dbContext = sp.GetRequiredService<CatalogDbContext>();
+                    var query = dbContext.Shops
+                        .Include(s => s.Products)
+                        .AsNoTracking();
+
+                    if (!string.IsNullOrEmpty(search))
+                        query = query.Where(s => s.Name.Contains(search) || (s.Description != null && s.Description.Contains(search)));
+
+                    var totalCount = await query.CountAsync();
+                    var pg = Math.Max(1, page ?? 1);
+                    var ps = Math.Clamp(pageSize ?? 20, 1, 100);
+
+                    var shops = await query
+                        .OrderByDescending(s => s.CreatedAt)
+                        .Skip((pg - 1) * ps)
+                        .Take(ps)
+                        .ToListAsync();
+
+                    var response = new
+                    {
+                        Items = shops.Select(s => new ShopResponse
+                        {
+                            Id = s.Id,
+                            Name = s.Name,
+                            Description = s.Description,
+                            UrlSlug = s.UrlSlug,
+                            LogoUrl = s.LogoUrl,
+                            BannerUrl = s.BannerUrl,
+                            OwnerId = s.OwnerId,
+                            IsActive = s.IsActive,
+                            ProductCount = s.Products.Count,
+                            CreatedAt = s.CreatedAt
+                        }),
+                        TotalCount = totalCount,
+                        Page = pg,
+                        PageSize = ps,
+                        TotalPages = (int)Math.Ceiling(totalCount / (double)ps)
+                    };
+
+                    return Results.Ok(response);
+                }
+                catch (Exception ex)
+                {
+                    return Results.BadRequest(RESTResult.Fail(ex.Message));
+                }
+            });
+
+    internal static Delegate GetMyShopsHandler =>
+        async (IServiceProvider sp) =>
+            await RouteHandlers.RouteHandlerAsync<ShopServices>(sp, async services =>
+            {
+                var httpContext = services.HttpContextAccessor.HttpContext;
+                var currentUserId = httpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (string.IsNullOrEmpty(currentUserId))
+                    return Results.Unauthorized();
+
+                try
+                {
+                    var dbContext = sp.GetRequiredService<CatalogDbContext>();
+                    var shops = await dbContext.Shops
+                        .Where(s => s.OwnerId == currentUserId)
+                        .Include(s => s.Products)
+                        .AsNoTracking()
+                        .Select(s => new ShopResponse
+                        {
+                            Id = s.Id,
+                            Name = s.Name,
+                            Description = s.Description,
+                            UrlSlug = s.UrlSlug,
+                            LogoUrl = s.LogoUrl,
+                            BannerUrl = s.BannerUrl,
+                            OwnerId = s.OwnerId,
+                            IsActive = s.IsActive,
+                            ProductCount = s.Products.Count,
+                            CreatedAt = s.CreatedAt
+                        })
+                        .ToListAsync();
+
+                    return Results.Ok(RESTResult<List<ShopResponse>>.Success(shops));
+                }
+                catch (Exception ex)
+                {
+                    return Results.BadRequest(RESTResult.Fail(ex.Message));
+                }
+            });
 
     internal static Delegate GetShopsByOwnerHandler =>
         async (string userId, IServiceProvider sp) =>
@@ -277,6 +371,9 @@ internal class ShopHandlers
         UrlSlug = shop.UrlSlug,
         LogoUrl = shop.LogoUrl,
         BannerUrl = shop.BannerUrl,
+        OwnerId = shop.OwnerId,
+        IsActive = shop.IsActive,
+        ProductCount = shop.Products?.Count ?? 0,
         CreatedAt = shop.CreatedAt
     };
     #endregion

@@ -2,7 +2,8 @@
   import type { Snippet } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { authStore } from '$lib/stores/auth';
+  import { authStore } from '$lib/stores/auth.svelte';
+  import { i18n } from '$i18n/index.svelte';
 
   let { children }: { children: Snippet } = $props();
 
@@ -10,11 +11,11 @@
 
   let currentPath = $derived($page.url.pathname);
 
-  const navItems = [
-    { label: 'Мій профіль', href: '/account', icon: 'user' },
-    { label: 'Мої замовлення', href: '/account/orders', icon: 'orders' },
-    { label: 'Мої адреси', href: '/account/addresses', icon: 'address' },
-  ] as const;
+  let navItems = $derived([
+    { label: i18n.t('account.myProfile'), href: '/account', icon: 'user' },
+    { label: i18n.t('account.myOrders'), href: '/account/orders', icon: 'orders' },
+    { label: i18n.t('account.myAddresses'), href: '/account/addresses', icon: 'address' },
+  ] as const);
 
   $effect(() => {
     if (!authStore.isLoading && !authStore.isAuthenticated) {
@@ -33,19 +34,19 @@
 </script>
 
 <svelte:head>
-  <title>Мій акаунт — MarineLaceSpace</title>
+  <title>{i18n.t('account.myAccountTitle')}</title>
 </svelte:head>
 
 {#if authStore.isAuthenticated}
   <div class="account-layout container">
-    <nav class="account-sidebar" aria-label="Навігація акаунту">
+    <nav class="account-sidebar" aria-label={i18n.t('account.accountNavigation')}>
       <button
         class="mobile-menu-toggle"
         onclick={() => isMobileMenuOpen = !isMobileMenuOpen}
         aria-expanded={isMobileMenuOpen}
         aria-controls="account-nav"
       >
-        <span class="mobile-menu-label">Навігація</span>
+        <span class="mobile-menu-label">{i18n.t('account.navigation')}</span>
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"
           class:rotate={isMobileMenuOpen}
         >
@@ -91,7 +92,7 @@
               <polyline points="16 17 21 12 16 7"/>
               <line x1="21" y1="12" x2="9" y2="12"/>
             </svg>
-            <span>Вийти</span>
+            <span>{i18n.t('common.logout')}</span>
           </button>
         </li>
       </ul>

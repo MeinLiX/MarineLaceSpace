@@ -4,10 +4,11 @@ import type {
 	Shop,
 	Product,
 	ProductDetail,
+	ProductPhoto,
 	ProductReview,
 	ReviewSummary,
 	PaginatedResponse,
-	PriceRange,
+	ProductInventoryItem,
 	Size,
 	Color,
 	Material,
@@ -88,10 +89,15 @@ export interface ProductFilters {
 	sizeId?: string;
 	colorId?: string;
 	materialId?: string;
+	status?: string;
 }
 
 export async function getProducts(filters?: ProductFilters): Promise<PaginatedResponse<Product>> {
-	return api.get<PaginatedResponse<Product>>('/products', filters as Record<string, string | number | boolean | undefined>);
+	return api.get<PaginatedResponse<Product>>('/products/active', filters as Record<string, string | number | boolean | undefined>);
+}
+
+export async function getAdminProducts(filters?: ProductFilters): Promise<PaginatedResponse<Product>> {
+	return api.get<PaginatedResponse<Product>>('/products/admin', filters as Record<string, string | number | boolean | undefined>);
 }
 
 export async function getProductById(id: string): Promise<ProductDetail> {
@@ -122,28 +128,28 @@ export async function deleteProduct(id: string): Promise<void> {
 	return api.delete<void>(`/products/${id}`);
 }
 
-// ─── Inventory & Price ───────────────────────────────────────────────────────
+// ─── Inventory ───────────────────────────────────────────────────────────────
 
-export async function updateInventory(productId: string, priceId: string, data: { quantity: number }): Promise<void> {
-	return api.put<void>(`/products/${productId}/prices/${priceId}/inventory`, data);
-}
-
-export async function updatePrice(productId: string, priceId: string, data: { basePrice: number; oldPrice?: number; discountPercentage?: number }): Promise<void> {
-	return api.put<void>(`/products/${productId}/prices/${priceId}`, data);
-}
-
-export async function getProductPriceRange(productId: string): Promise<PriceRange> {
-	return api.get<PriceRange>(`/products/${productId}/price-range`);
+export async function updateProductInventory(productId: string, inventory: ProductInventoryItem[]): Promise<void> {
+	return api.put<void>(`/products/${productId}/inventory`, { items: inventory });
 }
 
 // ─── Images ──────────────────────────────────────────────────────────────────
 
-export async function addProductImage(productId: string, data: { url: string; altText?: string; isMain?: boolean; sortOrder?: number; colorId?: string; materialId?: string }): Promise<void> {
-	return api.post<void>(`/products/${productId}/images`, data);
+export async function getProductImages(productId: string): Promise<ProductPhoto[]> {
+	return api.get<ProductPhoto[]>(`/product-images/${productId}/images`);
 }
 
-export async function deleteProductImage(productId: string, imageId: string): Promise<void> {
-	return api.delete<void>(`/products/${productId}/images/${imageId}`);
+export async function addProductImage(shopId: string, productId: string, data: { url: string; title?: string; isMain?: boolean }): Promise<ProductPhoto> {
+	const params = new URLSearchParams();
+	params.set('url', data.url);
+	if (data.title) params.set('title', data.title);
+	params.set('isMain', String(data.isMain ?? false));
+	return api.post<ProductPhoto>(`/shops/${shopId}/products/${productId}/images?${params.toString()}`);
+}
+
+export async function deleteProductImage(shopId: string, productId: string, imageId: string): Promise<void> {
+	return api.delete<void>(`/shops/${shopId}/products/${productId}/images/${imageId}`);
 }
 
 // ─── Reviews ─────────────────────────────────────────────────────────────────
@@ -210,11 +216,11 @@ export async function getMaterials(): Promise<Material[]> {
 	return api.get<Material[]>('/materials');
 }
 
-export async function createMaterial(data: { name: string }): Promise<Material> {
+export async function createMaterial(data: { name: string; imageUrl?: string }): Promise<Material> {
 	return api.post<Material>('/materials', data);
 }
 
-export async function updateMaterial(id: string, data: { name: string }): Promise<Material> {
+export async function updateMaterial(id: string, data: { name: string; imageUrl?: string }): Promise<Material> {
 	return api.put<Material>(`/materials/${id}`, data);
 }
 

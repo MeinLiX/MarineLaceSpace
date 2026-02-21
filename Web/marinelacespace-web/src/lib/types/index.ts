@@ -15,9 +15,11 @@ export interface LoginRequest {
 }
 
 export interface LoginResponse {
+	userId: string;
 	accessToken: string;
 	refreshToken: string;
-	expiresAt: string;
+	accessTokenExpiresAt: string;
+	refreshTokenExpiresAt: string;
 }
 
 export interface RegisterRequest {
@@ -52,12 +54,13 @@ export interface ResetPasswordRequest {
 export interface Category {
 	id: string;
 	name: string;
-	slug: string;
+	description?: string;
+	slug?: string;
 	parentCategoryId: string | null;
 	level: number;
-	fullPath: string;
-	childCategories: Category[];
-	productCount: number;
+	fullPath?: string;
+	subcategories: Category[];
+	productCount?: number;
 }
 
 export interface Shop {
@@ -68,43 +71,38 @@ export interface Shop {
 	logoUrl: string | null;
 	bannerUrl: string | null;
 	ownerId: string;
-	ownerName: string;
+	isActive: boolean;
 	createdAt: string;
 	productCount: number;
-	averageRating: number;
-	reviewCount: number;
 }
 
-export type ProductStatus = 'Draft' | 'Active' | 'Inactive' | 'SoldOut';
-
+/** Product summary — matches backend ProductSummaryResponse + admin fields */
 export interface Product {
 	id: string;
-	title: string;
-	description: string;
-	categoryId: string;
-	categoryName: string;
-	shopId: string;
-	shopName: string;
-	status: ProductStatus;
-	isPersonalizationEnabled: boolean;
-	personalizationPrompt: string | null;
-	minPrice: number;
-	maxPrice: number;
+	name: string;
+	description?: string;
+	price: number;
 	mainImageUrl: string | null;
-	averageRating: number;
-	reviewCount: number;
-	createdAt: string;
-	updatedAt: string;
+	/* Admin listing enriched fields */
+	categoryId?: string;
+	categoryName?: string;
+	shopId?: string;
+	shopName?: string;
+	isActive?: boolean;
+	allowPersonalization?: boolean;
+	createdAt?: string;
+	updatedAt?: string;
 }
 
-export interface ProductImage {
+export interface ProductPhoto {
 	id: string;
 	url: string;
-	altText: string | null;
+	altText?: string | null;
 	isMain: boolean;
-	sortOrder: number;
-	colorId: string | null;
-	materialId: string | null;
+	sortOrder?: number;
+	sizeId?: string | null;
+	colorId?: string | null;
+	materialId?: string | null;
 }
 
 export type Gender = 'Male' | 'Female' | 'Unisex';
@@ -129,23 +127,20 @@ export interface ProductMaterial {
 	priceModifier: number;
 }
 
-export interface ProductPrice {
-	id: string;
-	sizeId: string;
-	colorId: string;
-	materialId: string;
-	basePrice: number;
-	oldPrice: number | null;
-	discountPercentage: number | null;
+export interface ProductInventoryItem {
+	sizeId?: string | null;
+	colorId?: string | null;
+	materialId?: string | null;
+	price: number;
 	quantity: number;
 }
 
 export interface ProductDetail extends Product {
-	images: ProductImage[];
-	sizes: ProductSize[];
-	colors: ProductColor[];
-	materials: ProductMaterial[];
-	prices: ProductPrice[];
+	totalQuantity: number;
+	tags?: string[];
+	materials?: string[];
+	photos: ProductPhoto[];
+	inventory: ProductInventoryItem[];
 }
 
 export interface Size {
@@ -163,6 +158,7 @@ export interface Color {
 export interface Material {
 	id: string;
 	name: string;
+	imageUrl?: string | null;
 }
 
 export interface ProductReview {
@@ -276,12 +272,12 @@ export interface OrderItem {
 }
 
 export interface OrderStatusUpdate {
-	status: string;
+	statusId: number;
 }
 
 // ─── Payment Types ───────────────────────────────────────────────────────────
 
-export type PaymentProvider = 'Stripe' | 'LiqPay' | 'PayPal';
+export type PaymentProvider = 'Stripe' | 'Payoneer' | 'PayPal';
 
 export type PaymentStatus = 'Pending' | 'Succeeded' | 'Failed' | 'Refunded';
 
@@ -315,6 +311,16 @@ export interface PaginatedResponse<T> {
 	page: number;
 	pageSize: number;
 	totalPages: number;
+}
+
+/** Wraps all responses from the backend RESTResult envelope */
+export interface RESTResultEnvelope<T = unknown> {
+	succeeded: boolean;
+	message: string | null;
+	date: string;
+	data?: T;
+	/** Present on validation (422) errors */
+	statusCode?: number;
 }
 
 export interface ApiError {

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import Breadcrumb from '$components/Breadcrumb.svelte';
+  import { i18n } from '$i18n/index.svelte';
   import ProductCard from '$components/ProductCard.svelte';
   import ReviewStars from '$components/ReviewStars.svelte';
   import Pagination from '$components/Pagination.svelte';
@@ -23,14 +23,6 @@
   let isReviewsLoading = $state(false);
 
   let activeTab = $state<'products' | 'reviews'>('products');
-
-  // ─── Derived ───────────────────────────────────────────────────────────────
-
-  let breadcrumbItems = $derived([
-    { label: 'Головна', href: '/' },
-    { label: 'Магазини', href: '/shops' },
-    ...(shop ? [{ label: shop.name }] : []),
-  ]);
 
   // ─── Data Loading ──────────────────────────────────────────────────────────
 
@@ -103,14 +95,10 @@
   function mapProductToCard(p: Product) {
     return {
       id: p.id,
-      title: p.title,
+      title: p.name,
       shopName: p.shopName,
       imageUrl: p.mainImageUrl ?? undefined,
-      basePrice: p.minPrice,
-      minPrice: p.minPrice,
-      maxPrice: p.maxPrice,
-      rating: p.averageRating,
-      reviewCount: p.reviewCount,
+      basePrice: p.price,
     };
   }
 
@@ -127,29 +115,27 @@
 </script>
 
 <svelte:head>
-  <title>{shop?.name ?? 'Магазин'} — MarineLaceSpace</title>
+  <title>{shop?.name ?? i18n.t('shops.shop')} — MarineLaceSpace</title>
 </svelte:head>
 
 {#if isLoading}
   <div class="container shop-loading">
-    <LoadingSpinner size="lg" message="Завантаження магазину…" />
+    <LoadingSpinner size="lg" message={i18n.t('shops.loadingShop')} />
   </div>
 {:else if shop}
   <div class="shop-page">
     <div class="container">
-      <Breadcrumb items={breadcrumbItems} />
-
       <!-- ─── Shop Header / Banner ─────────────────────────────────────────── -->
       <header class="shop-header">
         {#if shop.bannerUrl}
           <div class="shop-banner">
-            <img src={shop.bannerUrl} alt="{shop.name} банер" />
+            <img src={shop.bannerUrl} alt={i18n.t('shops.shopBanner', { name: shop.name })} />
           </div>
         {/if}
         <div class="shop-identity">
           <div class="shop-avatar">
             {#if shop.logoUrl}
-              <img src={shop.logoUrl} alt="{shop.name} логотип" class="avatar-image" />
+              <img src={shop.logoUrl} alt={i18n.t('shops.shopLogo', { name: shop.name })} class="avatar-image" />
             {:else}
               <div class="avatar-placeholder" aria-hidden="true">🏪</div>
             {/if}
@@ -161,49 +147,44 @@
             {/if}
             <div class="shop-stats">
               <span class="shop-stat">
-                <strong>{shop.productCount}</strong> товарів
+                {i18n.t('shops.products', { count: shop.productCount })}
               </span>
-              {#if shop.averageRating > 0}
-                <span class="shop-stat">
-                  <ReviewStars rating={shop.averageRating} count={shop.reviewCount} size="sm" />
-                </span>
-              {/if}
             </div>
           </div>
         </div>
       </header>
 
       <!-- ─── Tabs ─────────────────────────────────────────────────────────── -->
-      <div class="tabs" role="tablist" aria-label="Розділи магазину">
+      <div class="tabs" role="tablist" aria-label={i18n.t('shops.shopSections')}>
         <button
           class="tab"
           class:active={activeTab === 'products'}
           role="tab"
           aria-selected={activeTab === 'products'}
-          on:click={() => switchTab('products')}
+          onclick={() => switchTab('products')}
         >
-          Товари
+          {i18n.t('shops.allProducts')}
         </button>
         <button
           class="tab"
           class:active={activeTab === 'reviews'}
           role="tab"
           aria-selected={activeTab === 'reviews'}
-          on:click={() => switchTab('reviews')}
+          onclick={() => switchTab('reviews')}
         >
-          Відгуки
+          {i18n.t('shops.reviews')}
         </button>
       </div>
 
       <!-- ─── Products Tab ─────────────────────────────────────────────────── -->
       {#if activeTab === 'products'}
-        <section aria-label="Товари магазину">
+        <section aria-label={i18n.t('shops.shopProducts')}>
           {#if isProductsLoading}
-            <LoadingSpinner message="Завантаження товарів…" />
+            <LoadingSpinner message={i18n.t('shops.loadingProducts')} />
           {:else if products.length === 0}
             <EmptyState
-              title="Товарів ще немає"
-              description="Цей магазин ще не додав жодного товару"
+              title={i18n.t('shops.noProducts')}
+              description={i18n.t('shops.noProductsDescription')}
               icon="📦"
             />
           {:else}
@@ -228,13 +209,13 @@
 
       <!-- ─── Reviews Tab ──────────────────────────────────────────────────── -->
       {#if activeTab === 'reviews'}
-        <section aria-label="Відгуки магазину">
+        <section aria-label={i18n.t('shops.shopReviews')}>
           {#if isReviewsLoading}
-            <LoadingSpinner message="Завантаження відгуків…" />
+            <LoadingSpinner message={i18n.t('shops.loadingReviews')} />
           {:else if shopReviews.length === 0}
             <EmptyState
-              title="Відгуків ще немає"
-              description="Станьте першим, хто залишить відгук"
+              title={i18n.t('shops.noReviews')}
+              description={i18n.t('shops.noReviewsDescription')}
               icon="💬"
             />
           {:else}
@@ -245,7 +226,7 @@
                     <div class="review-header">
                       <ReviewStars rating={review.rating} size="sm" />
                       {#if review.isVerifiedPurchase}
-                        <span class="badge badge-success">Підтверджена покупка</span>
+                        <span class="badge badge-success">{i18n.t('shops.verifiedPurchase')}</span>
                       {/if}
                     </div>
                     {#if review.title}
@@ -254,7 +235,7 @@
                     <p class="review-text">{review.text}</p>
                     <div class="review-footer">
                       <span class="text-muted text-sm">
-                        {review.guestName ?? 'Покупець'} • {formatDate(review.createdAt)}
+                        {review.guestName ?? i18n.t('shops.customer')} • {formatDate(review.createdAt)}
                       </span>
                     </div>
                   </div>
@@ -279,10 +260,10 @@
 {:else}
   <div class="container shop-loading">
     <EmptyState
-      title="Магазин не знайдено"
-      description="Перевірте адресу або поверніться до списку магазинів"
+      title={i18n.t('shops.shopNotFound')}
+      description={i18n.t('shops.shopNotFoundDescription')}
       icon="🔍"
-      actionLabel="До магазинів"
+      actionLabel={i18n.t('shops.goToShops')}
       actionHref="/shops"
     />
   </div>
@@ -383,10 +364,6 @@
     display: inline-flex;
     align-items: center;
     gap: var(--space-1);
-  }
-
-  .shop-stat strong {
-    color: var(--color-text);
   }
 
   /* ─── Tabs ────────────────────────────────────────────────────────────── */

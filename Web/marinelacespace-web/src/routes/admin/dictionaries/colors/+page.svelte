@@ -3,7 +3,8 @@
   import LoadingSpinner from '$components/LoadingSpinner.svelte';
   import EmptyState from '$components/EmptyState.svelte';
   import Modal from '$components/Modal.svelte';
-  import { notificationStore } from '$stores/notification';
+  import { notificationStore } from '$stores/notification.svelte';
+  import { i18n } from '$i18n/index.svelte';
   import type { Color } from '$types';
 
   let loading = $state(true);
@@ -30,7 +31,7 @@
       loading = true;
       colors = await catalogApi.getColors();
     } catch {
-      notificationStore.error('Помилка завантаження кольорів');
+      notificationStore.error(i18n.t('admin.errorLoadingColors'));
     } finally {
       loading = false;
     }
@@ -59,26 +60,26 @@
 
   async function saveColor() {
     if (!modalName.trim()) {
-      notificationStore.warning('Введіть назву кольору');
+      notificationStore.warning(i18n.t('admin.enterColorName'));
       return;
     }
     if (!/^#[0-9a-fA-F]{6}$/.test(modalHex)) {
-      notificationStore.warning('Введіть коректний HEX-код (#RRGGBB)');
+      notificationStore.warning(i18n.t('admin.enterValidHex'));
       return;
     }
     try {
       saving = true;
       if (modalMode === 'create') {
         await catalogApi.createColor({ name: modalName.trim(), hexCode: modalHex });
-        notificationStore.success('Колір створено');
+        notificationStore.success(i18n.t('admin.colorCreated'));
       } else if (editingId) {
         await catalogApi.updateColor(editingId, { name: modalName.trim(), hexCode: modalHex });
-        notificationStore.success('Колір оновлено');
+        notificationStore.success(i18n.t('admin.colorUpdated'));
       }
       showModal = false;
       loadColors();
     } catch {
-      notificationStore.error('Помилка збереження кольору');
+      notificationStore.error(i18n.t('admin.errorSavingColor'));
     } finally {
       saving = false;
     }
@@ -88,28 +89,28 @@
     if (!deleteTarget) return;
     try {
       await catalogApi.deleteColor(deleteTarget.id);
-      notificationStore.success('Колір видалено');
+      notificationStore.success(i18n.t('admin.colorDeleted'));
       showDeleteModal = false;
       deleteTarget = null;
       loadColors();
     } catch {
-      notificationStore.error('Помилка видалення кольору');
+      notificationStore.error(i18n.t('admin.errorDeletingColor'));
     }
   }
 </script>
 
 <div class="colors-page">
   <div class="page-header">
-    <h1 class="page-title">Довідник кольорів</h1>
-    <button class="btn btn-primary" on:click={openCreate}>Додати колір</button>
+    <h1 class="page-title">{i18n.t('admin.colorsDictionary')}</h1>
+    <button class="btn btn-primary" onclick={openCreate}>{i18n.t('admin.addColor')}</button>
   </div>
 
   {#if loading}
-    <LoadingSpinner message="Завантаження кольорів..." />
+    <LoadingSpinner message={i18n.t('admin.loadingColors')} />
   {:else if colors.length === 0}
     <EmptyState
-      title="Кольорів ще немає"
-      description="Додайте кольори для товарів"
+      title={i18n.t('admin.noColorsYet')}
+      description={i18n.t('admin.addColorsForProducts')}
       icon="🎨"
     />
   {:else}
@@ -122,14 +123,14 @@
             <span class="color-hex">{color.hexCode}</span>
           </div>
           <div class="color-actions">
-            <button class="btn btn-sm btn-ghost" on:click={() => openEdit(color)}>
-              Редагувати
+            <button class="btn btn-sm btn-ghost" onclick={() => openEdit(color)}>
+              {i18n.t('common.edit')}
             </button>
             <button
               class="btn btn-sm btn-ghost btn-danger-text"
-              on:click={() => confirmDelete(color)}
+              onclick={() => confirmDelete(color)}
             >
-              Видалити
+              {i18n.t('common.delete')}
             </button>
           </div>
         </div>
@@ -138,15 +139,15 @@
 
     <!-- Alternative table view -->
     <details class="table-toggle mt-6">
-      <summary class="text-sm text-muted">Табличний вигляд</summary>
+      <summary class="text-sm text-muted">{i18n.t('admin.tableView')}</summary>
       <div class="table-wrapper mt-2">
         <table class="data-table">
           <thead>
             <tr>
-              <th>Колір</th>
-              <th>Назва</th>
-              <th>HEX код</th>
-              <th>Дії</th>
+              <th>{i18n.t('admin.color')}</th>
+              <th>{i18n.t('admin.name')}</th>
+              <th>{i18n.t('admin.hexCode')}</th>
+              <th>{i18n.t('admin.actions')}</th>
             </tr>
           </thead>
           <tbody>
@@ -161,14 +162,14 @@
                 <td class="cell-name">{color.name}</td>
                 <td class="cell-mono">{color.hexCode}</td>
                 <td class="cell-actions">
-                  <button class="btn btn-sm btn-ghost" on:click={() => openEdit(color)}>
-                    Редагувати
+                  <button class="btn btn-sm btn-ghost" onclick={() => openEdit(color)}>
+                    {i18n.t('common.edit')}
                   </button>
                   <button
                     class="btn btn-sm btn-ghost btn-danger-text"
-                    on:click={() => confirmDelete(color)}
+                    onclick={() => confirmDelete(color)}
                   >
-                    Видалити
+                    {i18n.t('common.delete')}
                   </button>
                 </td>
               </tr>
@@ -182,15 +183,15 @@
 
 <Modal
   open={showModal}
-  title={modalMode === 'create' ? 'Новий колір' : 'Редагувати колір'}
+  title={modalMode === 'create' ? i18n.t('admin.newColor') : i18n.t('admin.editColor')}
   onclose={() => (showModal = false)}
 >
   <div class="form-group">
-    <label class="form-label" for="colorName">Назва</label>
-    <input id="colorName" class="input" type="text" bind:value={modalName} placeholder="Чорний, Білий, Рожевий..." />
+    <label class="form-label" for="colorName">{i18n.t('admin.name')}</label>
+    <input id="colorName" class="input" type="text" bind:value={modalName} placeholder={i18n.t('admin.colorNamePlaceholder')} />
   </div>
   <div class="form-group mt-4">
-    <label class="form-label" for="colorHex">HEX код</label>
+    <label class="form-label" for="colorHex">{i18n.t('admin.hexCode')}</label>
     <div class="hex-input-row">
       <input
         id="colorHex"
@@ -204,24 +205,24 @@
         type="color"
         class="color-picker"
         bind:value={modalHex}
-        aria-label="Обрати колір"
+        aria-label={i18n.t('admin.pickColor')}
       />
     </div>
     <div class="color-preview" style="background: {modalHex}"></div>
   </div>
   <div class="modal-actions">
-    <button class="btn btn-outline" on:click={() => (showModal = false)}>Скасувати</button>
-    <button class="btn btn-primary" on:click={saveColor} disabled={saving}>
-      {saving ? 'Збереження...' : 'Зберегти'}
+    <button class="btn btn-outline" onclick={() => (showModal = false)}>{i18n.t('common.cancel')}</button>
+    <button class="btn btn-primary" onclick={saveColor} disabled={saving}>
+      {saving ? i18n.t('common.saving') : i18n.t('common.save')}
     </button>
   </div>
 </Modal>
 
-<Modal open={showDeleteModal} title="Видалити колір?" onclose={() => (showDeleteModal = false)}>
-  <p>Ви впевнені, що хочете видалити колір <strong>{deleteTarget?.name}</strong>?</p>
+<Modal open={showDeleteModal} title={i18n.t('admin.deleteColorQuestion')} onclose={() => (showDeleteModal = false)}>
+  <p>{i18n.t('admin.confirmDeleteColor', { name: deleteTarget?.name ?? '' })}</p>
   <div class="modal-actions">
-    <button class="btn btn-outline" on:click={() => (showDeleteModal = false)}>Скасувати</button>
-    <button class="btn btn-danger" on:click={executeDelete}>Видалити</button>
+    <button class="btn btn-outline" onclick={() => (showDeleteModal = false)}>{i18n.t('common.cancel')}</button>
+    <button class="btn btn-danger" onclick={executeDelete}>{i18n.t('common.delete')}</button>
   </div>
 </Modal>
 

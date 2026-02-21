@@ -1,22 +1,15 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import Breadcrumb from '$components/Breadcrumb.svelte';
-
-  const breadcrumbs = [
-    { label: 'Головна', href: '/' },
-    { label: 'Замовлення оформлено' }
-  ];
+  import { i18n } from '$i18n/index.svelte';
 
   const orderId = $derived($page.url.searchParams.get('orderId') ?? '');
 </script>
 
 <svelte:head>
-  <title>Замовлення оформлено — MarineLaceSpace</title>
+  <title>{i18n.t('checkout.orderPlaced')} — MarineLaceSpace</title>
 </svelte:head>
 
-<section class="success-page container" aria-label="Замовлення оформлено">
-  <Breadcrumb items={breadcrumbs} />
-
+<section class="success-page container" aria-label={i18n.t('checkout.orderPlaced')}>
   <div class="success-content">
     <div class="success-icon-wrap" aria-hidden="true">
       <div class="success-circle">
@@ -27,30 +20,29 @@
       </div>
     </div>
 
-    <h1 class="success-title">Замовлення оформлено!</h1>
+    <h1 class="success-title">{i18n.t('checkout.orderPlaced')}!</h1>
 
     {#if orderId}
-      <p class="order-number">Номер замовлення: <strong>{orderId}</strong></p>
+      <p class="order-number">{i18n.t('checkout.orderNumber')}: <strong>{orderId}</strong></p>
     {/if}
 
     <p class="success-description">
-      Ми надіслали підтвердження на ваш email.<br />
-      Ви можете відстежувати статус замовлення у вашому акаунті.
+      {i18n.t('checkout.successMessage')}
     </p>
 
     <div class="success-actions">
       {#if orderId}
         <a href="/account/orders/{orderId}" class="btn btn-primary btn-lg">
-          Переглянути замовлення
+          {i18n.t('checkout.viewOrders')}
         </a>
       {/if}
       <a href="/catalog" class="btn btn-outline btn-lg">
-        Продовжити покупки
+        {i18n.t('checkout.continueShopping')}
       </a>
     </div>
 
     <div class="success-extras">
-      <p class="success-trust">🔒 Безпечна оплата • Повернення протягом 14 днів • Безкоштовна доставка від 2000₴</p>
+      <p class="success-trust">{i18n.t('checkout.trustBadge')}</p>
     </div>
   </div>
 </section>

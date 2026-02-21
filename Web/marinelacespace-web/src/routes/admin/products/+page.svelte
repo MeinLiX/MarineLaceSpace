@@ -4,8 +4,9 @@
   import Pagination from '$components/Pagination.svelte';
   import EmptyState from '$components/EmptyState.svelte';
   import Modal from '$components/Modal.svelte';
-  import { notificationStore } from '$stores/notification';
-  import type { Product, ProductStatus } from '$types';
+  import { notificationStore } from '$stores/notification.svelte';
+  import { i18n } from '$i18n/index.svelte';
+  import type { Product } from '$types';
 
   let loading = $state(true);
   let products = $state<Product[]>([]);
@@ -25,17 +26,15 @@
   async function loadProducts(page: number, q: string, status: string) {
     try {
       loading = true;
-      const result = await catalogApi.getProducts({
+      const result = await catalogApi.getAdminProducts({
         page,
         pageSize: 20,
         search: q || undefined,
       });
-      products = status
-        ? result.items.filter((p) => p.status === status)
-        : result.items;
+      products = result.items;
       totalPages = result.totalPages;
     } catch {
-      notificationStore.error('Помилка завантаження товарів');
+      notificationStore.error(i18n.t('admin.errorLoadingProducts'));
     } finally {
       loading = false;
     }
@@ -73,45 +72,25 @@
     if (!deleteTarget) return;
     try {
       await catalogApi.deleteProduct(deleteTarget.id);
-      notificationStore.success('Товар видалено');
+      notificationStore.success(i18n.t('admin.productDeleted'));
       showDeleteModal = false;
       deleteTarget = null;
       loadProducts(currentPage, search, statusFilter);
     } catch {
-      notificationStore.error('Помилка видалення товару');
+      notificationStore.error(i18n.t('admin.errorDeletingProduct'));
     }
   }
 
   async function bulkDelete() {
     try {
       await Promise.all([...selectedIds].map((id) => catalogApi.deleteProduct(id)));
-      notificationStore.success(`Видалено ${selectedIds.size} товарів`);
+      notificationStore.success(i18n.t('admin.deletedCount', { count: selectedIds.size }));
       selectedIds = new Set();
       showBulkDeleteModal = false;
       loadProducts(currentPage, search, statusFilter);
     } catch {
-      notificationStore.error('Помилка видалення');
+      notificationStore.error(i18n.t('admin.errorDeleting'));
     }
-  }
-
-  function productStatusBadge(status: ProductStatus): string {
-    const map: Record<ProductStatus, string> = {
-      Draft: 'badge-outline',
-      Active: 'badge-success',
-      Inactive: 'badge-warning',
-      SoldOut: 'badge-error',
-    };
-    return map[status];
-  }
-
-  function productStatusLabel(status: ProductStatus): string {
-    const map: Record<ProductStatus, string> = {
-      Draft: 'Чернетка',
-      Active: 'Активний',
-      Inactive: 'Неактивний',
-      SoldOut: 'Розпродано',
-    };
-    return map[status];
   }
 
   function formatCurrency(value: number): string {
@@ -121,8 +100,8 @@
 
 <div class="products-page">
   <div class="page-header">
-    <h1 class="page-title">Товари</h1>
-    <a href="/admin/products/new" class="btn btn-primary">Створити товар</a>
+    <h1 class="page-title">{i18n.t('admin.products')}</h1>
+    <a href="/admin/products/new" class="btn btn-primary">{i18n.t('admin.createProduct')}</a>
   </div>
 
   <div class="toolbar">
@@ -130,39 +109,33 @@
       <input
         class="input input-sm"
         type="search"
-        placeholder="Пошук товарів..."
+        placeholder={i18n.t('admin.searchProducts')}
         bind:value={search}
-        on:input={handleSearch}
+        oninput={handleSearch}
       />
-      <select class="input input-sm filter-select" bind:value={statusFilter}>
-        <option value="">Всі статуси</option>
-        <option value="Active">Активні</option>
-        <option value="Draft">Чернетки</option>
-        <option value="Inactive">Неактивні</option>
-        <option value="SoldOut">Розпродано</option>
-      </select>
+
     </div>
     {#if selectedIds.size > 0}
       <div class="toolbar-right">
-        <span class="text-sm text-muted">Обрано: {selectedIds.size}</span>
+        <span class="text-sm text-muted">{i18n.t('admin.selected')}: {selectedIds.size}</span>
         <button
           class="btn btn-sm btn-danger"
-          on:click={() => (showBulkDeleteModal = true)}
+          onclick={() => (showBulkDeleteModal = true)}
         >
-          Видалити обрані
+          {i18n.t('admin.deleteSelected')}
         </button>
       </div>
     {/if}
   </div>
 
   {#if loading}
-    <LoadingSpinner message="Завантаження товарів..." />
+    <LoadingSpinner message={i18n.t('admin.loadingProducts')} />
   {:else if products.length === 0}
     <EmptyState
-      title="Товарів не знайдено"
-      description="Створіть перший товар для вашого магазину"
+      title={i18n.t('admin.noProductsFound')}
+      description={i18n.t('admin.createFirstProduct')}
       icon="📦"
-      actionLabel="Створити товар"
+      actionLabel={i18n.t('admin.createProduct')}
       actionHref="/admin/products/new"
     />
   {:else}
@@ -174,16 +147,16 @@
               <input
                 type="checkbox"
                 checked={selectedIds.size === products.length && products.length > 0}
-                on:change={toggleSelectAll}
+                onchange={toggleSelectAll}
               />
             </th>
-            <th>Фото</th>
-            <th>Назва</th>
-            <th>Магазин</th>
-            <th>Категорія</th>
-            <th>Ціна</th>
-            <th>Статус</th>
-            <th>Дії</th>
+            <th>{i18n.t('admin.photo')}</th>
+            <th>{i18n.t('admin.title')}</th>
+            <th>{i18n.t('admin.shop')}</th>
+            <th>{i18n.t('admin.category')}</th>
+            <th>{i18n.t('admin.price')}</th>
+            <th>{i18n.t('admin.status')}</th>
+            <th>{i18n.t('admin.actions')}</th>
           </tr>
         </thead>
         <tbody>
@@ -193,44 +166,40 @@
                 <input
                   type="checkbox"
                   checked={selectedIds.has(product.id)}
-                  on:change={() => toggleSelect(product.id)}
+                  onchange={() => toggleSelect(product.id)}
                 />
               </td>
               <td>
                 {#if product.mainImageUrl}
-                  <img src={product.mainImageUrl} alt={product.title} class="thumb" />
+                  <img src={product.mainImageUrl} alt={product.name} class="thumb" />
                 {:else}
                   <div class="thumb thumb-placeholder">📷</div>
                 {/if}
               </td>
               <td class="cell-title">
                 <a href="/admin/products/{product.id}" class="product-link">
-                  {product.title}
+                  {product.name}
                 </a>
               </td>
-              <td>{product.shopName}</td>
-              <td>{product.categoryName}</td>
+              <td>{product.shopName ?? '—'}</td>
+              <td>{product.categoryName ?? '—'}</td>
               <td class="cell-mono">
-                {#if product.minPrice === product.maxPrice}
-                  {formatCurrency(product.minPrice)}
-                {:else}
-                  {formatCurrency(product.minPrice)} – {formatCurrency(product.maxPrice)}
-                {/if}
+                {formatCurrency(product.price)}
               </td>
               <td>
-                <span class="badge {productStatusBadge(product.status)}">
-                  {productStatusLabel(product.status)}
+                <span class="badge {product.isActive ? 'badge-success' : 'badge-outline'}">
+                  {product.isActive ? i18n.t('admin.active') : i18n.t('admin.inactive')}
                 </span>
               </td>
               <td class="cell-actions">
                 <a href="/admin/products/{product.id}" class="btn btn-sm btn-ghost">
-                  Редагувати
+                  {i18n.t('common.edit')}
                 </a>
                 <button
                   class="btn btn-sm btn-ghost btn-danger-text"
-                  on:click={() => confirmDelete(product)}
+                  onclick={() => confirmDelete(product)}
                 >
-                  Видалити
+                  {i18n.t('common.delete')}
                 </button>
               </td>
             </tr>
@@ -243,21 +212,21 @@
   {/if}
 </div>
 
-<Modal open={showDeleteModal} title="Видалити товар?" onclose={() => (showDeleteModal = false)}>
-  <p>Ви впевнені, що хочете видалити товар <strong>{deleteTarget?.title}</strong>?</p>
-  <p class="text-sm text-muted mt-2">Цю дію неможливо скасувати.</p>
+<Modal open={showDeleteModal} title={i18n.t('admin.deleteProductQuestion')} onclose={() => (showDeleteModal = false)}>
+  <p>{i18n.t('admin.confirmDeleteProduct', { title: deleteTarget?.name ?? '' })}</p>
+  <p class="text-sm text-muted mt-2">{i18n.t('admin.actionIrreversible')}</p>
   <div class="modal-actions">
-    <button class="btn btn-outline" on:click={() => (showDeleteModal = false)}>Скасувати</button>
-    <button class="btn btn-danger" on:click={executeDelete}>Видалити</button>
+    <button class="btn btn-outline" onclick={() => (showDeleteModal = false)}>{i18n.t('common.cancel')}</button>
+    <button class="btn btn-danger" onclick={executeDelete}>{i18n.t('common.delete')}</button>
   </div>
 </Modal>
 
-<Modal open={showBulkDeleteModal} title="Видалити обрані товари?" onclose={() => (showBulkDeleteModal = false)}>
-  <p>Ви впевнені, що хочете видалити {selectedIds.size} товарів?</p>
-  <p class="text-sm text-muted mt-2">Цю дію неможливо скасувати.</p>
+<Modal open={showBulkDeleteModal} title={i18n.t('admin.deleteSelectedProducts')} onclose={() => (showBulkDeleteModal = false)}>
+  <p>{i18n.t('admin.confirmDeleteProducts', { count: selectedIds.size })}</p>
+  <p class="text-sm text-muted mt-2">{i18n.t('admin.actionIrreversible')}</p>
   <div class="modal-actions">
-    <button class="btn btn-outline" on:click={() => (showBulkDeleteModal = false)}>Скасувати</button>
-    <button class="btn btn-danger" on:click={bulkDelete}>Видалити</button>
+    <button class="btn btn-outline" onclick={() => (showBulkDeleteModal = false)}>{i18n.t('common.cancel')}</button>
+    <button class="btn btn-danger" onclick={bulkDelete}>{i18n.t('common.delete')}</button>
   </div>
 </Modal>
 
@@ -293,11 +262,6 @@
     display: flex;
     align-items: center;
     gap: var(--space-3);
-  }
-
-  .filter-select {
-    width: auto;
-    min-width: 160px;
   }
 
   .table-wrapper {

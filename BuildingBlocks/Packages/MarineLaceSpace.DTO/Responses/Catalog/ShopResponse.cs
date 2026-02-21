@@ -8,5 +8,8 @@ public class ShopResponse
     public string UrlSlug { get; set; }
     public string? LogoUrl { get; set; }
     public string? BannerUrl { get; set; }
+    public string OwnerId { get; set; }
+    public bool IsActive { get; set; }
+    public int ProductCount { get; set; }
     public DateTime CreatedAt { get; set; }
 }

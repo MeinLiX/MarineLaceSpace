@@ -1,6 +1,6 @@
-import type { ApiError } from '$types';
+import type { ApiError, RESTResultEnvelope } from '$types';
 
-const BASE_URL = (typeof window !== 'undefined' && (window as Record<string, unknown>).__PUBLIC_API_URL__) as string
+const BASE_URL = (typeof window !== 'undefined' && (window as unknown as Record<string, unknown>).__PUBLIC_API_URL__) as string
 	|| import.meta.env.PUBLIC_API_URL as string
 	|| '/api';
 
@@ -32,7 +32,27 @@ class ApiClient {
 
 			let apiError: ApiError;
 			try {
-				apiError = await response.json();
+				const body = await response.json();
+				// Handle RESTResult / RESTErrorResult envelope
+				if (body && typeof body === 'object' && 'succeeded' in body) {
+					const envelope = body as RESTResultEnvelope;
+					const errors = (envelope.data && typeof envelope.data === 'object' && !Array.isArray(envelope.data))
+						? envelope.data as Record<string, string[]>
+						: undefined;
+					const errorMessages: string[] = [];
+					if (envelope.message) errorMessages.push(envelope.message);
+					if (errors) {
+						for (const fieldErrors of Object.values(errors)) {
+							errorMessages.push(...fieldErrors);
+						}
+					}
+					apiError = {
+						message: errorMessages.join('. ') || `Request failed (${response.status})`,
+						errors,
+					};
+				} else {
+					apiError = { message: body?.message || body?.error || response.statusText || `HTTP ${response.status}` };
+				}
 			} catch {
 				apiError = { message: response.statusText || `HTTP ${response.status}` };
 			}
@@ -42,7 +62,15 @@ class ApiClient {
 
 		const text = await response.text();
 		if (!text) return undefined as T;
-		return JSON.parse(text) as T;
+
+		const parsed = JSON.parse(text);
+
+		// Unwrap RESTResult envelope: if it has { succeeded, data }, return .data
+		if (parsed && typeof parsed === 'object' && 'succeeded' in parsed && 'data' in parsed) {
+			return parsed.data as T;
+		}
+
+		return parsed as T;
 	}
 
 	private buildHeaders(contentType?: string): HeadersInit {

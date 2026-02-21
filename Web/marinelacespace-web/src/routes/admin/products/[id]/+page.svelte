@@ -4,40 +4,40 @@
   import * as catalogApi from '$api/catalog';
   import LoadingSpinner from '$components/LoadingSpinner.svelte';
   import Modal from '$components/Modal.svelte';
-  import { notificationStore } from '$stores/notification';
+  import { notificationStore } from '$stores/notification.svelte';
+  import { i18n } from '$i18n/index.svelte';
   import type {
     ProductDetail,
     Category,
     Size,
     Color,
     Material,
-    ProductPrice,
-    ProductImage,
+    ProductInventoryItem,
+    ProductPhoto,
   } from '$types';
 
-  let productId = $derived($page.params.id);
+  let productId = $derived($page.params.id!);
   let isNew = $derived(productId === 'new');
   let loading = $state(true);
   let saving = $state(false);
   let activeTab = $state<'basic' | 'variants' | 'photos' | 'settings'>('basic');
 
   // Form state — basic
-  let title = $state('');
+  let name = $state('');
   let description = $state('');
   let categoryId = $state('');
   let shopId = $state('');
-  let status = $state<'Draft' | 'Active' | 'Inactive'>('Draft');
-  let isPersonalizationEnabled = $state(false);
-  let personalizationPrompt = $state('');
+  let isActive = $state(true);
+  let allowPersonalization = $state(false);
 
   // Variants
   let selectedSizeIds = $state<Set<string>>(new Set());
   let selectedColorIds = $state<Set<string>>(new Set());
   let selectedMaterialIds = $state<Set<string>>(new Set());
-  let prices = $state<ProductPrice[]>([]);
+  let inventory = $state<ProductInventoryItem[]>([]);
 
   // Photos
-  let images = $state<ProductImage[]>([]);
+  let photos = $state<ProductPhoto[]>([]);
 
   // Dictionaries
   let categories = $state<Category[]>([]);
@@ -60,8 +60,8 @@
     let result: { id: string; name: string; indent: string }[] = [];
     for (const cat of cats) {
       result.push({ id: cat.id, name: cat.name, indent: '\u2003'.repeat(depth) });
-      if (cat.childCategories?.length) {
-        result = result.concat(flattenCategories(cat.childCategories, depth + 1));
+      if (cat.subcategories?.length) {
+        result = result.concat(flattenCategories(cat.subcategories, depth + 1));
       }
     }
     return result;
@@ -90,57 +90,52 @@
 
       if (id !== 'new') {
         const product = await catalogApi.getProductById(id);
-        title = product.title;
-        description = product.description;
-        categoryId = product.categoryId;
-        shopId = product.shopId;
-        status = product.status as 'Draft' | 'Active' | 'Inactive';
-        isPersonalizationEnabled = product.isPersonalizationEnabled;
-        personalizationPrompt = product.personalizationPrompt ?? '';
-        selectedSizeIds = new Set(product.sizes.map((s) => s.sizeId));
-        selectedColorIds = new Set(product.colors.map((c) => c.colorId));
-        selectedMaterialIds = new Set(product.materials.map((m) => m.materialId));
-        prices = product.prices;
-        images = product.images;
+        name = product.name;
+        description = product.description ?? '';
+        categoryId = product.categoryId ?? '';
+        shopId = product.shopId ?? '';
+        isActive = product.isActive ?? true;
+        allowPersonalization = product.allowPersonalization ?? false;
+        inventory = product.inventory ?? [];
+        photos = product.photos ?? [];
       }
     } catch {
-      notificationStore.error('Помилка завантаження даних');
+      notificationStore.error(i18n.t('admin.errorLoadingData'));
     } finally {
       loading = false;
     }
   }
 
   async function save() {
-    if (!title.trim()) {
-      notificationStore.warning('Введіть назву товару');
+    if (!name.trim()) {
+      notificationStore.warning(i18n.t('admin.enterProductName'));
       return;
     }
     try {
       saving = true;
       const data: Partial<ProductDetail> = {
-        title,
+        name,
         description,
         categoryId,
         shopId,
-        status: status as any,
-        isPersonalizationEnabled,
-        personalizationPrompt: personalizationPrompt || null,
+        isActive,
+        allowPersonalization,
       };
 
       if (isNew) {
         if (!shopId) {
-          notificationStore.warning('Оберіть магазин');
+          notificationStore.warning(i18n.t('admin.selectShop'));
           return;
         }
         const created = await catalogApi.createProduct(shopId, data);
-        notificationStore.success('Товар створено');
+        notificationStore.success(i18n.t('admin.productCreated'));
         goto(`/admin/products/${created.id}`);
       } else {
         await catalogApi.updateProduct(productId, data);
-        notificationStore.success('Товар збережено');
+        notificationStore.success(i18n.t('admin.productSaved'));
       }
     } catch {
-      notificationStore.error('Помилка збереження');
+      notificationStore.error(i18n.t('admin.errorSaving'));
     } finally {
       saving = false;
     }
@@ -149,10 +144,10 @@
   async function deleteProduct() {
     try {
       await catalogApi.deleteProduct(productId);
-      notificationStore.success('Товар видалено');
+      notificationStore.success(i18n.t('admin.productDeleted'));
       goto('/admin/products');
     } catch {
-      notificationStore.error('Помилка видалення');
+      notificationStore.error(i18n.t('admin.errorDeleting'));
     }
   }
 
@@ -179,39 +174,30 @@
 
   async function deleteImage(imageId: string) {
     try {
-      await catalogApi.deleteProductImage(productId, imageId);
-      images = images.filter((img) => img.id !== imageId);
-      notificationStore.success('Зображення видалено');
+      await catalogApi.deleteProductImage(shopId, productId, imageId);
+      photos = photos.filter((img) => img.id !== imageId);
+      notificationStore.success(i18n.t('admin.imageDeleted'));
     } catch {
-      notificationStore.error('Помилка видалення зображення');
+      notificationStore.error(i18n.t('admin.errorDeletingImage'));
     }
   }
 
-  function updatePriceField(index: number, field: 'basePrice' | 'oldPrice' | 'quantity', value: string) {
+  function updateInventoryField(index: number, field: 'price' | 'quantity', value: string) {
     const numValue = parseFloat(value) || 0;
-    prices = prices.map((p, i) => {
-      if (i !== index) return p;
-      if (field === 'oldPrice') return { ...p, oldPrice: numValue || null };
-      if (field === 'quantity') return { ...p, quantity: Math.floor(numValue) };
-      return { ...p, basePrice: numValue };
+    inventory = inventory.map((item, i) => {
+      if (i !== index) return item;
+      if (field === 'quantity') return { ...item, quantity: Math.floor(numValue) };
+      return { ...item, price: numValue };
     });
   }
 
   async function saveInventory() {
     try {
       saving = true;
-      for (const price of prices) {
-        await catalogApi.updatePrice(productId, price.id, {
-          basePrice: price.basePrice,
-          oldPrice: price.oldPrice ?? undefined,
-        });
-        await catalogApi.updateInventory(productId, price.id, {
-          quantity: price.quantity,
-        });
-      }
-      notificationStore.success('Інвентар збережено');
+      await catalogApi.updateProductInventory(productId, inventory);
+      notificationStore.success(i18n.t('admin.inventorySaved'));
     } catch {
-      notificationStore.error('Помилка збереження інвентарю');
+      notificationStore.error(i18n.t('admin.errorSavingInventory'));
     } finally {
       saving = false;
     }
@@ -232,14 +218,14 @@
 
 <div class="product-editor">
   {#if loading}
-    <LoadingSpinner message="Завантаження..." />
+    <LoadingSpinner message={i18n.t('common.loading')} />
   {:else}
     <div class="editor-header">
-      <h1 class="page-title">{isNew ? 'Новий товар' : 'Редагування товару'}</h1>
+      <h1 class="page-title">{isNew ? i18n.t('admin.newProduct') : i18n.t('admin.editProduct')}</h1>
       <div class="header-actions">
-        <a href="/admin/products" class="btn btn-outline">Скасувати</a>
-        <button class="btn btn-primary" on:click={save} disabled={saving}>
-          {saving ? 'Збереження...' : 'Зберегти'}
+        <a href="/admin/products" class="btn btn-outline">{i18n.t('common.cancel')}</a>
+        <button class="btn btn-primary" onclick={save} disabled={saving}>
+          {saving ? i18n.t('common.saving') : i18n.t('common.save')}
         </button>
       </div>
     </div>
@@ -248,33 +234,33 @@
       <button
         class="tab"
         class:active={activeTab === 'basic'}
-        on:click={() => (activeTab = 'basic')}
+        onclick={() => (activeTab = 'basic')}
       >
-        Основне
+        {i18n.t('admin.tabBasic')}
       </button>
       <button
         class="tab"
         class:active={activeTab === 'variants'}
-        on:click={() => (activeTab = 'variants')}
+        onclick={() => (activeTab = 'variants')}
         disabled={isNew}
       >
-        Варіації та ціни
+        {i18n.t('admin.tabVariants')}
       </button>
       <button
         class="tab"
         class:active={activeTab === 'photos'}
-        on:click={() => (activeTab = 'photos')}
+        onclick={() => (activeTab = 'photos')}
         disabled={isNew}
       >
-        Фотографії
+        {i18n.t('admin.tabPhotos')}
       </button>
       <button
         class="tab"
         class:active={activeTab === 'settings'}
-        on:click={() => (activeTab = 'settings')}
+        onclick={() => (activeTab = 'settings')}
         disabled={isNew}
       >
-        Налаштування
+        {i18n.t('admin.tabSettings')}
       </button>
     </div>
 
@@ -284,25 +270,25 @@
         <div class="card-body">
           <div class="form-grid">
             <div class="form-group full">
-              <label class="form-label" for="title">Назва</label>
-              <input id="title" class="input" type="text" bind:value={title} placeholder="Назва товару" />
+              <label class="form-label" for="title">{i18n.t('admin.name')}</label>
+              <input id="title" class="input" type="text" bind:value={name} placeholder={i18n.t('admin.productNamePlaceholder')} />
             </div>
 
             <div class="form-group full">
-              <label class="form-label" for="description">Опис</label>
+              <label class="form-label" for="description">{i18n.t('admin.description')}</label>
               <textarea
                 id="description"
                 class="input"
                 rows="6"
                 bind:value={description}
-                placeholder="Детальний опис товару..."
+                placeholder={i18n.t('admin.productDescriptionPlaceholder')}
               ></textarea>
             </div>
 
             <div class="form-group">
-              <label class="form-label" for="category">Категорія</label>
+              <label class="form-label" for="category">{i18n.t('admin.category')}</label>
               <select id="category" class="input" bind:value={categoryId}>
-                <option value="">Оберіть категорію</option>
+                <option value="">{i18n.t('admin.selectCategory')}</option>
                 {#each flatCategories as cat}
                   <option value={cat.id}>{cat.indent}{cat.name}</option>
                 {/each}
@@ -310,9 +296,9 @@
             </div>
 
             <div class="form-group">
-              <label class="form-label" for="shop">Магазин</label>
+              <label class="form-label" for="shop">{i18n.t('admin.shop')}</label>
               <select id="shop" class="input" bind:value={shopId} disabled={!isNew}>
-                <option value="">Оберіть магазин</option>
+                <option value="">{i18n.t('admin.selectShop')}</option>
                 {#each shops as shop}
                   <option value={shop.id}>{shop.name}</option>
                 {/each}
@@ -320,36 +306,20 @@
             </div>
 
             <div class="form-group">
-              <label class="form-label" for="status">Статус</label>
-              <select id="status" class="input" bind:value={status}>
-                <option value="Draft">Чернетка</option>
-                <option value="Active">Активний</option>
-                <option value="Inactive">Неактивний</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Персоналізація</label>
+              <span class="form-label">{i18n.t('admin.status')}</span>
               <label class="toggle-label">
-                <input type="checkbox" bind:checked={isPersonalizationEnabled} />
-                <span>Дозволити персоналізацію</span>
+                <input type="checkbox" bind:checked={isActive} />
+                <span>{i18n.t('admin.active')}</span>
               </label>
             </div>
 
-            {#if isPersonalizationEnabled}
-              <div class="form-group full">
-                <label class="form-label" for="personalizationPrompt">
-                  Текст підказки для персоналізації
-                </label>
-                <textarea
-                  id="personalizationPrompt"
-                  class="input"
-                  rows="3"
-                  bind:value={personalizationPrompt}
-                  placeholder="Наприклад: Введіть текст для гравіювання..."
-                ></textarea>
-              </div>
-            {/if}
+            <div class="form-group">
+              <span class="form-label">{i18n.t('admin.personalization')}</span>
+              <label class="toggle-label">
+                <input type="checkbox" bind:checked={allowPersonalization} />
+                <span>{i18n.t('admin.allowPersonalization')}</span>
+              </label>
+            </div>
           </div>
         </div>
       </div>
@@ -359,14 +329,14 @@
     {#if activeTab === 'variants'}
       <div class="tab-content card">
         <div class="card-body">
-          <h3 class="section-title">Розміри</h3>
+          <h3 class="section-title">{i18n.t('admin.sizes')}</h3>
           <div class="checkbox-grid">
             {#each allSizes as size}
               <label class="checkbox-item">
                 <input
                   type="checkbox"
                   checked={selectedSizeIds.has(size.id)}
-                  on:change={() => toggleSize(size.id)}
+                  onchange={() => toggleSize(size.id)}
                 />
                 <span>{size.name}</span>
                 <span class="badge badge-outline">{size.gender}</span>
@@ -374,14 +344,14 @@
             {/each}
           </div>
 
-          <h3 class="section-title mt-6">Кольори</h3>
+          <h3 class="section-title mt-6">{i18n.t('admin.colors')}</h3>
           <div class="checkbox-grid">
             {#each allColors as color}
               <label class="checkbox-item">
                 <input
                   type="checkbox"
                   checked={selectedColorIds.has(color.id)}
-                  on:change={() => toggleColor(color.id)}
+                  onchange={() => toggleColor(color.id)}
                 />
                 <span
                   class="color-swatch"
@@ -392,60 +362,48 @@
             {/each}
           </div>
 
-          <h3 class="section-title mt-6">Матеріали</h3>
+          <h3 class="section-title mt-6">{i18n.t('admin.materials')}</h3>
           <div class="checkbox-grid">
             {#each allMaterials as material}
               <label class="checkbox-item">
                 <input
                   type="checkbox"
                   checked={selectedMaterialIds.has(material.id)}
-                  on:change={() => toggleMaterial(material.id)}
+                  onchange={() => toggleMaterial(material.id)}
                 />
                 <span>{material.name}</span>
               </label>
             {/each}
           </div>
 
-          {#if prices.length > 0}
-            <h3 class="section-title mt-6">Цінова матриця</h3>
+          {#if inventory.length > 0}
+            <h3 class="section-title mt-6">{i18n.t('admin.priceMatrix')}</h3>
             <div class="table-wrapper">
               <table class="data-table">
                 <thead>
                   <tr>
-                    <th>Розмір</th>
-                    <th>Колір</th>
-                    <th>Матеріал</th>
-                    <th>Ціна (₴)</th>
-                    <th>Стара ціна (₴)</th>
-                    <th>Кількість</th>
+                    <th>{i18n.t('admin.size')}</th>
+                    <th>{i18n.t('admin.color')}</th>
+                    <th>{i18n.t('admin.material')}</th>
+                    <th>{i18n.t('admin.price')}</th>
+                    <th>{i18n.t('admin.quantity')}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {#each prices as price, i}
+                  {#each inventory as item, i}
                     <tr>
-                      <td>{getSizeName(price.sizeId)}</td>
-                      <td>{getColorName(price.colorId)}</td>
-                      <td>{getMaterialName(price.materialId)}</td>
+                      <td>{item.sizeId ? getSizeName(item.sizeId) : '—'}</td>
+                      <td>{item.colorId ? getColorName(item.colorId) : '—'}</td>
+                      <td>{item.materialId ? getMaterialName(item.materialId) : '—'}</td>
                       <td>
                         <input
                           class="input input-sm price-input"
                           type="number"
                           step="0.01"
                           min="0"
-                          value={price.basePrice}
-                          on:input={(e) =>
-                            updatePriceField(i, 'basePrice', e.currentTarget.value)}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          class="input input-sm price-input"
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={price.oldPrice ?? ''}
-                          on:input={(e) =>
-                            updatePriceField(i, 'oldPrice', e.currentTarget.value)}
+                          value={item.price}
+                          oninput={(e) =>
+                            updateInventoryField(i, 'price', e.currentTarget.value)}
                         />
                       </td>
                       <td>
@@ -454,9 +412,9 @@
                           type="number"
                           step="1"
                           min="0"
-                          value={price.quantity}
-                          on:input={(e) =>
-                            updatePriceField(i, 'quantity', e.currentTarget.value)}
+                          value={item.quantity}
+                          oninput={(e) =>
+                            updateInventoryField(i, 'quantity', e.currentTarget.value)}
                         />
                       </td>
                     </tr>
@@ -465,13 +423,13 @@
               </table>
             </div>
             <div class="mt-4">
-              <button class="btn btn-primary" on:click={saveInventory} disabled={saving}>
-                Зберегти інвентар
+              <button class="btn btn-primary" onclick={saveInventory} disabled={saving}>
+                {i18n.t('admin.saveInventory')}
               </button>
             </div>
           {:else}
             <p class="text-muted mt-4">
-              Збережіть товар і додайте варіації, щоб створити цінову матрицю.
+              {i18n.t('admin.saveProductToCreatePriceMatrix')}
             </p>
           {/if}
         </div>
@@ -483,41 +441,43 @@
       <div class="tab-content card">
         <div class="card-body">
           <div class="photos-header">
-            <h3 class="section-title">Фотографії товару</h3>
+            <h3 class="section-title">{i18n.t('admin.productPhotos')}</h3>
             <button class="btn btn-outline btn-sm" disabled>
-              Завантажити зображення
+              {i18n.t('admin.uploadImage')}
             </button>
           </div>
 
-          {#if images.length > 0}
+          {#if photos.length > 0}
             <div class="photos-grid">
-              {#each images as img}
+              {#each photos as img}
                 <div class="photo-card" class:main={img.isMain}>
                   <img src={img.url} alt={img.altText ?? 'Product'} class="photo-img" />
                   <div class="photo-meta">
                     <label class="toggle-label text-sm">
                       <input type="checkbox" checked={img.isMain} disabled />
-                      <span>Головне</span>
+                      <span>{i18n.t('admin.main')}</span>
                     </label>
-                    <span class="text-xs text-muted">Порядок: {img.sortOrder}</span>
+                    {#if img.sortOrder}
+                      <span class="text-xs text-muted">{i18n.t('admin.order')}: {img.sortOrder}</span>
+                    {/if}
                     {#if img.colorId}
-                      <span class="text-xs">Колір: {getColorName(img.colorId)}</span>
+                      <span class="text-xs">{i18n.t('admin.color')}: {getColorName(img.colorId)}</span>
                     {/if}
                     {#if img.materialId}
-                      <span class="text-xs">Матеріал: {getMaterialName(img.materialId)}</span>
+                      <span class="text-xs">{i18n.t('admin.material')}: {getMaterialName(img.materialId)}</span>
                     {/if}
                   </div>
                   <button
                     class="btn btn-sm btn-danger-text photo-delete"
-                    on:click={() => deleteImage(img.id)}
+                    onclick={() => deleteImage(img.id)}
                   >
-                    Видалити
+                    {i18n.t('common.delete')}
                   </button>
                 </div>
               {/each}
             </div>
           {:else}
-            <p class="text-muted mt-4">Зображень ще немає. Завантажте першу фотографію.</p>
+            <p class="text-muted mt-4">{i18n.t('admin.noImagesYet')}</p>
           {/if}
         </div>
       </div>
@@ -529,16 +489,15 @@
         <div class="card-body">
           {#if !isNew}
             <div class="danger-zone">
-              <h3 class="danger-title">Небезпечна зона</h3>
+              <h3 class="danger-title">{i18n.t('admin.dangerZone')}</h3>
               <p class="text-sm text-muted mb-4">
-                Видалення товару є незворотною дією. Усі дані, включаючи зображення та
-                варіації, будуть втрачені.
+                {i18n.t('admin.deleteProductWarning')}
               </p>
               <button
                 class="btn btn-danger"
-                on:click={() => (showDeleteModal = true)}
+                onclick={() => (showDeleteModal = true)}
               >
-                Видалити товар
+                {i18n.t('admin.deleteProduct')}
               </button>
             </div>
           {/if}
@@ -550,15 +509,15 @@
 
 <Modal
   open={showDeleteModal}
-  title="Видалити товар?"
+  title={i18n.t('admin.deleteProductQuestion')}
   onclose={() => (showDeleteModal = false)}
 >
-  <p>Ви впевнені, що хочете видалити цей товар? Усі дані будуть втрачені.</p>
+  <p>{i18n.t('admin.confirmDeleteProduct')}</p>
   <div class="modal-actions">
-    <button class="btn btn-outline" on:click={() => (showDeleteModal = false)}>
-      Скасувати
+    <button class="btn btn-outline" onclick={() => (showDeleteModal = false)}>
+      {i18n.t('common.cancel')}
     </button>
-    <button class="btn btn-danger" on:click={deleteProduct}>Видалити назавжди</button>
+    <button class="btn btn-danger" onclick={deleteProduct}>{i18n.t('admin.deleteForever')}</button>
   </div>
 </Modal>
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { i18n } from '$i18n/index.svelte';
   import type { Order, OrderStatus } from '$types';
   import * as orderApi from '$lib/api/order';
   import EmptyState from '$lib/components/EmptyState.svelte';
@@ -18,26 +19,26 @@
     status?: string;
   }
 
-  const filterTabs: FilterTab[] = [
-    { key: 'all', label: 'Всі' },
-    { key: 'new', label: 'Нові', status: 'New' },
-    { key: 'processing', label: 'В обробці', status: 'Processing' },
-    { key: 'shipped', label: 'Відправлені', status: 'Shipped' },
-    { key: 'delivered', label: 'Доставлені', status: 'Delivered' },
-    { key: 'canceled', label: 'Скасовані', status: 'Canceled' },
-  ];
+  let filterTabs: FilterTab[] = $derived([
+    { key: 'all', label: i18n.t('account.filterAll') },
+    { key: 'new', label: i18n.t('account.filterNew'), status: 'New' },
+    { key: 'processing', label: i18n.t('account.statusProcessing'), status: 'Processing' },
+    { key: 'shipped', label: i18n.t('account.statusShipped'), status: 'Shipped' },
+    { key: 'delivered', label: i18n.t('account.statusDelivered'), status: 'Delivered' },
+    { key: 'canceled', label: i18n.t('account.statusCancelled'), status: 'Canceled' },
+  ]);
 
-  const statusLabels: Record<OrderStatus, string> = {
-    New: 'Нове',
-    PendingPayment: 'Очікує оплати',
-    Paid: 'Оплачено',
-    Processing: 'В обробці',
-    Shipped: 'Відправлено',
-    Delivered: 'Доставлено',
-    Completed: 'Завершено',
-    Canceled: 'Скасовано',
-    Refunded: 'Повернено',
-  };
+  let statusLabels: Record<OrderStatus, string> = $derived({
+    New: i18n.t('account.statusNew'),
+    PendingPayment: i18n.t('account.statusPendingPayment'),
+    Paid: i18n.t('account.statusPaid'),
+    Processing: i18n.t('account.statusProcessing'),
+    Shipped: i18n.t('account.statusShipped'),
+    Delivered: i18n.t('account.statusDelivered'),
+    Completed: i18n.t('account.statusCompleted'),
+    Canceled: i18n.t('account.statusCancelled'),
+    Refunded: i18n.t('account.statusRefunded'),
+  });
 
   const statusColors: Record<OrderStatus, string> = {
     New: 'var(--color-info)',
@@ -99,13 +100,13 @@
 </script>
 
 <svelte:head>
-  <title>Мої замовлення — MarineLaceSpace</title>
+  <title>{i18n.t('account.orderHistory')} — MarineLaceSpace</title>
 </svelte:head>
 
 <div class="orders-page">
-  <h1 class="page-heading">Мої замовлення</h1>
+  <h1 class="page-heading">{i18n.t('account.orderHistory')}</h1>
 
-  <div class="filter-tabs" role="tablist" aria-label="Фільтр замовлень">
+  <div class="filter-tabs" role="tablist" aria-label={i18n.t('account.filterOrders')}>
     {#each filterTabs as tab}
       <button
         class="filter-tab"
@@ -120,13 +121,13 @@
   </div>
 
   {#if isLoading}
-    <LoadingSpinner message="Завантаження замовлень..." />
+    <LoadingSpinner message={i18n.t('account.loadingOrders')} />
   {:else if orders.length === 0}
     <EmptyState
-      title="У вас поки немає замовлень"
-      description="Коли ви зробите замовлення, воно з'явиться тут."
+      title={i18n.t('account.noOrders')}
+      description={i18n.t('account.noOrdersDescription')}
       icon="📦"
-      actionLabel="Перейти до каталогу"
+      actionLabel={i18n.t('account.goToCatalog')}
       actionHref="/catalog"
     />
   {:else}
@@ -135,7 +136,7 @@
         <article class="order-card card">
           <div class="order-header">
             <div class="order-meta">
-              <span class="order-number">Замовлення #{order.id.slice(0, 8).toUpperCase()}</span>
+              <span class="order-number">{i18n.t('account.orderNumber', { id: order.id.slice(0, 8).toUpperCase() })}</span>
               <span class="order-date">{formatDate(order.createdAt)}</span>
             </div>
             <span
@@ -171,7 +172,7 @@
           <div class="order-footer">
             <span class="order-total">{formatPrice(order.totalPrice)}</span>
             <a href="/account/orders/{order.id}" class="btn btn-sm btn-outline">
-              Деталі
+              {i18n.t('account.viewOrder')}
             </a>
           </div>
         </article>

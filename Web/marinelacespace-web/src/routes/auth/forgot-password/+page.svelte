@@ -1,6 +1,7 @@
 <script lang="ts">
   import * as authApi from '$lib/api/auth';
-  import { notificationStore } from '$lib/stores/notification';
+  import { notificationStore } from '$lib/stores/notification.svelte';
+  import { i18n } from '$i18n/index.svelte';
 
   let email = $state('');
   let isSubmitting = $state(false);
@@ -9,8 +10,8 @@
 
   let emailError = $derived.by(() => {
     if (!touched.email) return '';
-    if (!email.trim()) return 'Email є обов\'язковим';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Невірний формат email';
+    if (!email.trim()) return i18n.t('auth.emailRequired');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return i18n.t('auth.emailInvalid');
     return '';
   });
 
@@ -29,7 +30,7 @@
       await authApi.forgotPassword({ email });
       isSent = true;
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Помилка надсилання. Спробуйте ще раз.';
+      const message = err instanceof Error ? err.message : i18n.t('auth.forgotPasswordError');
       notificationStore.error(message);
     } finally {
       isSubmitting = false;
@@ -38,7 +39,7 @@
 </script>
 
 <svelte:head>
-  <title>Відновлення пароля — MarineLaceSpace</title>
+  <title>{i18n.t('auth.forgotPasswordTitle')} — MarineLaceSpace</title>
 </svelte:head>
 
 <div class="auth-page">
@@ -56,29 +57,29 @@
             <path d="M8 12l3 3 5-5" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </div>
-        <h2 class="success-heading">Перевірте вашу пошту!</h2>
+        <h2 class="success-heading">{i18n.t('auth.checkEmail')}</h2>
         <p class="success-text">
-          Ми надіслали посилання для відновлення пароля на <strong>{email}</strong>.
+          {i18n.t('auth.resetLinkSent')} <strong>{email}</strong>.
         </p>
         <a href="/auth/login" class="btn btn-primary btn-submit">
-          Повернутися до входу
+          {i18n.t('auth.backToLogin')}
         </a>
       </div>
     {:else}
-      <h2 class="auth-heading">Відновлення пароля</h2>
+      <h2 class="auth-heading">{i18n.t('auth.forgotPasswordHeading')}</h2>
       <p class="auth-description">
-        Введіть email, пов'язаний з вашим акаунтом, і ми надішлемо вам посилання для відновлення пароля.
+        {i18n.t('auth.forgotPasswordDescription')}
       </p>
 
       <form onsubmit={handleSubmit} novalidate>
         <div class="form-group">
-          <label for="email" class="form-label">Email</label>
+          <label for="email" class="form-label">{i18n.t('auth.email')}</label>
           <input
             id="email"
             type="email"
             class="input"
             class:input-error={emailError}
-            placeholder="your@email.com"
+            placeholder={i18n.t('auth.emailPlaceholder')}
             autocomplete="email"
             bind:value={email}
             onblur={() => touched.email = true}
@@ -97,15 +98,15 @@
         >
           {#if isSubmitting}
             <span class="spinner" aria-hidden="true"></span>
-            Надсилання...
+            {i18n.t('auth.sending')}
           {:else}
-            Надіслати посилання
+            {i18n.t('auth.sendLink')}
           {/if}
         </button>
       </form>
 
       <p class="auth-footer">
-        <a href="/auth/login" class="auth-link">← Повернутися до входу</a>
+        <a href="/auth/login" class="auth-link">← {i18n.t('auth.backToLogin')}</a>
       </p>
     {/if}
   </div>

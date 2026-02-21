@@ -3,7 +3,8 @@
   import LoadingSpinner from '$components/LoadingSpinner.svelte';
   import EmptyState from '$components/EmptyState.svelte';
   import Modal from '$components/Modal.svelte';
-  import { notificationStore } from '$stores/notification';
+  import { notificationStore } from '$stores/notification.svelte';
+  import { i18n } from '$i18n/index.svelte';
   import type { Size, Gender } from '$types';
 
   let loading = $state(true);
@@ -30,7 +31,7 @@
       loading = true;
       sizes = await catalogApi.getSizes();
     } catch {
-      notificationStore.error('Помилка завантаження розмірів');
+      notificationStore.error(i18n.t('admin.errorLoadingSizes'));
     } finally {
       loading = false;
     }
@@ -59,22 +60,22 @@
 
   async function saveSize() {
     if (!modalName.trim()) {
-      notificationStore.warning('Введіть назву розміру');
+      notificationStore.warning(i18n.t('admin.enterSizeName'));
       return;
     }
     try {
       saving = true;
       if (modalMode === 'create') {
         await catalogApi.createSize({ name: modalName.trim(), gender: modalGender });
-        notificationStore.success('Розмір створено');
+        notificationStore.success(i18n.t('admin.sizeCreated'));
       } else if (editingId) {
         await catalogApi.updateSize(editingId, { name: modalName.trim(), gender: modalGender });
-        notificationStore.success('Розмір оновлено');
+        notificationStore.success(i18n.t('admin.sizeUpdated'));
       }
       showModal = false;
       loadSizes();
     } catch {
-      notificationStore.error('Помилка збереження розміру');
+      notificationStore.error(i18n.t('admin.errorSavingSize'));
     } finally {
       saving = false;
     }
@@ -84,12 +85,12 @@
     if (!deleteTarget) return;
     try {
       await catalogApi.deleteSize(deleteTarget.id);
-      notificationStore.success('Розмір видалено');
+      notificationStore.success(i18n.t('admin.sizeDeleted'));
       showDeleteModal = false;
       deleteTarget = null;
       loadSizes();
     } catch {
-      notificationStore.error('Помилка видалення розміру');
+      notificationStore.error(i18n.t('admin.errorDeletingSize'));
     }
   }
 
@@ -104,9 +105,9 @@
 
   function genderLabel(gender: Gender): string {
     const map: Record<Gender, string> = {
-      Male: 'Чоловічий',
-      Female: 'Жіночий',
-      Unisex: 'Унісекс',
+      Male: i18n.t('admin.genderMale'),
+      Female: i18n.t('admin.genderFemale'),
+      Unisex: i18n.t('admin.genderUnisex'),
     };
     return map[gender];
   }
@@ -114,16 +115,16 @@
 
 <div class="sizes-page">
   <div class="page-header">
-    <h1 class="page-title">Довідник розмірів</h1>
-    <button class="btn btn-primary" on:click={openCreate}>Додати розмір</button>
+    <h1 class="page-title">{i18n.t('admin.sizesDictionary')}</h1>
+    <button class="btn btn-primary" onclick={openCreate}>{i18n.t('admin.addSize')}</button>
   </div>
 
   {#if loading}
-    <LoadingSpinner message="Завантаження розмірів..." />
+    <LoadingSpinner message={i18n.t('admin.loadingSizes')} />
   {:else if sizes.length === 0}
     <EmptyState
-      title="Розмірів ще немає"
-      description="Додайте розміри для товарів"
+      title={i18n.t('admin.noSizesYet')}
+      description={i18n.t('admin.addSizesForProducts')}
       icon="📐"
     />
   {:else}
@@ -131,9 +132,9 @@
       <table class="data-table">
         <thead>
           <tr>
-            <th>Назва</th>
-            <th>Стать</th>
-            <th>Дії</th>
+            <th>{i18n.t('admin.name')}</th>
+            <th>{i18n.t('admin.gender')}</th>
+            <th>{i18n.t('admin.actions')}</th>
           </tr>
         </thead>
         <tbody>
@@ -146,14 +147,14 @@
                 </span>
               </td>
               <td class="cell-actions">
-                <button class="btn btn-sm btn-ghost" on:click={() => openEdit(size)}>
-                  Редагувати
+                <button class="btn btn-sm btn-ghost" onclick={() => openEdit(size)}>
+                  {i18n.t('common.edit')}
                 </button>
                 <button
                   class="btn btn-sm btn-ghost btn-danger-text"
-                  on:click={() => confirmDelete(size)}
+                  onclick={() => confirmDelete(size)}
                 >
-                  Видалити
+                  {i18n.t('common.delete')}
                 </button>
               </td>
             </tr>
@@ -166,34 +167,34 @@
 
 <Modal
   open={showModal}
-  title={modalMode === 'create' ? 'Новий розмір' : 'Редагувати розмір'}
+  title={modalMode === 'create' ? i18n.t('admin.newSize') : i18n.t('admin.editSize')}
   onclose={() => (showModal = false)}
 >
   <div class="form-group">
-    <label class="form-label" for="sizeName">Назва</label>
+    <label class="form-label" for="sizeName">{i18n.t('admin.name')}</label>
     <input id="sizeName" class="input" type="text" bind:value={modalName} placeholder="XS, S, M, L..." />
   </div>
   <div class="form-group mt-4">
-    <label class="form-label" for="sizeGender">Стать</label>
+    <label class="form-label" for="sizeGender">{i18n.t('admin.gender')}</label>
     <select id="sizeGender" class="input" bind:value={modalGender}>
-      <option value="Unisex">Унісекс</option>
-      <option value="Female">Жіночий</option>
-      <option value="Male">Чоловічий</option>
+      <option value="Unisex">{i18n.t('admin.genderUnisex')}</option>
+      <option value="Female">{i18n.t('admin.genderFemale')}</option>
+      <option value="Male">{i18n.t('admin.genderMale')}</option>
     </select>
   </div>
   <div class="modal-actions">
-    <button class="btn btn-outline" on:click={() => (showModal = false)}>Скасувати</button>
-    <button class="btn btn-primary" on:click={saveSize} disabled={saving}>
-      {saving ? 'Збереження...' : 'Зберегти'}
+    <button class="btn btn-outline" onclick={() => (showModal = false)}>{i18n.t('common.cancel')}</button>
+    <button class="btn btn-primary" onclick={saveSize} disabled={saving}>
+      {saving ? i18n.t('common.saving') : i18n.t('common.save')}
     </button>
   </div>
 </Modal>
 
-<Modal open={showDeleteModal} title="Видалити розмір?" onclose={() => (showDeleteModal = false)}>
-  <p>Ви впевнені, що хочете видалити розмір <strong>{deleteTarget?.name}</strong>?</p>
+<Modal open={showDeleteModal} title={i18n.t('admin.deleteSizeQuestion')} onclose={() => (showDeleteModal = false)}>
+  <p>{i18n.t('admin.confirmDeleteSize', { name: deleteTarget?.name ?? '' })}</p>
   <div class="modal-actions">
-    <button class="btn btn-outline" on:click={() => (showDeleteModal = false)}>Скасувати</button>
-    <button class="btn btn-danger" on:click={executeDelete}>Видалити</button>
+    <button class="btn btn-outline" onclick={() => (showDeleteModal = false)}>{i18n.t('common.cancel')}</button>
+    <button class="btn btn-danger" onclick={executeDelete}>{i18n.t('common.delete')}</button>
   </div>
 </Modal>
 

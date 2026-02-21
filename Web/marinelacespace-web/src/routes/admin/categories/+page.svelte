@@ -2,7 +2,8 @@
   import * as catalogApi from '$api/catalog';
   import LoadingSpinner from '$components/LoadingSpinner.svelte';
   import Modal from '$components/Modal.svelte';
-  import { notificationStore } from '$stores/notification';
+  import { notificationStore } from '$stores/notification.svelte';
+  import { i18n } from '$i18n/index.svelte';
   import type { Category } from '$types';
 
   let loading = $state(true);
@@ -32,8 +33,8 @@
     for (const cat of cats) {
       if (cat.id === exclude) continue;
       result.push({ id: cat.id, name: '\u2003'.repeat(depth) + cat.name });
-      if (cat.childCategories?.length) {
-        result = result.concat(flattenForSelect(cat.childCategories, depth + 1, exclude));
+      if (cat.subcategories?.length) {
+        result = result.concat(flattenForSelect(cat.subcategories, depth + 1, exclude));
       }
     }
     return result;
@@ -48,7 +49,7 @@
       loading = true;
       categories = await catalogApi.getCategoryTree();
     } catch {
-      notificationStore.error('Помилка завантаження категорій');
+      notificationStore.error(i18n.t('admin.errorLoadingCategories'));
     } finally {
       loading = false;
     }
@@ -92,7 +93,7 @@
 
   async function saveCategory() {
     if (!modalName.trim()) {
-      notificationStore.warning('Введіть назву категорії');
+      notificationStore.warning(i18n.t('admin.enterCategoryName'));
       return;
     }
     try {
@@ -102,15 +103,15 @@
           name: modalName.trim(),
           parentCategoryId: modalParentId ?? undefined,
         });
-        notificationStore.success('Категорію створено');
+        notificationStore.success(i18n.t('admin.categoryCreated'));
       } else if (editingId) {
         await catalogApi.updateCategory(editingId, { name: modalName.trim() });
-        notificationStore.success('Категорію оновлено');
+        notificationStore.success(i18n.t('admin.categoryUpdated'));
       }
       showModal = false;
       loadCategories();
     } catch {
-      notificationStore.error('Помилка збереження категорії');
+      notificationStore.error(i18n.t('admin.errorSavingCategory'));
     } finally {
       saving = false;
     }
@@ -120,31 +121,31 @@
     if (!deleteTarget) return;
     try {
       await catalogApi.deleteCategory(deleteTarget.id);
-      notificationStore.success('Категорію видалено');
+      notificationStore.success(i18n.t('admin.categoryDeleted'));
       showDeleteModal = false;
       deleteTarget = null;
       loadCategories();
     } catch {
-      notificationStore.error('Помилка видалення категорії. Можливо, вона містить товари.');
+      notificationStore.error(i18n.t('admin.errorDeletingCategoryHasProducts'));
     }
   }
 </script>
 
 <div class="categories-page">
   <div class="page-header">
-    <h1 class="page-title">Категорії</h1>
-    <button class="btn btn-primary" on:click={openCreateRoot}>
-      Додати кореневу категорію
+    <h1 class="page-title">{i18n.t('admin.categories')}</h1>
+    <button class="btn btn-primary" onclick={openCreateRoot}>
+      {i18n.t('admin.addRootCategory')}
     </button>
   </div>
 
   {#if loading}
-    <LoadingSpinner message="Завантаження категорій..." />
+    <LoadingSpinner message={i18n.t('admin.loadingCategories')} />
   {:else if categories.length === 0}
     <div class="empty-state-box">
-      <p class="text-muted">Категорій ще немає.</p>
-      <button class="btn btn-primary mt-4" on:click={openCreateRoot}>
-        Створити першу категорію
+      <p class="text-muted">{i18n.t('admin.noCategoriesYet')}</p>
+      <button class="btn btn-primary mt-4" onclick={openCreateRoot}>
+        {i18n.t('admin.createFirstCategory')}
       </button>
     </div>
   {:else}
@@ -155,39 +156,39 @@
             <div class="node-row">
               <button
                 class="expand-btn"
-                class:has-children={cat.childCategories?.length > 0}
-                on:click={() => toggleExpand(cat.id)}
-                aria-label={expandedIds.has(cat.id) ? 'Згорнути' : 'Розгорнути'}
+                class:has-children={cat.subcategories?.length > 0}
+                onclick={() => toggleExpand(cat.id)}
+                aria-label={expandedIds.has(cat.id) ? i18n.t('admin.collapse') : i18n.t('admin.expand')}
               >
-                {#if cat.childCategories?.length > 0}
+                {#if cat.subcategories?.length > 0}
                   <span class="expand-icon" class:expanded={expandedIds.has(cat.id)}>▶</span>
                 {:else}
                   <span class="expand-icon placeholder">·</span>
                 {/if}
               </button>
               <span class="node-name">{cat.name}</span>
-              <span class="badge badge-outline node-level">Рівень {cat.level}</span>
-              <span class="text-xs text-muted">{cat.productCount} товарів</span>
+              <span class="badge badge-outline node-level">{i18n.t('admin.level')} {cat.level}</span>
+              <span class="text-xs text-muted">{cat.productCount} {i18n.t('admin.productsCount')}</span>
               <div class="node-actions">
-                <button class="btn btn-sm btn-ghost" on:click={() => openEdit(cat)}>
-                  Редагувати
+                <button class="btn btn-sm btn-ghost" onclick={() => openEdit(cat)}>
+                  {i18n.t('common.edit')}
                 </button>
-                <button class="btn btn-sm btn-ghost" on:click={() => openCreateChild(cat.id)}>
-                  + Дочірня
+                <button class="btn btn-sm btn-ghost" onclick={() => openCreateChild(cat.id)}>
+                  + {i18n.t('admin.child')}
                 </button>
                 <button
                   class="btn btn-sm btn-ghost btn-danger-text"
-                  on:click={() => confirmDelete(cat)}
-                  disabled={cat.productCount > 0}
-                  title={cat.productCount > 0 ? 'Не можна видалити: є товари' : ''}
+                  onclick={() => confirmDelete(cat)}
+                  disabled={(cat.productCount ?? 0) > 0}
+                  title={(cat.productCount ?? 0) > 0 ? i18n.t('admin.cannotDeleteHasProducts') : ''}
                 >
-                  Видалити
+                  {i18n.t('common.delete')}
                 </button>
               </div>
             </div>
 
-            {#if cat.childCategories?.length > 0 && expandedIds.has(cat.id)}
-              {#each cat.childCategories as child}
+            {#if cat.subcategories?.length > 0 && expandedIds.has(cat.id)}
+              {#each cat.subcategories as child}
                 {@render categoryNode(child, depth + 1)}
               {/each}
             {/if}
@@ -204,24 +205,24 @@
 
 <Modal
   open={showModal}
-  title={modalMode === 'create' ? 'Нова категорія' : 'Редагувати категорію'}
+  title={modalMode === 'create' ? i18n.t('admin.newCategory') : i18n.t('admin.editCategory')}
   onclose={() => (showModal = false)}
 >
   <div class="form-group">
-    <label class="form-label" for="catName">Назва</label>
+    <label class="form-label" for="catName">{i18n.t('admin.name')}</label>
     <input
       id="catName"
       class="input"
       type="text"
       bind:value={modalName}
-      placeholder="Назва категорії"
+      placeholder={i18n.t('admin.categoryNamePlaceholder')}
     />
   </div>
   {#if modalMode === 'create'}
     <div class="form-group mt-4">
-      <label class="form-label" for="catParent">Батьківська категорія</label>
+      <label class="form-label" for="catParent">{i18n.t('admin.parentCategory')}</label>
       <select id="catParent" class="input" bind:value={modalParentId}>
-        <option value={null}>Коренева (без батьківської)</option>
+        <option value={null}>{i18n.t('admin.rootNoParent')}</option>
         {#each flatCategoriesForSelect as opt}
           <option value={opt.id}>{opt.name}</option>
         {/each}
@@ -229,23 +230,23 @@
     </div>
   {/if}
   <div class="modal-actions">
-    <button class="btn btn-outline" on:click={() => (showModal = false)}>Скасувати</button>
-    <button class="btn btn-primary" on:click={saveCategory} disabled={saving}>
-      {saving ? 'Збереження...' : 'Зберегти'}
+    <button class="btn btn-outline" onclick={() => (showModal = false)}>{i18n.t('common.cancel')}</button>
+    <button class="btn btn-primary" onclick={saveCategory} disabled={saving}>
+      {saving ? i18n.t('common.saving') : i18n.t('common.save')}
     </button>
   </div>
 </Modal>
 
 <Modal
   open={showDeleteModal}
-  title="Видалити категорію?"
+  title={i18n.t('admin.deleteCategoryQuestion')}
   onclose={() => (showDeleteModal = false)}
 >
-  <p>Ви впевнені, що хочете видалити категорію <strong>{deleteTarget?.name}</strong>?</p>
-  <p class="text-sm text-muted mt-2">Дочірні категорії також будуть видалені.</p>
+  <p>{i18n.t('admin.confirmDeleteCategory', { name: deleteTarget?.name ?? '' })}</p>
+  <p class="text-sm text-muted mt-2">{i18n.t('admin.subcategoriesAlsoDeleted')}</p>
   <div class="modal-actions">
-    <button class="btn btn-outline" on:click={() => (showDeleteModal = false)}>Скасувати</button>
-    <button class="btn btn-danger" on:click={executeDelete}>Видалити</button>
+    <button class="btn btn-outline" onclick={() => (showDeleteModal = false)}>{i18n.t('common.cancel')}</button>
+    <button class="btn btn-danger" onclick={executeDelete}>{i18n.t('common.delete')}</button>
   </div>
 </Modal>
 

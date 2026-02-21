@@ -1,9 +1,9 @@
 <script lang="ts">
   import { page } from '$app/stores';
+  import { i18n } from '$i18n/index.svelte';
   import type { Order, OrderStatus } from '$types';
   import * as orderApi from '$lib/api/order';
-  import { notificationStore } from '$lib/stores/notification';
-  import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+  import { notificationStore } from '$lib/stores/notification.svelte';
   import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
 
   let order = $state<Order | null>(null);
@@ -12,17 +12,17 @@
 
   let orderId = $derived($page.params.id ?? '');
 
-  const statusLabels: Record<OrderStatus, string> = {
-    New: 'Нове',
-    PendingPayment: 'Очікує оплати',
-    Paid: 'Оплачено',
-    Processing: 'В обробці',
-    Shipped: 'Відправлено',
-    Delivered: 'Доставлено',
-    Completed: 'Завершено',
-    Canceled: 'Скасовано',
-    Refunded: 'Повернено',
-  };
+  let statusLabels: Record<OrderStatus, string> = $derived({
+    New: i18n.t('account.statusNew'),
+    PendingPayment: i18n.t('account.statusPendingPayment'),
+    Paid: i18n.t('account.statusPaid'),
+    Processing: i18n.t('account.statusProcessing'),
+    Shipped: i18n.t('account.statusShipped'),
+    Delivered: i18n.t('account.statusDelivered'),
+    Completed: i18n.t('account.statusCompleted'),
+    Canceled: i18n.t('account.statusCancelled'),
+    Refunded: i18n.t('account.statusRefunded'),
+  });
 
   const statusColors: Record<OrderStatus, string> = {
     New: 'var(--color-info)',
@@ -36,13 +36,13 @@
     Refunded: 'var(--color-text-muted)',
   };
 
-  const timelineSteps: { status: OrderStatus; label: string }[] = [
-    { status: 'New', label: 'Нове' },
-    { status: 'Paid', label: 'Оплата' },
-    { status: 'Processing', label: 'Обробка' },
-    { status: 'Shipped', label: 'Відправлено' },
-    { status: 'Delivered', label: 'Доставлено' },
-  ];
+  let timelineSteps: { status: OrderStatus; label: string }[] = $derived([
+    { status: 'New', label: i18n.t('account.statusNew') },
+    { status: 'Paid', label: i18n.t('account.statusPaid') },
+    { status: 'Processing', label: i18n.t('account.statusProcessing') },
+    { status: 'Shipped', label: i18n.t('account.statusShipped') },
+    { status: 'Delivered', label: i18n.t('account.statusDelivered') },
+  ]);
 
   const statusOrder: OrderStatus[] = [
     'New', 'PendingPayment', 'Paid', 'Processing', 'Shipped', 'Delivered', 'Completed',
@@ -69,12 +69,6 @@
     return ['New', 'PendingPayment'].includes(order.status);
   });
 
-  let breadcrumbItems = $derived([
-    { label: 'Мій акаунт', href: '/account' },
-    { label: 'Замовлення', href: '/account/orders' },
-    { label: `#${orderId?.slice(0, 8).toUpperCase() ?? ''}` },
-  ]);
-
   $effect(() => {
     loadOrder();
   });
@@ -85,7 +79,7 @@
       order = await orderApi.getOrderById(orderId);
     } catch {
       order = null;
-      notificationStore.error('Не вдалося завантажити замовлення');
+      notificationStore.error(i18n.t('account.loadOrderError'));
     } finally {
       isLoading = false;
     }
@@ -96,9 +90,9 @@
     isCanceling = true;
     try {
       order = await orderApi.cancelOrder(order.id);
-      notificationStore.success('Замовлення скасовано');
+      notificationStore.success(i18n.t('account.orderCanceled'));
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Помилка скасування замовлення';
+      const message = err instanceof Error ? err.message : i18n.t('account.cancelOrderError');
       notificationStore.error(message);
     } finally {
       isCanceling = false;
@@ -121,23 +115,21 @@
 </script>
 
 <svelte:head>
-  <title>Замовлення #{orderId?.slice(0, 8).toUpperCase() ?? ''} — MarineLaceSpace</title>
+  <title>{i18n.t('account.orderNumber', { id: orderId?.slice(0, 8).toUpperCase() ?? '' })} — MarineLaceSpace</title>
 </svelte:head>
 
 <div class="order-detail-page">
-  <Breadcrumb items={breadcrumbItems} />
-
   {#if isLoading}
-    <LoadingSpinner message="Завантаження замовлення..." />
+    <LoadingSpinner message={i18n.t('account.loadingOrder')} />
   {:else if !order}
     <div class="error-state">
-      <p>Замовлення не знайдено</p>
-      <a href="/account/orders" class="btn btn-outline">Повернутися до замовлень</a>
+      <p>{i18n.t('account.orderNotFound')}</p>
+      <a href="/account/orders" class="btn btn-outline">{i18n.t('account.backToOrders')}</a>
     </div>
   {:else}
     <!-- Status timeline -->
     {#if order.status !== 'Canceled' && order.status !== 'Refunded'}
-      <div class="timeline" role="progressbar" aria-label="Статус замовлення">
+      <div class="timeline" role="progressbar" aria-label={i18n.t('account.orderStatus')}>
         {#each timelineSteps as step, i}
           <div
             class="timeline-step"
@@ -171,14 +163,14 @@
     <!-- Order info -->
     <div class="order-info-grid">
       <div class="info-card card">
-        <h3 class="info-card-title">Інформація про замовлення</h3>
+        <h3 class="info-card-title">{i18n.t('account.orderInfo')}</h3>
         <div class="info-rows">
           <div class="info-row">
-            <span class="info-label">Дата</span>
+            <span class="info-label">{i18n.t('account.orderDate')}</span>
             <span class="info-value">{formatDate(order.createdAt)}</span>
           </div>
           <div class="info-row">
-            <span class="info-label">Статус</span>
+            <span class="info-label">{i18n.t('account.orderStatus')}</span>
             <span
               class="status-badge"
               style:background-color="{statusColors[order.status]}15"
@@ -189,7 +181,7 @@
           </div>
           {#if order.trackingNumber}
             <div class="info-row">
-              <span class="info-label">Трек-номер</span>
+              <span class="info-label">{i18n.t('account.trackingNumber')}</span>
               <span class="info-value tracking-number">{order.trackingNumber}</span>
             </div>
           {/if}
@@ -197,7 +189,7 @@
       </div>
 
       <div class="info-card card">
-        <h3 class="info-card-title">Адреса доставки</h3>
+        <h3 class="info-card-title">{i18n.t('account.shippingAddress')}</h3>
         <div class="address-block">
           <p>{order.shippingAddress.fullName}</p>
           <p>{order.shippingAddress.addressLine1}</p>
@@ -213,12 +205,12 @@
 
     <!-- Order items -->
     <div class="items-section card">
-      <h3 class="section-title">Товари</h3>
-      <div class="items-table" role="table" aria-label="Товари замовлення">
+      <h3 class="section-title">{i18n.t('account.orderItems')}</h3>
+      <div class="items-table" role="table" aria-label={i18n.t('account.orderItems')}>
         <div class="table-header" role="row">
-          <span class="col-product" role="columnheader">Товар</span>
-          <span class="col-qty" role="columnheader">К-сть</span>
-          <span class="col-price" role="columnheader">Ціна</span>
+          <span class="col-product" role="columnheader">{i18n.t('account.product')}</span>
+          <span class="col-qty" role="columnheader">{i18n.t('account.quantity')}</span>
+          <span class="col-price" role="columnheader">{i18n.t('account.price')}</span>
         </div>
         {#each order.items as item}
           <div class="table-row" role="row">
@@ -240,17 +232,17 @@
                 <span class="item-name">{item.productName}</span>
                 <div class="item-variants">
                   {#if item.sizeName}
-                    <span>Розмір: {item.sizeName}</span>
+                    <span>{i18n.t('product.size')}: {item.sizeName}</span>
                   {/if}
                   {#if item.colorName}
-                    <span>Колір: {item.colorName}</span>
+                    <span>{i18n.t('product.color')}: {item.colorName}</span>
                   {/if}
                   {#if item.materialName}
-                    <span>Матеріал: {item.materialName}</span>
+                    <span>{i18n.t('product.material')}: {item.materialName}</span>
                   {/if}
                 </div>
                 {#if item.personalization}
-                  <p class="item-personalization">Персоналізація: {item.personalization}</p>
+                  <p class="item-personalization">{i18n.t('product.personalization')}: {item.personalization}</p>
                 {/if}
               </div>
             </div>
@@ -265,15 +257,15 @@
     <div class="summary-section card">
       <div class="summary-rows">
         <div class="summary-row">
-          <span>Підсумок</span>
+          <span>{i18n.t('account.subtotal')}</span>
           <span>{formatPrice(order.totalPrice)}</span>
         </div>
         <div class="summary-row">
-          <span>Доставка</span>
-          <span class="text-muted">Безкоштовно</span>
+          <span>{i18n.t('account.shipping')}</span>
+          <span class="text-muted">{i18n.t('account.free')}</span>
         </div>
         <div class="summary-row summary-total">
-          <span>Загалом</span>
+          <span>{i18n.t('account.orderTotal')}</span>
           <span>{formatPrice(order.totalPrice)}</span>
         </div>
       </div>
@@ -289,9 +281,9 @@
         >
           {#if isCanceling}
             <span class="spinner" aria-hidden="true"></span>
-            Скасування...
+            {i18n.t('account.canceling')}
           {:else}
-            Скасувати замовлення
+            {i18n.t('account.cancelOrder')}
           {/if}
         </button>
       </div>

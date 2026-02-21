@@ -2,6 +2,7 @@
   import * as catalogApi from '$api/catalog';
   import * as orderApi from '$api/order';
   import LoadingSpinner from '$components/LoadingSpinner.svelte';
+  import { i18n } from '$i18n/index.svelte';
   import type { Order } from '$types';
 
   let loading = $state(true);
@@ -21,8 +22,8 @@
     try {
       loading = true;
       const [ordersRes, productsRes] = await Promise.all([
-        orderApi.getOrders({ page: 1, pageSize: 10 }),
-        catalogApi.getProducts({ page: 1, pageSize: 1 }),
+        orderApi.getAdminOrders({ page: 1, pageSize: 10 }),
+        catalogApi.getAdminProducts({ page: 1, pageSize: 1 }),
       ]);
 
       recentOrders = ordersRes.items;
@@ -72,39 +73,39 @@
 
   function statusLabel(status: string): string {
     const map: Record<string, string> = {
-      New: 'Нове',
-      PendingPayment: 'Очікує оплати',
-      Paid: 'Оплачено',
-      Processing: 'В обробці',
-      Shipped: 'Відправлено',
-      Delivered: 'Доставлено',
-      Completed: 'Завершено',
-      Canceled: 'Скасовано',
-      Refunded: 'Повернення',
+      New: i18n.t('admin.orderStatus.new'),
+      PendingPayment: i18n.t('admin.orderStatus.pendingPayment'),
+      Paid: i18n.t('admin.orderStatus.paid'),
+      Processing: i18n.t('admin.orderStatus.processing'),
+      Shipped: i18n.t('admin.orderStatus.shipped'),
+      Delivered: i18n.t('admin.orderStatus.delivered'),
+      Completed: i18n.t('admin.orderStatus.completed'),
+      Canceled: i18n.t('admin.orderStatus.canceled'),
+      Refunded: i18n.t('admin.orderStatus.refunded'),
     };
     return map[status] ?? status;
   }
 </script>
 
 <div class="dashboard">
-  <h1 class="page-title">Панель керування</h1>
+  <h1 class="page-title">{i18n.t('admin.dashboard')}</h1>
 
   {#if loading}
-    <LoadingSpinner message="Завантаження..." />
+    <LoadingSpinner message={i18n.t('common.loading')} />
   {:else}
     <div class="stats-row">
       <div class="stat-card card">
         <span class="stat-icon">📋</span>
         <div class="stat-body">
-          <span class="stat-label">Замовлення сьогодні</span>
+          <span class="stat-label">{i18n.t('admin.ordersToday')}</span>
           <span class="stat-value">{stats.ordersToday}</span>
-          <span class="stat-change positive">↑ сьогодні</span>
+          <span class="stat-change positive">↑ {i18n.t('admin.today')}</span>
         </div>
       </div>
       <div class="stat-card card">
         <span class="stat-icon">💰</span>
         <div class="stat-body">
-          <span class="stat-label">Дохід за місяць</span>
+          <span class="stat-label">{i18n.t('admin.monthlyRevenue')}</span>
           <span class="stat-value">{formatCurrency(stats.monthlyRevenue)}</span>
           <span class="stat-change positive">₴</span>
         </div>
@@ -112,17 +113,17 @@
       <div class="stat-card card">
         <span class="stat-icon">📦</span>
         <div class="stat-body">
-          <span class="stat-label">Активні товари</span>
+          <span class="stat-label">{i18n.t('admin.activeProducts')}</span>
           <span class="stat-value">{stats.activeProducts}</span>
-          <span class="stat-change neutral">загалом</span>
+          <span class="stat-change neutral">{i18n.t('admin.total')}</span>
         </div>
       </div>
       <div class="stat-card card">
         <span class="stat-icon">⭐</span>
         <div class="stat-body">
-          <span class="stat-label">Нові відгуки</span>
+          <span class="stat-label">{i18n.t('admin.newReviews')}</span>
           <span class="stat-value">{stats.newReviews}</span>
-          <span class="stat-change neutral">за тиждень</span>
+          <span class="stat-change neutral">{i18n.t('admin.thisWeek')}</span>
         </div>
       </div>
     </div>
@@ -130,7 +131,7 @@
     <div class="dashboard-grid">
       <section class="recent-orders card">
         <div class="card-header">
-          <h2>Останні замовлення</h2>
+          <h2>{i18n.t('admin.recentOrders')}</h2>
         </div>
         <div class="card-body" style="padding: 0;">
           <div class="table-wrapper">
@@ -138,11 +139,11 @@
               <thead>
                 <tr>
                   <th>№</th>
-                  <th>Дата</th>
-                  <th>Покупець</th>
-                  <th>Сума</th>
-                  <th>Статус</th>
-                  <th>Дії</th>
+                  <th>{i18n.t('admin.date')}</th>
+                  <th>{i18n.t('admin.buyer')}</th>
+                  <th>{i18n.t('admin.amount')}</th>
+                  <th>{i18n.t('admin.status')}</th>
+                  <th>{i18n.t('admin.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -159,13 +160,13 @@
                     </td>
                     <td>
                       <a href="/admin/orders/{order.id}" class="btn btn-sm btn-ghost">
-                        Переглянути
+                        {i18n.t('admin.view')}
                       </a>
                     </td>
                   </tr>
                 {:else}
                   <tr>
-                    <td colspan="6" class="empty-cell">Замовлень поки немає</td>
+                    <td colspan="6" class="empty-cell">{i18n.t('admin.noOrdersYet')}</td>
                   </tr>
                 {/each}
               </tbody>
@@ -176,21 +177,21 @@
 
       <section class="quick-actions card">
         <div class="card-header">
-          <h2>Швидкі дії</h2>
+          <h2>{i18n.t('admin.quickActions')}</h2>
         </div>
         <div class="card-body">
           <div class="actions-list">
             <a href="/admin/products/new" class="action-card">
               <span class="action-icon">➕</span>
-              <span class="action-label">Додати товар</span>
+              <span class="action-label">{i18n.t('admin.addProduct')}</span>
             </a>
             <a href="/admin/orders" class="action-card">
               <span class="action-icon">📋</span>
-              <span class="action-label">Переглянути замовлення</span>
+              <span class="action-label">{i18n.t('admin.viewOrders')}</span>
             </a>
             <a href="/admin/categories" class="action-card">
               <span class="action-icon">📂</span>
-              <span class="action-label">Управління каталогом</span>
+              <span class="action-label">{i18n.t('admin.manageCatalog')}</span>
             </a>
           </div>
         </div>

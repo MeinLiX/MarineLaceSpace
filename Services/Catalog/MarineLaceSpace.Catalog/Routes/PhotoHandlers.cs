@@ -52,7 +52,8 @@ internal class PhotoHandlers
                 try
                 {
                     var product = await services.ProductRepository.GetByIdAsync(productId);
-                    if (product.Shop.OwnerId != currentUserId) return Results.Forbid();
+                    var isAdmin = httpContext.User.IsInRole("Admin");
+                    if (!isAdmin && product.Shop.OwnerId != currentUserId) return Results.Forbid();
 
                     var photo = new ProductPhoto
                     {
@@ -82,7 +83,8 @@ internal class PhotoHandlers
                 try
                 {
                     var product = await services.ProductRepository.GetByIdAsync(productId);
-                    if (product.Shop.OwnerId != currentUserId) return Results.Forbid();
+                    var isAdmin = httpContext.User.IsInRole("Admin");
+                    if (!isAdmin && product.Shop.OwnerId != currentUserId) return Results.Forbid();
 
                     await services.PhotoRepository.DeleteAsync(imageId);
                     return Results.NoContent();

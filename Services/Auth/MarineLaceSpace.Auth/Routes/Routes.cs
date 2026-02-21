@@ -67,6 +67,10 @@ public static class Routes
         var usersGroup = web.MapGroup("users")
                             .WithTags("Users");
 
+        usersGroup.MapGet("/", AuthHandlers.GetUsersHandler)
+                  .RequireAuthorization("AdminOnly")
+                  .WithSummary("Get paginated list of users");
+
         usersGroup.MapGet("me", AuthHandlers.GetCurrentUserHandler)
                   .RequireAuthorization()
                   .WithSummary("Get current user profile");

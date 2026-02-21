@@ -230,6 +230,41 @@ internal class OrderHandlers
                 return Results.Ok(MapOrderToResponse(order));
             });
 
+    internal static Delegate GetAllOrdersAdminHandler =>
+        async ([AsParameters] OrderFilterRequest filter, string? search, string? shopId, IServiceProvider sp) =>
+            await RouteHandlers.RouteHandlerAsync<OrderServices>(sp, async (services) =>
+            {
+                var query = services.DbContext.Orders.AsNoTracking().AsQueryable();
+
+                if (!string.IsNullOrWhiteSpace(shopId))
+                    query = query.Where(o => o.ShopId == shopId);
+
+                if (!string.IsNullOrWhiteSpace(search))
+                {
+                    var searchLower = search.ToLower();
+                    query = query.Where(o =>
+                        o.Id.ToLower().Contains(searchLower) ||
+                        (o.BuyerEmail != null && o.BuyerEmail.ToLower().Contains(searchLower)) ||
+                        o.ShippingFullName.ToLower().Contains(searchLower));
+                }
+
+                query = ApplyFilters(query, filter);
+                var totalCount = await query.CountAsync();
+                query = ApplySorting(query, filter.SortBy, filter.SortDesc ?? true);
+
+                var page = Math.Max(1, filter.Page ?? 1);
+                var pageSize = Math.Clamp(filter.PageSize ?? 20, 1, 100);
+
+                var orders = await query
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .Include(o => o.Items)
+                    .ToListAsync();
+
+                var response = new { TotalCount = totalCount, Page = page, PageSize = pageSize, Items = orders.Select(MapOrderToResponse) };
+                return Results.Ok(response);
+            });
+
     private static IQueryable<MarineLaceSpace.Models.Database.Order.Order> ApplyFilters(
         IQueryable<MarineLaceSpace.Models.Database.Order.Order> query, OrderFilterRequest filter)
     {

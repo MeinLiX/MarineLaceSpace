@@ -108,7 +108,14 @@ app.MapForward("/api/users/{**rest}", authClient, "/users");
 // Catalog routes
 app.MapForward("/api/shops/{**rest}", catalogClient, "/shops");
 app.MapForward("/api/categories/{**rest}", catalogClient, "/api/categories");
+
+// Product images use /api/products (not /api/v1/products) in catalog
+app.MapForward("/api/product-images/{**rest}", catalogClient, "/api/products");
+app.MapForward("/api/photo/{**rest}", catalogClient, "/api/images");
+
+// Products use /api/v1/products prefix in catalog
 app.MapForward("/api/products/{**rest}", catalogClient, "/api/v1/products");
+
 app.MapForward("/api/sizes/{**rest}", catalogClient, "/api/sizes");
 app.MapForward("/api/colors/{**rest}", catalogClient, "/api/colors");
 app.MapForward("/api/materials/{**rest}", catalogClient, "/api/materials");

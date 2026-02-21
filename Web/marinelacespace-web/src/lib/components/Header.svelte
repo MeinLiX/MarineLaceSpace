@@ -1,22 +1,23 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
+  import { authStore } from '$stores/auth.svelte';
+  import { basketStore } from '$stores/basket.svelte';
+  import { i18n } from '$i18n/index.svelte';
+
+  let { onbasketclick }: { onbasketclick?: () => void } = $props();
 
   let searchQuery = $state('');
   let mobileMenuOpen = $state(false);
   let userMenuOpen = $state(false);
   let scrolled = $state(false);
+  let langMenuOpen = $state(false);
 
-  const navLinks = [
-    { label: 'Home', href: '/' },
-    { label: 'Catalog', href: '/catalog' },
-    { label: 'Shops', href: '/shops' }
-  ];
-
-  // Simulated store values — will be replaced by real stores
-  let isAuthenticated = $state(false);
-  let userName = $state('');
-  let basketCount = $state(0);
+  const navLinks = $derived([
+    { label: i18n.t('nav.home'), href: '/' },
+    { label: i18n.t('nav.catalog'), href: '/catalog' },
+    { label: i18n.t('nav.shops'), href: '/shops' }
+  ]);
 
   function handleScroll() {
     scrolled = window.scrollY > 10;
@@ -40,10 +41,25 @@
     userMenuOpen = !userMenuOpen;
   }
 
+  function toggleLangMenu() {
+    langMenuOpen = !langMenuOpen;
+  }
+
   function closeMenus() {
     mobileMenuOpen = false;
     userMenuOpen = false;
+    langMenuOpen = false;
   }
+
+  function logout() {
+    closeMenus();
+    authStore.logout();
+  }
+
+  $effect(() => {
+    authStore.loadUser();
+    basketStore.loadBasket();
+  });
 
   $effect(() => {
     if (typeof window !== 'undefined') {
@@ -53,7 +69,7 @@
   });
 </script>
 
-<svelte:window on:click={closeMenus} />
+<svelte:window onclick={closeMenus} />
 
 <header class="header" class:scrolled>
   <div class="header-inner container">
@@ -76,7 +92,7 @@
     </nav>
 
     <!-- Search Bar -->
-    <form class="search-bar" on:submit={handleSearch} role="search">
+    <form class="search-bar" onsubmit={handleSearch} role="search">
       <svg class="search-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
         <circle cx="11" cy="11" r="8" />
         <line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -84,33 +100,61 @@
       <input
         type="search"
         class="search-input"
-        placeholder="Search products..."
+        placeholder={i18n.t('nav.searchPlaceholder')}
         bind:value={searchQuery}
-        aria-label="Search products"
+        aria-label={i18n.t('common.search')}
       />
     </form>
 
     <!-- Right Actions -->
     <div class="header-actions">
+      <!-- Language Switcher -->
+      <div class="lang-switcher-wrapper">
+        <button
+          class="action-btn lang-toggle"
+          aria-label={i18n.t('nav.language')}
+          aria-expanded={langMenuOpen}
+          onclick={(e) => { e.stopPropagation(); toggleLangMenu(); }}
+        >
+          <span class="lang-current">{i18n.locales.find(l => l.code === i18n.locale)?.flag} {i18n.locale.toUpperCase()}</span>
+        </button>
+        {#if langMenuOpen}
+          <!-- svelte-ignore a11y_no_static_element_interactions a11y_interactive_supports_focus -->
+          <div class="lang-dropdown" onclick={(e) => e.stopPropagation()} onkeydown={() => {}} role="menu" tabindex="-1">
+            {#each i18n.locales as loc}
+              <button
+                class="lang-option"
+                class:active={i18n.locale === loc.code}
+                role="menuitem"
+                onclick={() => { i18n.setLocale(loc.code); langMenuOpen = false; }}
+              >
+                <span class="lang-flag">{loc.flag}</span>
+                <span class="lang-label">{loc.label}</span>
+              </button>
+            {/each}
+          </div>
+        {/if}
+      </div>
+
       <!-- Basket -->
-      <a href="/basket" class="action-btn" aria-label="Shopping basket ({basketCount} items)">
+      <button class="action-btn" aria-label="{i18n.t('nav.basket')} ({basketStore.itemCount})" onclick={onbasketclick}>
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
           <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" />
           <line x1="3" y1="6" x2="21" y2="6" />
           <path d="M16 10a4 4 0 01-8 0" />
         </svg>
-        {#if basketCount > 0}
-          <span class="basket-badge">{basketCount}</span>
+        {#if basketStore.itemCount > 0}
+          <span class="basket-badge">{basketStore.itemCount}</span>
         {/if}
-      </a>
+      </button>
 
       <!-- User Menu -->
       <div class="user-menu-wrapper">
         <button
           class="action-btn"
-          aria-label="User menu"
+          aria-label={i18n.t('nav.account')}
           aria-expanded={userMenuOpen}
-          on:click|stopPropagation={toggleUserMenu}
+          onclick={(e) => { e.stopPropagation(); toggleUserMenu(); }}
         >
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
             <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
@@ -118,17 +162,22 @@
           </svg>
         </button>
         {#if userMenuOpen}
-          <div class="user-dropdown" on:click|stopPropagation role="menu">
-            {#if isAuthenticated}
-              <span class="dropdown-greeting">Hello, {userName}</span>
+          <!-- svelte-ignore a11y_no_static_element_interactions a11y_interactive_supports_focus -->
+          <div class="user-dropdown" onclick={(e) => e.stopPropagation()} onkeydown={() => {}} role="menu" tabindex="-1">
+            {#if authStore.isAuthenticated}
+              <span class="dropdown-greeting">{i18n.t('nav.greeting', { name: authStore.currentUser?.firstName ?? 'User' })}</span>
               <hr class="dropdown-divider" />
-              <a href="/profile" class="dropdown-item" role="menuitem">Profile</a>
-              <a href="/orders" class="dropdown-item" role="menuitem">My Orders</a>
+              {#if authStore.isAdmin}
+                <a href="/admin" class="dropdown-item dropdown-item--admin" role="menuitem">🛡️ {i18n.t('nav.admin')}</a>
+                <hr class="dropdown-divider" />
+              {/if}
+              <a href="/account" class="dropdown-item" role="menuitem">{i18n.t('nav.profile')}</a>
+              <a href="/account/orders" class="dropdown-item" role="menuitem">{i18n.t('nav.myOrders')}</a>
               <hr class="dropdown-divider" />
-              <button class="dropdown-item" role="menuitem">Sign Out</button>
+              <button class="dropdown-item" role="menuitem" onclick={logout}>{i18n.t('nav.logout')}</button>
             {:else}
-              <a href="/login" class="dropdown-item" role="menuitem">Sign In</a>
-              <a href="/register" class="dropdown-item" role="menuitem">Create Account</a>
+              <a href="/auth/login" class="dropdown-item" role="menuitem">{i18n.t('nav.login')}</a>
+              <a href="/auth/register" class="dropdown-item" role="menuitem">{i18n.t('nav.createAccount')}</a>
             {/if}
           </div>
         {/if}
@@ -137,9 +186,9 @@
       <!-- Mobile Hamburger -->
       <button
         class="hamburger"
-        aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+        aria-label={mobileMenuOpen ? i18n.t('nav.closeMenu') : i18n.t('nav.openMenu')}
         aria-expanded={mobileMenuOpen}
-        on:click|stopPropagation={toggleMobileMenu}
+        onclick={(e) => { e.stopPropagation(); toggleMobileMenu(); }}
       >
         <span class="hamburger-line" class:open={mobileMenuOpen}></span>
         <span class="hamburger-line" class:open={mobileMenuOpen}></span>
@@ -150,14 +199,15 @@
 
   <!-- Mobile Menu -->
   {#if mobileMenuOpen}
-    <div class="mobile-menu" on:click|stopPropagation role="navigation" aria-label="Mobile navigation">
-      <form class="mobile-search" on:submit={handleSearch} role="search">
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <div class="mobile-menu" onclick={(e) => e.stopPropagation()} onkeydown={() => {}} role="navigation" aria-label="Mobile navigation">
+      <form class="mobile-search" onsubmit={handleSearch} role="search">
         <input
           type="search"
           class="input"
-          placeholder="Search products..."
+          placeholder={i18n.t('nav.searchPlaceholder')}
           bind:value={searchQuery}
-          aria-label="Search products"
+          aria-label={i18n.t('common.search')}
         />
       </form>
       <nav class="mobile-nav">
@@ -166,19 +216,36 @@
             href={link.href}
             class="mobile-nav-link"
             class:active={$page.url.pathname === link.href}
-            on:click={closeMenus}
+            onclick={closeMenus}
           >
             {link.label}
           </a>
         {/each}
       </nav>
+      <!-- Mobile Language Switcher -->
+      <div class="mobile-lang-switcher">
+        {#each i18n.locales as loc}
+          <button
+            class="mobile-lang-btn"
+            class:active={i18n.locale === loc.code}
+            onclick={() => { i18n.setLocale(loc.code); }}
+          >
+            {loc.flag} {loc.code.toUpperCase()}
+          </button>
+        {/each}
+      </div>
       <hr class="dropdown-divider" />
-      {#if isAuthenticated}
-        <a href="/profile" class="mobile-nav-link" on:click={closeMenus}>Profile</a>
-        <a href="/orders" class="mobile-nav-link" on:click={closeMenus}>My Orders</a>
+      {#if authStore.isAuthenticated}
+        {#if authStore.isAdmin}
+          <a href="/admin" class="mobile-nav-link mobile-nav-link--admin" onclick={closeMenus}>🛡️ {i18n.t('nav.admin')}</a>
+          <hr class="dropdown-divider" />
+        {/if}
+        <a href="/account" class="mobile-nav-link" onclick={closeMenus}>{i18n.t('nav.profile')}</a>
+        <a href="/account/orders" class="mobile-nav-link" onclick={closeMenus}>{i18n.t('nav.myOrders')}</a>
+        <button class="mobile-nav-link" onclick={logout}>{i18n.t('nav.logout')}</button>
       {:else}
-        <a href="/login" class="mobile-nav-link" on:click={closeMenus}>Sign In</a>
-        <a href="/register" class="mobile-nav-link" on:click={closeMenus}>Create Account</a>
+        <a href="/auth/login" class="mobile-nav-link" onclick={closeMenus}>{i18n.t('nav.login')}</a>
+        <a href="/auth/register" class="mobile-nav-link" onclick={closeMenus}>{i18n.t('nav.createAccount')}</a>
       {/if}
     </div>
   {/if}
@@ -398,6 +465,16 @@
     color: var(--color-primary);
   }
 
+  .dropdown-item--admin {
+    color: var(--color-primary);
+    font-weight: 600;
+  }
+
+  .mobile-nav-link--admin {
+    color: var(--color-primary);
+    font-weight: 600;
+  }
+
   /* Hamburger */
   .hamburger {
     display: flex;
@@ -496,5 +573,109 @@
       opacity: 1;
       transform: translateY(0);
     }
+  }
+
+  /* Language Switcher */
+  .lang-switcher-wrapper {
+    position: relative;
+  }
+
+  .lang-toggle {
+    width: auto;
+    padding: var(--space-1) var(--space-2);
+    gap: var(--space-1);
+  }
+
+  .lang-current {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--color-text);
+    white-space: nowrap;
+  }
+
+  .lang-dropdown {
+    position: absolute;
+    top: calc(100% + var(--space-2));
+    right: 0;
+    min-width: 160px;
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    padding: var(--space-2);
+    animation: slideDown var(--transition-fast) ease both;
+    z-index: var(--z-dropdown);
+  }
+
+  .lang-option {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    font-size: 0.875rem;
+    color: var(--color-text);
+    border-radius: var(--radius-md);
+    transition: background-color var(--transition-fast);
+    text-align: left;
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-family: inherit;
+  }
+
+  .lang-option:hover {
+    background-color: var(--color-surface-hover);
+  }
+
+  .lang-option.active {
+    color: var(--color-primary);
+    font-weight: 600;
+    background-color: var(--color-surface-hover);
+  }
+
+  .lang-flag {
+    font-size: 1.125rem;
+    line-height: 1;
+  }
+
+  .lang-label {
+    flex: 1;
+  }
+
+  /* Mobile Language Switcher */
+  .mobile-lang-switcher {
+    display: flex;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .mobile-lang-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-3);
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-text);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    font-family: inherit;
+  }
+
+  .mobile-lang-btn:hover {
+    background-color: var(--color-surface-hover);
+  }
+
+  .mobile-lang-btn.active {
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+    background-color: var(--color-surface-hover);
+    font-weight: 600;
   }
 </style>

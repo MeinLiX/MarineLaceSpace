@@ -17,14 +17,14 @@ public static class PhotoRoutes
 
         photosGroup.MapPost("/shops/{shopId}/products/{productId}/images", PhotoHandlers.UploadPhotoHandler)
             .WithSummary("Upload a photo for a product")
-            .RequireAuthorization("SellersOnly");
+            .RequireAuthorization("SellersOrAdmin");
 
         photosGroup.MapDelete("/shops/{shopId}/products/{productId}/images/{imageId}", PhotoHandlers.DeletePhotoHandler)
             .WithSummary("Delete a product photo")
-            .RequireAuthorization("SellersOnly");
+            .RequireAuthorization("SellersOrAdmin");
 
         photosGroup.MapPut("/images/{imageId}", PhotoHandlers.UpdatePhotoHandler)
             .WithSummary("Update photo metadata")
-            .RequireAuthorization("SellersOnly");
+            .RequireAuthorization("SellersOrAdmin");
     }
 }

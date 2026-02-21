@@ -13,5 +13,8 @@ public class Color
     [StringLength(50)]
     public string Name { get; set; }
 
+    [StringLength(9)]
+    public string? HexCode { get; set; }
+
     public ICollection<ProductColor> ProductColors { get; set; } = [];
 }

@@ -4,8 +4,8 @@
   import Pagination from '$components/Pagination.svelte';
   import EmptyState from '$components/EmptyState.svelte';
   import Modal from '$components/Modal.svelte';
-  import ReviewStars from '$components/ReviewStars.svelte';
-  import { notificationStore } from '$stores/notification';
+  import { notificationStore } from '$stores/notification.svelte';
+  import { i18n } from '$i18n/index.svelte';
   import type { Shop } from '$types';
 
   let loading = $state(true);
@@ -16,6 +16,11 @@
 
   let showDeleteModal = $state(false);
   let deleteTarget = $state<Shop | null>(null);
+
+  let showCreateModal = $state(false);
+  let newShopName = $state('');
+  let newShopDescription = $state('');
+  let isCreating = $state(false);
 
   $effect(() => {
     loadShops(currentPage, search);
@@ -32,7 +37,7 @@
       shops = result.items;
       totalPages = result.totalPages;
     } catch {
-      notificationStore.error('Помилка завантаження магазинів');
+      notificationStore.error(i18n.t('admin.errorLoadingShops'));
     } finally {
       loading = false;
     }
@@ -51,12 +56,32 @@
     if (!deleteTarget) return;
     try {
       await catalogApi.deleteShop(deleteTarget.id);
-      notificationStore.success('Магазин видалено');
+      notificationStore.success(i18n.t('admin.shopDeleted'));
       showDeleteModal = false;
       deleteTarget = null;
       loadShops(currentPage, search);
     } catch {
-      notificationStore.error('Помилка видалення магазину');
+      notificationStore.error(i18n.t('admin.errorDeletingShop'));
+    }
+  }
+
+  async function handleCreateShop() {
+    if (!newShopName.trim()) return;
+    isCreating = true;
+    try {
+      await catalogApi.createShop({
+        name: newShopName.trim(),
+        description: newShopDescription.trim()
+      });
+      notificationStore.success(i18n.t('admin.shopCreated'));
+      showCreateModal = false;
+      newShopName = '';
+      newShopDescription = '';
+      loadShops(currentPage, search);
+    } catch {
+      notificationStore.error(i18n.t('admin.errorSaving'));
+    } finally {
+      isCreating = false;
     }
   }
 
@@ -67,35 +92,35 @@
 
 <div class="shops-page">
   <div class="page-header">
-    <h1 class="page-title">Магазини</h1>
+    <h1 class="page-title">{i18n.t('admin.shops')}</h1>
+    <button class="btn btn-primary" onclick={() => (showCreateModal = true)}>{i18n.t('admin.createShop')}</button>
   </div>
 
   <div class="toolbar">
     <input
       class="input input-sm search-input"
       type="search"
-      placeholder="Пошук магазинів..."
+      placeholder={i18n.t('admin.searchShops')}
       bind:value={search}
-      on:input={() => { currentPage = 1; }}
+      oninput={() => { currentPage = 1; }}
     />
   </div>
 
   {#if loading}
-    <LoadingSpinner message="Завантаження магазинів..." />
+    <LoadingSpinner message={i18n.t('admin.loadingShops')} />
   {:else if shops.length === 0}
-    <EmptyState title="Магазинів не знайдено" icon="🏪" />
+    <EmptyState title={i18n.t('admin.noShopsFound')} icon="🏪" />
   {:else}
     <div class="table-wrapper">
       <table class="data-table">
         <thead>
           <tr>
-            <th>Лого</th>
-            <th>Назва</th>
-            <th>Власник</th>
-            <th>Товари</th>
-            <th>Рейтинг</th>
-            <th>Дата створення</th>
-            <th>Дії</th>
+            <th>{i18n.t('admin.logo')}</th>
+            <th>{i18n.t('admin.name')}</th>
+            <th>{i18n.t('admin.status')}</th>
+            <th>{i18n.t('admin.products')}</th>
+            <th>{i18n.t('admin.createdDate')}</th>
+            <th>{i18n.t('admin.actions')}</th>
           </tr>
         </thead>
         <tbody>
@@ -111,19 +136,20 @@
               <td class="cell-title">
                 <a href="/admin/shops/{shop.id}" class="shop-link">{shop.name}</a>
               </td>
-              <td>{shop.ownerName}</td>
-              <td class="text-center">{shop.productCount}</td>
               <td>
-                <ReviewStars rating={shop.averageRating} count={shop.reviewCount} size="sm" />
+                <span class="badge {shop.isActive ? 'badge-success' : 'badge-error'}">
+                  {shop.isActive ? i18n.t('admin.active') : i18n.t('admin.inactive')}
+                </span>
               </td>
+              <td class="text-center">{shop.productCount}</td>
               <td>{formatDate(shop.createdAt)}</td>
               <td class="cell-actions">
-                <a href="/admin/shops/{shop.id}" class="btn btn-sm btn-ghost">Деталі</a>
+                <a href="/admin/shops/{shop.id}" class="btn btn-sm btn-ghost">{i18n.t('admin.details')}</a>
                 <button
                   class="btn btn-sm btn-ghost btn-danger-text"
-                  on:click={() => confirmDelete(shop)}
+                  onclick={() => confirmDelete(shop)}
                 >
-                  Видалити
+                  {i18n.t('common.delete')}
                 </button>
               </td>
             </tr>
@@ -136,13 +162,45 @@
   {/if}
 </div>
 
-<Modal open={showDeleteModal} title="Видалити магазин?" onclose={() => (showDeleteModal = false)}>
-  <p>Ви впевнені, що хочете видалити магазин <strong>{deleteTarget?.name}</strong>?</p>
-  <p class="text-sm text-muted mt-2">Усі товари цього магазину також будуть видалені.</p>
+<Modal open={showDeleteModal} title={i18n.t('admin.deleteShopQuestion')} onclose={() => (showDeleteModal = false)}>
+  <p>{i18n.t('admin.confirmDeleteShop', { name: deleteTarget?.name ?? '' })}</p>
+  <p class="text-sm text-muted mt-2">{i18n.t('admin.shopProductsAlsoDeleted')}</p>
   <div class="modal-actions">
-    <button class="btn btn-outline" on:click={() => (showDeleteModal = false)}>Скасувати</button>
-    <button class="btn btn-danger" on:click={executeDelete}>Видалити</button>
+    <button class="btn btn-outline" onclick={() => (showDeleteModal = false)}>{i18n.t('common.cancel')}</button>
+    <button class="btn btn-danger" onclick={executeDelete}>{i18n.t('common.delete')}</button>
   </div>
+</Modal>
+
+<Modal open={showCreateModal} title={i18n.t('admin.newShop')} onclose={() => (showCreateModal = false)}>
+  <form onsubmit={(e) => { e.preventDefault(); handleCreateShop(); }}>
+    <div class="form-group">
+      <label class="form-label" for="newShopName">{i18n.t('admin.name')}</label>
+      <input
+        id="newShopName"
+        class="input"
+        type="text"
+        bind:value={newShopName}
+        placeholder={i18n.t('admin.shopNamePlaceholder')}
+        required
+      />
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="newShopDesc">{i18n.t('admin.description')}</label>
+      <textarea
+        id="newShopDesc"
+        class="input"
+        bind:value={newShopDescription}
+        placeholder={i18n.t('admin.shopDescriptionPlaceholder')}
+        rows="3"
+      ></textarea>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-outline" onclick={() => (showCreateModal = false)}>{i18n.t('common.cancel')}</button>
+      <button type="submit" class="btn btn-primary" disabled={isCreating || !newShopName.trim()}>
+        {isCreating ? i18n.t('common.saving') : i18n.t('admin.createShop')}
+      </button>
+    </div>
+  </form>
 </Modal>
 
 <style>

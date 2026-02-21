@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { i18n } from '$i18n/index.svelte';
+
   let email = $state('');
   let subscribed = $state(false);
 
@@ -19,81 +21,81 @@
     <div class="footer-grid">
       <!-- About -->
       <div class="footer-col">
-        <h3 class="footer-brand">MarineLaceSpace</h3>
+        <h3 class="footer-brand">{i18n.t('common.brand')}</h3>
         <p class="footer-about">
-          Premium lingerie curated with care. Discover elegance, comfort, and confidence 
-          in every piece — from delicate lace to everyday essentials.
+          {i18n.t('footer.aboutDescLong')}
         </p>
       </div>
 
       <!-- Shop -->
       <div class="footer-col">
-        <h4 class="footer-heading">Shop</h4>
-        <nav class="footer-nav" aria-label="Shop links">
-          <a href="/catalog" class="footer-link">Catalog</a>
-          <a href="/catalog?sort=newest" class="footer-link">New Arrivals</a>
-          <a href="/catalog?sale=true" class="footer-link">Sale</a>
-          <a href="/shops" class="footer-link">All Shops</a>
+        <h4 class="footer-heading">{i18n.t('footer.shop')}</h4>
+        <nav class="footer-nav" aria-label={i18n.t('footer.shop')}>
+          <a href="/catalog" class="footer-link">{i18n.t('nav.catalog')}</a>
+          <a href="/catalog?sort=newest" class="footer-link">{i18n.t('footer.newArrivals')}</a>
+          <a href="/catalog?sale=true" class="footer-link">{i18n.t('footer.sale')}</a>
+          <a href="/shops" class="footer-link">{i18n.t('nav.allShops')}</a>
         </nav>
       </div>
 
       <!-- Customer Service -->
       <div class="footer-col">
-        <h4 class="footer-heading">Customer Service</h4>
-        <nav class="footer-nav" aria-label="Customer service links">
-          <a href="/shipping" class="footer-link">Shipping</a>
-          <a href="/returns" class="footer-link">Returns & Exchanges</a>
-          <a href="/faq" class="footer-link">FAQ</a>
-          <a href="/contact" class="footer-link">Contact Us</a>
+        <h4 class="footer-heading">{i18n.t('footer.customerService')}</h4>
+        <nav class="footer-nav" aria-label={i18n.t('footer.customerService')}>
+          <a href="/shipping" class="footer-link">{i18n.t('shipping.title')}</a>
+          <a href="/returns" class="footer-link">{i18n.t('footer.returns')}</a>
+          <a href="/faq" class="footer-link">{i18n.t('nav.faq')}</a>
+          <a href="/contact" class="footer-link">{i18n.t('nav.contact')}</a>
         </nav>
       </div>
 
       <!-- Connect -->
       <div class="footer-col">
-        <h4 class="footer-heading">Connect</h4>
+        <h4 class="footer-heading">{i18n.t('footer.connect')}</h4>
         <div class="social-links">
-          <a href="#" class="social-link" aria-label="Instagram">
+          <a href="https://www.etsy.com/shop/MarineLaceSpace" class="social-link" aria-label="Etsy" target="_blank" rel="noopener noreferrer">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" stroke="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="11" fill="none" stroke="currentColor" stroke-width="1.5" />
+              <text x="12" y="16.5" text-anchor="middle" font-size="12" font-weight="700" font-family="Georgia, serif" fill="currentColor">E</text>
+            </svg>
+          </a>
+          <a href="https://instagram.com/marinelacespace" class="social-link" aria-label="Instagram" target="_blank" rel="noopener noreferrer">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
               <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
               <circle cx="12" cy="12" r="5" />
               <circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none" />
             </svg>
           </a>
-          <a href="#" class="social-link" aria-label="Facebook">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-              <path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z" />
-            </svg>
-          </a>
-          <a href="#" class="social-link" aria-label="Pinterest">
+          <a href="https://pinterest.com/marinelacespace" class="social-link" aria-label="Pinterest" target="_blank" rel="noopener noreferrer">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
               <circle cx="12" cy="12" r="10" />
               <path d="M8 12c0-2.2 1.8-4 4-4s4 1.8 4 4-1.8 4-4 4" />
               <path d="M9 18l1.5-6" />
             </svg>
           </a>
-          <a href="#" class="social-link" aria-label="Twitter / X">
+          <a href="https://tiktok.com/@marinelacespace" class="social-link" aria-label="TikTok" target="_blank" rel="noopener noreferrer">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-              <path d="M4 4l16 16M4 20L20 4" />
+              <path d="M9 12a4 4 0 104 4V4a5 5 0 005 5" />
             </svg>
           </a>
         </div>
 
         <!-- Newsletter -->
         <div class="newsletter">
-          <p class="newsletter-label">Stay in the loop</p>
+          <p class="newsletter-label">{i18n.t('footer.newsletter')}</p>
           {#if subscribed}
-            <p class="newsletter-success">Thank you for subscribing!</p>
+            <p class="newsletter-success">{i18n.t('footer.subscribeSuccess')}</p>
           {:else}
-            <form class="newsletter-form" on:submit={handleNewsletterSubmit}>
+            <form class="newsletter-form" onsubmit={handleNewsletterSubmit}>
               <input
                 type="email"
                 class="newsletter-input"
-                placeholder="Your email"
+                placeholder={i18n.t('footer.newsletterPlaceholder')}
                 bind:value={email}
                 required
-                aria-label="Email for newsletter"
+                aria-label={i18n.t('footer.newsletter')}
               />
-              <button type="submit" class="newsletter-btn" aria-label="Subscribe to newsletter">
+              <button type="submit" class="newsletter-btn" aria-label={i18n.t('common.submit')}>
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <line x1="5" y1="12" x2="19" y2="12" />
                   <polyline points="12 5 19 12 12 19" />
@@ -109,7 +111,12 @@
   <!-- Bottom Bar -->
   <div class="footer-bottom">
     <div class="footer-bottom-inner container">
-      <p class="copyright">&copy; {currentYear} MarineLaceSpace. All rights reserved.</p>
+      <p class="copyright">{i18n.t('footer.copyright', { year: currentYear })}</p>
+      <nav class="legal-links" aria-label="Legal">
+        <a href="/privacy" class="legal-link">{i18n.t('privacy.title')}</a>
+        <a href="/terms" class="legal-link">{i18n.t('terms.title')}</a>
+        <a href="/faq" class="legal-link">{i18n.t('nav.faq')}</a>
+      </nav>
       <div class="payment-methods">
         <span class="payment-icon" aria-label="Visa">Visa</span>
         <span class="payment-icon" aria-label="Mastercard">MC</span>
@@ -315,5 +322,24 @@
     background-color: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
+  }
+
+  /* Legal links */
+  .legal-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    justify-content: center;
+  }
+
+  .legal-link {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    text-decoration: none;
+    transition: color var(--transition-fast);
+  }
+
+  .legal-link:hover {
+    color: var(--color-primary);
   }
 </style>

@@ -1,36 +1,31 @@
 <script lang="ts">
-  import Breadcrumb from '$components/Breadcrumb.svelte';
+  import { i18n } from '$i18n/index.svelte';
   import LoadingSpinner from '$components/LoadingSpinner.svelte';
   import EmptyState from '$components/EmptyState.svelte';
-  import ReviewStars from '$components/ReviewStars.svelte';
+  import Pagination from '$components/Pagination.svelte';
   import type { Shop } from '$types';
-  import { api } from '$api/client';
+  import { getShops } from '$api/catalog';
 
   // ─── State ─────────────────────────────────────────────────────────────────
 
   let isLoading = $state(true);
   let shops = $state<Shop[]>([]);
   let searchQuery = $state('');
-
-  // ─── Derived ───────────────────────────────────────────────────────────────
-
-  let filteredShops = $derived(
-    searchQuery.trim()
-      ? shops.filter((s) => s.name.toLowerCase().includes(searchQuery.trim().toLowerCase()))
-      : shops
-  );
-
-  let breadcrumbItems = $derived([
-    { label: 'Головна', href: '/' },
-    { label: 'Магазини' },
-  ]);
+  let currentPage = $state(1);
+  let totalPages = $state(1);
 
   // ─── Data Loading ──────────────────────────────────────────────────────────
 
   async function loadShops() {
     isLoading = true;
     try {
-      shops = await api.get<Shop[]>('/shops');
+      const result = await getShops({
+        page: currentPage,
+        pageSize: 24,
+        search: searchQuery.trim() || undefined,
+      });
+      shops = result.items;
+      totalPages = result.totalPages;
     } catch (err) {
       console.error('Failed to load shops', err);
       shops = [];
@@ -42,44 +37,51 @@
   $effect(() => {
     loadShops();
   });
+
+  function handleSearch() {
+    currentPage = 1;
+  }
+
+  function handlePageChange(page: number) {
+    currentPage = page;
+  }
 </script>
 
 <svelte:head>
-  <title>Наші магазини — MarineLaceSpace</title>
+  <title>{i18n.t('shops.title')} — MarineLaceSpace</title>
 </svelte:head>
 
 <div class="shops-page">
   <div class="container">
-    <Breadcrumb items={breadcrumbItems} />
-
     <div class="shops-header">
-      <h1>Наші магазини</h1>
+      <h1>{i18n.t('shops.title')}</h1>
       <div class="search-wrapper">
         <input
           class="input"
           type="search"
-          placeholder="Пошук магазину…"
+          placeholder={i18n.t('shops.search')}
           bind:value={searchQuery}
-          aria-label="Пошук магазину"
+          aria-label={i18n.t('shops.search')}
+          oninput={handleSearch}
         />
       </div>
     </div>
 
     {#if isLoading}
-      <LoadingSpinner size="lg" message="Завантаження магазинів…" />
-    {:else if filteredShops.length === 0}
+      <LoadingSpinner size="lg" message={i18n.t('shops.loadingShops')} />
+    {:else if shops.length === 0}
       <EmptyState
-        title="Магазинів не знайдено"
-        description={searchQuery ? 'Спробуйте змінити пошуковий запит' : 'Наразі немає зареєстрованих магазинів'}
+        title={i18n.t('shops.noShops')}
+        description={searchQuery ? i18n.t('shops.noShopsSearchDescription') : i18n.t('shops.noShopsDescription')}
         icon="🏪"
       />
     {:else}
       <div class="shops-grid">
-        {#each filteredShops as shop (shop.id)}
+        {#each shops as shop (shop.id)}
           <a href="/shops/{shop.slug}" class="shop-card card">
             <div class="shop-logo-wrapper">
               {#if shop.logoUrl}
-                <img src={shop.logoUrl} alt="{shop.name} логотип" class="shop-logo" />
+                <img src={shop.logoUrl} alt={i18n.t('shops.shopLogo', { name: shop.name })} class="shop-logo" />
               {:else}
                 <div class="shop-logo-placeholder" aria-hidden="true">
                   <span>🏪</span>
@@ -97,18 +99,15 @@
                     <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/>
                     <line x1="7" y1="7" x2="7.01" y2="7"/>
                   </svg>
-                  {shop.productCount} товарів
+                  {i18n.t('shops.products', { count: shop.productCount })}
                 </span>
-                {#if shop.averageRating > 0}
-                  <span class="stat">
-                    <ReviewStars rating={shop.averageRating} count={shop.reviewCount} size="sm" />
-                  </span>
-                {/if}
               </div>
             </div>
           </a>
         {/each}
       </div>
+
+      <Pagination {currentPage} {totalPages} onPageChange={handlePageChange} />
     {/if}
   </div>
 </div>

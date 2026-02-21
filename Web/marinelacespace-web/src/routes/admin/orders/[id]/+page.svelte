@@ -2,19 +2,19 @@
   import { page } from '$app/stores';
   import * as orderApi from '$api/order';
   import * as paymentApi from '$api/payment';
-  import Breadcrumb from '$components/Breadcrumb.svelte';
   import LoadingSpinner from '$components/LoadingSpinner.svelte';
   import Modal from '$components/Modal.svelte';
-  import { notificationStore } from '$stores/notification';
+  import { notificationStore } from '$stores/notification.svelte';
+  import { i18n } from '$i18n/index.svelte';
   import type { Order, OrderStatus, PaymentRecord } from '$types';
 
-  let orderId = $derived($page.params.id);
+  let orderId = $derived($page.params.id!);
   let loading = $state(true);
   let order = $state<Order | null>(null);
   let payments = $state<PaymentRecord[]>([]);
 
   // Status change
-  let newStatus = $state('');
+  let newStatusId = $state(0);
   let changingStatus = $state(false);
 
   // Tracking
@@ -26,23 +26,27 @@
   let showCancelModal = $state(false);
   let canceling = $state(false);
 
-  const breadcrumbItems = $derived([
-    { label: 'Адмін', href: '/admin' },
-    { label: 'Замовлення', href: '/admin/orders' },
-    { label: order ? `#${order.id.slice(0, 8)}` : '...' },
-  ]);
+  const statusIdMap: Record<string, number> = {
+    New: 1, PendingPayment: 2, Paid: 3, Processing: 4,
+    Shipped: 5, Delivered: 6, Completed: 7, Canceled: 8, Refunded: 9,
+  };
 
-  const statusOptions: { value: OrderStatus; label: string }[] = [
-    { value: 'New', label: 'Нове' },
-    { value: 'PendingPayment', label: 'Очікує оплати' },
-    { value: 'Paid', label: 'Оплачено' },
-    { value: 'Processing', label: 'В обробці' },
-    { value: 'Shipped', label: 'Відправлено' },
-    { value: 'Delivered', label: 'Доставлено' },
-    { value: 'Completed', label: 'Завершено' },
-    { value: 'Canceled', label: 'Скасовано' },
-    { value: 'Refunded', label: 'Повернення' },
-  ];
+  const statusNameMap: Record<number, string> = {
+    1: 'New', 2: 'PendingPayment', 3: 'Paid', 4: 'Processing',
+    5: 'Shipped', 6: 'Delivered', 7: 'Completed', 8: 'Canceled', 9: 'Refunded',
+  };
+
+  let statusOptions = $derived([
+    { value: 1, label: i18n.t('admin.orderStatusNew') },
+    { value: 2, label: i18n.t('admin.orderStatusPendingPayment') },
+    { value: 3, label: i18n.t('admin.orderStatusPaid') },
+    { value: 4, label: i18n.t('admin.orderStatusProcessing') },
+    { value: 5, label: i18n.t('admin.orderStatusShipped') },
+    { value: 6, label: i18n.t('admin.orderStatusDelivered') },
+    { value: 7, label: i18n.t('admin.orderStatusCompleted') },
+    { value: 8, label: i18n.t('admin.orderStatusCanceled') },
+    { value: 9, label: i18n.t('admin.orderStatusRefunded') },
+  ]);
 
   $effect(() => {
     loadOrder(orderId);
@@ -57,23 +61,23 @@
       ]);
       order = orderRes;
       payments = paymentsRes;
-      newStatus = orderRes.status;
+      newStatusId = statusIdMap[orderRes.status] ?? 1;
     } catch {
-      notificationStore.error('Помилка завантаження замовлення');
+      notificationStore.error(i18n.t('admin.errorLoadingOrder'));
     } finally {
       loading = false;
     }
   }
 
   async function changeStatus() {
-    if (!order || !newStatus || newStatus === order.status) return;
+    if (!order || !newStatusId || statusNameMap[newStatusId] === order.status) return;
     try {
       changingStatus = true;
-      await orderApi.updateOrderStatus(order.id, { status: newStatus });
-      order = { ...order, status: newStatus as OrderStatus };
-      notificationStore.success('Статус змінено');
+      await orderApi.updateOrderStatus(order.id, { statusId: newStatusId });
+      order = { ...order, status: (statusNameMap[newStatusId] ?? order.status) as OrderStatus };
+      notificationStore.success(i18n.t('admin.statusChanged'));
     } catch {
-      notificationStore.error('Помилка зміни статусу');
+      notificationStore.error(i18n.t('admin.errorChangingStatus'));
     } finally {
       changingStatus = false;
     }
@@ -87,9 +91,9 @@
       order = { ...order, trackingNumber: trackingInput.trim() };
       showTrackingModal = false;
       trackingInput = '';
-      notificationStore.success('Трекінг-номер додано');
+      notificationStore.success(i18n.t('admin.trackingAdded'));
     } catch {
-      notificationStore.error('Помилка додавання трекінг-номера');
+      notificationStore.error(i18n.t('admin.errorAddingTracking'));
     } finally {
       addingTracking = false;
     }
@@ -102,9 +106,9 @@
       await orderApi.cancelOrder(order.id);
       order = { ...order, status: 'Canceled' };
       showCancelModal = false;
-      notificationStore.success('Замовлення скасовано');
+      notificationStore.success(i18n.t('admin.orderCanceled'));
     } catch {
-      notificationStore.error('Помилка скасування');
+      notificationStore.error(i18n.t('admin.errorCanceling'));
     } finally {
       canceling = false;
     }
@@ -136,47 +140,45 @@
 
   function statusLabel(status: string): string {
     const map: Record<string, string> = {
-      New: 'Нове', PendingPayment: 'Очікує оплати',
-      Paid: 'Оплачено', Processing: 'В обробці',
-      Shipped: 'Відправлено', Delivered: 'Доставлено',
-      Completed: 'Завершено', Canceled: 'Скасовано', Refunded: 'Повернення',
+      New: i18n.t('admin.orderStatusNew'), PendingPayment: i18n.t('admin.orderStatusPendingPayment'),
+      Paid: i18n.t('admin.orderStatusPaid'), Processing: i18n.t('admin.orderStatusProcessing'),
+      Shipped: i18n.t('admin.orderStatusShipped'), Delivered: i18n.t('admin.orderStatusDelivered'),
+      Completed: i18n.t('admin.orderStatusCompleted'), Canceled: i18n.t('admin.orderStatusCanceled'), Refunded: i18n.t('admin.orderStatusRefunded'),
     };
     return map[status] ?? status;
   }
 
   function paymentStatusLabel(status: string): string {
     const map: Record<string, string> = {
-      Pending: 'Очікує', Succeeded: 'Успішно',
-      Failed: 'Невдало', Refunded: 'Повернено',
+      Pending: i18n.t('admin.paymentPending'), Succeeded: i18n.t('admin.paymentSucceeded'),
+      Failed: i18n.t('admin.paymentFailed'), Refunded: i18n.t('admin.paymentRefunded'),
     };
     return map[status] ?? status;
   }
 </script>
 
 <div class="order-detail">
-  <Breadcrumb items={breadcrumbItems} />
-
   {#if loading}
-    <LoadingSpinner message="Завантаження замовлення..." />
+    <LoadingSpinner message={i18n.t('admin.loadingOrder')} />
   {:else if order}
     <div class="detail-header">
       <div class="header-left">
-        <h1 class="page-title">Замовлення #{order.id.slice(0, 8)}</h1>
+        <h1 class="page-title">{i18n.t('admin.orderHash', { id: order.id.slice(0, 8) })}</h1>
         <span class="badge {statusBadge(order.status)}">
           {statusLabel(order.status)}
         </span>
       </div>
       <div class="header-actions">
         {#if order.status !== 'Canceled' && order.status !== 'Refunded'}
-          <button class="btn btn-outline btn-sm" on:click={() => (showTrackingModal = true)}>
-            Додати трекінг
+          <button class="btn btn-outline btn-sm" onclick={() => (showTrackingModal = true)}>
+            {i18n.t('admin.addTracking')}
           </button>
           <button
             class="btn btn-sm"
             style="background: var(--color-error); color: #fff;"
-            on:click={() => (showCancelModal = true)}
+            onclick={() => (showCancelModal = true)}
           >
-            Скасувати
+            {i18n.t('common.cancel')}
           </button>
         {/if}
       </div>
@@ -187,19 +189,19 @@
         <!-- Status change -->
         <section class="detail-section card">
           <div class="card-body">
-            <h3 class="section-title">Змінити статус</h3>
+            <h3 class="section-title">{i18n.t('admin.changeStatus')}</h3>
             <div class="status-change-row">
-              <select class="input input-sm" bind:value={newStatus} style="max-width: 240px;">
+              <select class="input input-sm" bind:value={newStatusId} style="max-width: 240px;">
                 {#each statusOptions as opt}
                   <option value={opt.value}>{opt.label}</option>
                 {/each}
               </select>
               <button
                 class="btn btn-primary btn-sm"
-                on:click={changeStatus}
-                disabled={changingStatus || newStatus === order.status}
+                onclick={changeStatus}
+                disabled={changingStatus || statusNameMap[newStatusId] === order.status}
               >
-                Змінити статус
+                {i18n.t('admin.changeStatus')}
               </button>
             </div>
           </div>
@@ -209,16 +211,16 @@
         <div class="info-cards-row">
           <section class="detail-section card">
             <div class="card-body">
-              <h3 class="section-title">Покупець</h3>
-              <p><strong>Ім'я:</strong> {order.shippingAddress.fullName}</p>
+              <h3 class="section-title">{i18n.t('admin.customer')}</h3>
+              <p><strong>{i18n.t('admin.ownerName')}:</strong> {order.shippingAddress.fullName}</p>
               <p><strong>Email:</strong> {order.buyerEmail}</p>
-              <p><strong>Телефон:</strong> {order.shippingAddress.phone}</p>
+              <p><strong>{i18n.t('admin.phone')}:</strong> {order.shippingAddress.phone}</p>
             </div>
           </section>
 
           <section class="detail-section card">
             <div class="card-body">
-              <h3 class="section-title">Адреса доставки</h3>
+              <h3 class="section-title">{i18n.t('admin.shippingAddress')}</h3>
               <p>{order.shippingAddress.addressLine1}</p>
               {#if order.shippingAddress.addressLine2}
                 <p>{order.shippingAddress.addressLine2}</p>
@@ -235,11 +237,11 @@
         <!-- Tracking -->
         <section class="detail-section card">
           <div class="card-body">
-            <h3 class="section-title">Трекінг</h3>
+            <h3 class="section-title">{i18n.t('admin.tracking')}</h3>
             {#if order.trackingNumber}
               <p class="tracking-number">{order.trackingNumber}</p>
             {:else}
-              <p class="text-muted">Трекінг-номер ще не додано</p>
+              <p class="text-muted">{i18n.t('admin.noTrackingYet')}</p>
             {/if}
           </div>
         </section>
@@ -247,19 +249,19 @@
         <!-- Order items -->
         <section class="detail-section card">
           <div class="card-header">
-            <h3>Товари замовлення</h3>
+            <h3>{i18n.t('admin.orderItems')}</h3>
           </div>
           <div class="card-body" style="padding: 0;">
             <div class="table-wrapper">
               <table class="data-table">
                 <thead>
                   <tr>
-                    <th>Фото</th>
-                    <th>Назва</th>
-                    <th>Варіант</th>
-                    <th>Персоналізація</th>
-                    <th>Кількість</th>
-                    <th>Ціна</th>
+                    <th>{i18n.t('admin.photo')}</th>
+                    <th>{i18n.t('admin.name')}</th>
+                    <th>{i18n.t('admin.variant')}</th>
+                    <th>{i18n.t('admin.personalization')}</th>
+                    <th>{i18n.t('admin.quantity')}</th>
+                    <th>{i18n.t('admin.price')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -286,7 +288,7 @@
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td colspan="5" class="total-label">Загалом:</td>
+                    <td colspan="5" class="total-label">{i18n.t('admin.total')}:</td>
                     <td class="cell-mono total-value">{formatCurrency(order.totalPrice)}</td>
                   </tr>
                 </tfoot>
@@ -299,17 +301,17 @@
         {#if payments.length > 0}
           <section class="detail-section card">
             <div class="card-header">
-              <h3>Платежі</h3>
+              <h3>{i18n.t('admin.payments')}</h3>
             </div>
             <div class="card-body" style="padding: 0;">
               <div class="table-wrapper">
                 <table class="data-table">
                   <thead>
                     <tr>
-                      <th>Провайдер</th>
-                      <th>Сума</th>
-                      <th>Статус</th>
-                      <th>Дата</th>
+                      <th>{i18n.t('admin.provider')}</th>
+                      <th>{i18n.t('admin.amount')}</th>
+                      <th>{i18n.t('admin.status')}</th>
+                      <th>{i18n.t('admin.date')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -339,19 +341,19 @@
       <aside class="detail-sidebar">
         <section class="card">
           <div class="card-body">
-            <h3 class="section-title">Хронологія</h3>
+            <h3 class="section-title">{i18n.t('admin.timeline')}</h3>
             <div class="timeline">
               <div class="timeline-item">
                 <div class="timeline-dot"></div>
                 <div class="timeline-content">
-                  <span class="timeline-label">Створено</span>
+                  <span class="timeline-label">{i18n.t('admin.created')}</span>
                   <span class="timeline-date">{formatDate(order.createdAt)}</span>
                 </div>
               </div>
               <div class="timeline-item">
                 <div class="timeline-dot active"></div>
                 <div class="timeline-content">
-                  <span class="timeline-label">Поточний статус</span>
+                  <span class="timeline-label">{i18n.t('admin.currentStatus')}</span>
                   <span class="badge {statusBadge(order.status)} mt-1">
                     {statusLabel(order.status)}
                   </span>
@@ -360,7 +362,7 @@
               <div class="timeline-item">
                 <div class="timeline-dot"></div>
                 <div class="timeline-content">
-                  <span class="timeline-label">Оновлено</span>
+                  <span class="timeline-label">{i18n.t('admin.updated')}</span>
                   <span class="timeline-date">{formatDate(order.updatedAt)}</span>
                 </div>
               </div>
@@ -370,17 +372,17 @@
       </aside>
     </div>
   {:else}
-    <p class="text-muted">Замовлення не знайдено.</p>
+    <p class="text-muted">{i18n.t('admin.orderNotFound')}</p>
   {/if}
 </div>
 
 <Modal
   open={showTrackingModal}
-  title="Додати трекінг-номер"
+  title={i18n.t('admin.addTrackingNumber')}
   onclose={() => (showTrackingModal = false)}
 >
   <div class="form-group">
-    <label class="form-label" for="tracking">Номер відстеження</label>
+    <label class="form-label" for="tracking">{i18n.t('admin.trackingNumberLabel')}</label>
     <input
       id="tracking"
       class="input"
@@ -390,24 +392,24 @@
     />
   </div>
   <div class="modal-actions">
-    <button class="btn btn-outline" on:click={() => (showTrackingModal = false)}>Скасувати</button>
-    <button class="btn btn-primary" on:click={addTracking} disabled={addingTracking}>
-      {addingTracking ? 'Збереження...' : 'Додати'}
+    <button class="btn btn-outline" onclick={() => (showTrackingModal = false)}>{i18n.t('common.cancel')}</button>
+    <button class="btn btn-primary" onclick={addTracking} disabled={addingTracking}>
+      {addingTracking ? i18n.t('common.saving') : i18n.t('common.add')}
     </button>
   </div>
 </Modal>
 
 <Modal
   open={showCancelModal}
-  title="Скасувати замовлення?"
+  title={i18n.t('admin.cancelOrderQuestion')}
   onclose={() => (showCancelModal = false)}
 >
-  <p>Ви впевнені, що хочете скасувати це замовлення?</p>
-  <p class="text-sm text-muted mt-2">Цю дію неможливо скасувати.</p>
+  <p>{i18n.t('admin.confirmCancelOrder')}</p>
+  <p class="text-sm text-muted mt-2">{i18n.t('admin.actionIrreversible')}</p>
   <div class="modal-actions">
-    <button class="btn btn-outline" on:click={() => (showCancelModal = false)}>Ні</button>
-    <button class="btn" style="background: var(--color-error); color: #fff;" on:click={cancelOrder} disabled={canceling}>
-      {canceling ? 'Скасування...' : 'Скасувати замовлення'}
+    <button class="btn btn-outline" onclick={() => (showCancelModal = false)}>{i18n.t('common.no')}</button>
+    <button class="btn" style="background: var(--color-error); color: #fff;" onclick={cancelOrder} disabled={canceling}>
+      {canceling ? i18n.t('admin.canceling') : i18n.t('admin.cancelOrder')}
     </button>
   </div>
 </Modal>

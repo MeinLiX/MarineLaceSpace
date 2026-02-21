@@ -24,7 +24,7 @@ function createAuthStore() {
 	function persistTokens(response: LoginResponse): void {
 		localStorage.setItem('access_token', response.accessToken);
 		localStorage.setItem('refresh_token', response.refreshToken);
-		localStorage.setItem('token_expires_at', response.expiresAt);
+		localStorage.setItem('token_expires_at', response.accessTokenExpiresAt);
 	}
 
 	function clearTokens(): void {

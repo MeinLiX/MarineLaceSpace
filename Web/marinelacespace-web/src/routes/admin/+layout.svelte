@@ -2,7 +2,8 @@
   import type { Snippet } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { authStore } from '$stores/auth';
+  import { authStore } from '$stores/auth.svelte';
+  import { i18n } from '$i18n/index.svelte';
 
   let { children }: { children: Snippet } = $props();
 
@@ -20,21 +21,21 @@
     sidebarOpen = false;
   });
 
-  const navItems = [
-    { icon: '📊', label: 'Dashboard', href: '/admin' },
-    { icon: '📦', label: 'Товари', href: '/admin/products' },
-    { icon: '📂', label: 'Категорії', href: '/admin/categories' },
-    { icon: '📋', label: 'Замовлення', href: '/admin/orders' },
-    { icon: '🏪', label: 'Магазини', href: '/admin/shops' },
-    { icon: '⭐', label: 'Відгуки', href: '/admin/reviews' },
-    { icon: '👥', label: 'Користувачі', href: '/admin/users' },
-  ];
+  let navItems = $derived([
+    { icon: '📊', label: i18n.t('admin.dashboard'), href: '/admin' },
+    { icon: '📦', label: i18n.t('admin.products'), href: '/admin/products' },
+    { icon: '📂', label: i18n.t('admin.categories'), href: '/admin/categories' },
+    { icon: '📋', label: i18n.t('admin.orders'), href: '/admin/orders' },
+    { icon: '🏪', label: i18n.t('admin.shops'), href: '/admin/shops' },
+    { icon: '⭐', label: i18n.t('admin.reviews'), href: '/admin/reviews' },
+    { icon: '👥', label: i18n.t('admin.users'), href: '/admin/users' },
+  ]);
 
-  const dictionaryItems = [
-    { icon: '📐', label: 'Розміри', href: '/admin/dictionaries/sizes' },
-    { icon: '🎨', label: 'Кольори', href: '/admin/dictionaries/colors' },
-    { icon: '🧵', label: 'Матеріали', href: '/admin/dictionaries/materials' },
-  ];
+  let dictionaryItems = $derived([
+    { icon: '📐', label: i18n.t('admin.sizes'), href: '/admin/dictionaries/sizes' },
+    { icon: '🎨', label: i18n.t('admin.colors'), href: '/admin/dictionaries/colors' },
+    { icon: '🧵', label: i18n.t('admin.materials'), href: '/admin/dictionaries/materials' },
+  ]);
 
   function isLinkActive(href: string): boolean {
     if (href === '/admin') return currentPath === '/admin';
@@ -46,8 +47,8 @@
   <div class="admin-wrapper">
     <button
       class="hamburger"
-      on:click={() => (sidebarOpen = !sidebarOpen)}
-      aria-label="Відкрити меню"
+      onclick={() => (sidebarOpen = !sidebarOpen)}
+      aria-label={i18n.t('admin.openMenu')}
     >
       <span class="hamburger-line"></span>
       <span class="hamburger-line"></span>
@@ -57,8 +58,8 @@
     {#if sidebarOpen}
       <div
         class="sidebar-overlay"
-        on:click={() => (sidebarOpen = false)}
-        on:keydown={(e) => e.key === 'Escape' && (sidebarOpen = false)}
+        onclick={() => (sidebarOpen = false)}
+        onkeydown={(e) => e.key === 'Escape' && (sidebarOpen = false)}
         role="presentation"
       ></div>
     {/if}
@@ -100,10 +101,10 @@
             <span class="user-name">
               {authStore.currentUser.firstName} {authStore.currentUser.lastName}
             </span>
-            <span class="user-role">Адміністратор</span>
+            <span class="user-role">{i18n.t('admin.administrator')}</span>
           </div>
-          <button class="btn-logout" on:click={() => authStore.logout()}>
-            Вийти
+          <button class="btn-logout" onclick={() => authStore.logout()}>
+            {i18n.t('common.logout')}
           </button>
         {/if}
       </div>
@@ -118,7 +119,7 @@
 <style>
   .admin-wrapper {
     display: flex;
-    min-height: 80vh;
+    min-height: 100vh;
     background: var(--color-background);
   }
 

@@ -6,6 +6,7 @@ using BB.Common.EventBus;
 using MarineLaceSpace.Interfaces.EventBus;
 using MarineLaceSpace.Interfaces.Repositories.Auth;
 using MarineLaceSpace.Models.Database.Auth;
+using MarineLaceSpace.Options;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -67,6 +68,38 @@ using (var scope = app.Services.CreateScope())
         if (!await roleManager.RoleExistsAsync(role))
         {
             await roleManager.CreateAsync(new IdentityRole(role));
+        }
+    }
+
+    // Seed default admin user
+    var adminSeed = app.Configuration.GetSection("AdminSeed").Get<AdminSeedOption>();
+    if (adminSeed is { Email.Length: > 0, Password.Length: > 0 })
+    {
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AuthUser>>();
+        var existingAdmin = await userManager.FindByEmailAsync(adminSeed.Email);
+        if (existingAdmin is null)
+        {
+            var adminUser = new AuthUser
+            {
+                Id = Guid.NewGuid().ToString(),
+                UserName = adminSeed.Email,
+                Email = adminSeed.Email,
+                EmailConfirmed = true,
+                FirstName = adminSeed.FirstName,
+                LastName = adminSeed.LastName,
+            };
+
+            var result = await userManager.CreateAsync(adminUser, adminSeed.Password);
+            if (result.Succeeded)
+            {
+                await userManager.AddToRoleAsync(adminUser, "Admin");
+                app.Logger.LogInformation("Default admin user seeded: {Email}", adminSeed.Email);
+            }
+            else
+            {
+                app.Logger.LogWarning("Failed to seed admin user: {Errors}",
+                    string.Join(", ", result.Errors.Select(e => e.Description)));
+            }
         }
     }
 }

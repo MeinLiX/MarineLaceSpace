@@ -82,7 +82,7 @@ internal class DictionaryHandlers
             await RouteHandlers.RouteHandlerAsync<DictionaryServices>(sp, async (services) =>
             {
                 var colors = await services.DbContext.Colors.AsNoTracking().ToListAsync();
-                return Results.Ok(colors.Select(c => new ColorResponse { Id = c.Id, Name = c.Name }));
+                return Results.Ok(colors.Select(c => new ColorResponse { Id = c.Id, Name = c.Name, HexCode = c.HexCode }));
             });
 
     internal static Delegate CreateColorHandler =>
@@ -90,10 +90,10 @@ internal class DictionaryHandlers
             await RouteHandlers.RouteHandlerAsync<CreateColorRequest, DictionaryServices>(request, sp,
                 async (services) =>
                 {
-                    var color = new Color { Id = Guid.NewGuid().ToString(), Name = request.Name };
+                    var color = new Color { Id = Guid.NewGuid().ToString(), Name = request.Name, HexCode = request.HexCode };
                     await services.DbContext.Colors.AddAsync(color);
                     await services.DbContext.SaveChangesAsync();
-                    return Results.Created($"/api/colors/{color.Id}", new ColorResponse { Id = color.Id, Name = color.Name });
+                    return Results.Created($"/api/colors/{color.Id}", new ColorResponse { Id = color.Id, Name = color.Name, HexCode = color.HexCode });
                 });
 
     internal static Delegate UpdateColorHandler =>
@@ -104,8 +104,9 @@ internal class DictionaryHandlers
                     var color = await services.DbContext.Colors.FindAsync(id);
                     if (color == null) return Results.NotFound(RESTResult.Fail("Color not found."));
                     color.Name = request.Name;
+                    color.HexCode = request.HexCode;
                     await services.DbContext.SaveChangesAsync();
-                    return Results.Ok(new ColorResponse { Id = color.Id, Name = color.Name });
+                    return Results.Ok(new ColorResponse { Id = color.Id, Name = color.Name, HexCode = color.HexCode });
                 });
 
     internal static Delegate DeleteColorHandler =>
@@ -122,7 +123,7 @@ internal class DictionaryHandlers
             await RouteHandlers.RouteHandlerAsync<DictionaryServices>(sp, async (services) =>
             {
                 var materials = await services.DbContext.Materials.AsNoTracking().ToListAsync();
-                return Results.Ok(materials.Select(m => new MaterialResponse { Id = m.Id, Name = m.Name, Description = m.Description }));
+                return Results.Ok(materials.Select(m => new MaterialResponse { Id = m.Id, Name = m.Name, Description = m.Description, ImageUrl = m.ImageUrl }));
             });
 
     internal static Delegate CreateMaterialHandler =>
@@ -130,10 +131,10 @@ internal class DictionaryHandlers
             await RouteHandlers.RouteHandlerAsync<CreateMaterialRequest, DictionaryServices>(request, sp,
                 async (services) =>
                 {
-                    var material = new Material { Id = Guid.NewGuid().ToString(), Name = request.Name, Description = request.Description ?? string.Empty };
+                    var material = new Material { Id = Guid.NewGuid().ToString(), Name = request.Name, Description = request.Description ?? string.Empty, ImageUrl = request.ImageUrl };
                     await services.DbContext.Materials.AddAsync(material);
                     await services.DbContext.SaveChangesAsync();
-                    return Results.Created($"/api/materials/{material.Id}", new MaterialResponse { Id = material.Id, Name = material.Name, Description = material.Description });
+                    return Results.Created($"/api/materials/{material.Id}", new MaterialResponse { Id = material.Id, Name = material.Name, Description = material.Description, ImageUrl = material.ImageUrl });
                 });
 
     internal static Delegate UpdateMaterialHandler =>
@@ -145,8 +146,9 @@ internal class DictionaryHandlers
                     if (material == null) return Results.NotFound(RESTResult.Fail("Material not found."));
                     material.Name = request.Name;
                     material.Description = request.Description ?? string.Empty;
+                    material.ImageUrl = request.ImageUrl;
                     await services.DbContext.SaveChangesAsync();
-                    return Results.Ok(new MaterialResponse { Id = material.Id, Name = material.Name, Description = material.Description });
+                    return Results.Ok(new MaterialResponse { Id = material.Id, Name = material.Name, Description = material.Description, ImageUrl = material.ImageUrl });
                 });
 
     internal static Delegate DeleteMaterialHandler =>

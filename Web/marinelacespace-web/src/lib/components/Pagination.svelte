@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { i18n } from '$i18n/index.svelte';
+
   let {
     currentPage,
     totalPages,
@@ -40,17 +42,17 @@
 </script>
 
 {#if totalPages > 1}
-  <nav class="pagination" aria-label="Pagination">
+  <nav class="pagination" aria-label={i18n.t('pagination.ariaLabel')}>
     <button
       class="page-btn prev"
       disabled={currentPage <= 1}
-      on:click={() => onPageChange(currentPage - 1)}
-      aria-label="Previous page"
+      onclick={() => onPageChange(currentPage - 1)}
+      aria-label={i18n.t('pagination.previousPage')}
     >
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
         <polyline points="15 18 9 12 15 6" />
       </svg>
-      <span class="btn-label">Previous</span>
+      <span class="btn-label">{i18n.t('common.previous')}</span>
     </button>
 
     <div class="page-numbers">
@@ -61,8 +63,8 @@
           <button
             class="page-num"
             class:active={page === currentPage}
-            on:click={() => onPageChange(page as number)}
-            aria-label="Page {page}"
+            onclick={() => onPageChange(page as number)}
+            aria-label={i18n.t('pagination.page', { page })}
             aria-current={page === currentPage ? 'page' : undefined}
           >
             {page}
@@ -74,10 +76,10 @@
     <button
       class="page-btn next"
       disabled={currentPage >= totalPages}
-      on:click={() => onPageChange(currentPage + 1)}
-      aria-label="Next page"
+      onclick={() => onPageChange(currentPage + 1)}
+      aria-label={i18n.t('pagination.nextPage')}
     >
-      <span class="btn-label">Next</span>
+      <span class="btn-label">{i18n.t('common.next')}</span>
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
         <polyline points="9 18 15 12 9 6" />
       </svg>

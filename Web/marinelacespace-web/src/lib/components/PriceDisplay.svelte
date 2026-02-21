@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { i18n } from '$i18n/index.svelte';
+
   let {
     price,
     oldPrice = undefined,
@@ -32,7 +34,7 @@
   }
 </script>
 
-<span class="price-display" aria-label="Price: {formatPrice(price)}{hasDiscount && computedOldPrice ? `, was ${formatPrice(computedOldPrice)}` : ''}">
+<span class="price-display" aria-label={i18n.t('product.priceLabel', { price: formatPrice(price), oldPrice: hasDiscount && computedOldPrice ? formatPrice(computedOldPrice) : '' })}>
   <span class="current-price" class:discounted={hasDiscount}>
     {formatPrice(price)}
   </span>

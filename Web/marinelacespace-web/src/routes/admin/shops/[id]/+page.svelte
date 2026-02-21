@@ -3,11 +3,11 @@
   import { goto } from '$app/navigation';
   import * as catalogApi from '$api/catalog';
   import LoadingSpinner from '$components/LoadingSpinner.svelte';
-  import ReviewStars from '$components/ReviewStars.svelte';
-  import { notificationStore } from '$stores/notification';
+  import { notificationStore } from '$stores/notification.svelte';
+  import { i18n } from '$i18n/index.svelte';
   import type { Shop, Product } from '$types';
 
-  let shopId = $derived($page.params.id);
+  let shopId = $derived($page.params.id!);
   let loading = $state(true);
   let saving = $state(false);
   let shop = $state<Shop | null>(null);
@@ -39,7 +39,7 @@
       logoUrl = shopRes.logoUrl ?? '';
       bannerUrl = shopRes.bannerUrl ?? '';
     } catch {
-      notificationStore.error('Помилка завантаження магазину');
+      notificationStore.error(i18n.t('admin.errorLoadingShop'));
     } finally {
       loading = false;
     }
@@ -47,7 +47,7 @@
 
   async function save() {
     if (!name.trim()) {
-      notificationStore.warning('Введіть назву магазину');
+      notificationStore.warning(i18n.t('admin.enterShopName'));
       return;
     }
     try {
@@ -58,9 +58,9 @@
         logoUrl: logoUrl.trim() || undefined,
         bannerUrl: bannerUrl.trim() || undefined,
       });
-      notificationStore.success('Магазин оновлено');
+      notificationStore.success(i18n.t('admin.shopUpdated'));
     } catch {
-      notificationStore.error('Помилка збереження');
+      notificationStore.error(i18n.t('admin.errorSaving'));
     } finally {
       saving = false;
     }
@@ -77,14 +77,14 @@
 
 <div class="shop-detail">
   {#if loading}
-    <LoadingSpinner message="Завантаження магазину..." />
+    <LoadingSpinner message={i18n.t('admin.loadingShop')} />
   {:else if shop}
     <div class="page-header">
       <h1 class="page-title">{shop.name}</h1>
       <div class="header-actions">
-        <a href="/admin/shops" class="btn btn-outline">Назад</a>
-        <button class="btn btn-primary" on:click={save} disabled={saving}>
-          {saving ? 'Збереження...' : 'Зберегти'}
+        <a href="/admin/shops" class="btn btn-outline">{i18n.t('common.back')}</a>
+        <button class="btn btn-primary" onclick={save} disabled={saving}>
+          {saving ? i18n.t('common.saving') : i18n.t('common.save')}
         </button>
       </div>
     </div>
@@ -93,27 +93,23 @@
     <div class="stats-row">
       <div class="stat-card card">
         <div class="card-body">
-          <span class="stat-label">Товари</span>
+          <span class="stat-label">{i18n.t('admin.products')}</span>
           <span class="stat-value">{shop.productCount}</span>
         </div>
       </div>
       <div class="stat-card card">
         <div class="card-body">
-          <span class="stat-label">Рейтинг</span>
+          <span class="stat-label">{i18n.t('admin.status')}</span>
           <span class="stat-value">
-            <ReviewStars rating={shop.averageRating} count={shop.reviewCount} size="sm" />
+            <span class="badge {shop.isActive ? 'badge-success' : 'badge-error'}">
+              {shop.isActive ? i18n.t('admin.active') : i18n.t('admin.inactive')}
+            </span>
           </span>
         </div>
       </div>
       <div class="stat-card card">
         <div class="card-body">
-          <span class="stat-label">Відгуки</span>
-          <span class="stat-value">{shop.reviewCount}</span>
-        </div>
-      </div>
-      <div class="stat-card card">
-        <div class="card-body">
-          <span class="stat-label">Створено</span>
+          <span class="stat-label">{i18n.t('admin.created')}</span>
           <span class="stat-value text-sm">{formatDate(shop.createdAt)}</span>
         </div>
       </div>
@@ -123,32 +119,32 @@
       <!-- Edit form -->
       <section class="card">
         <div class="card-header">
-          <h2>Інформація про магазин</h2>
+          <h2>{i18n.t('admin.shopInfo')}</h2>
         </div>
         <div class="card-body">
           <div class="form-grid">
             <div class="form-group">
-              <label class="form-label" for="shopName">Назва</label>
+              <label class="form-label" for="shopName">{i18n.t('admin.name')}</label>
               <input id="shopName" class="input" type="text" bind:value={name} />
             </div>
 
             <div class="form-group">
-              <label class="form-label">Slug</label>
-              <input class="input" type="text" value={shop.slug} disabled />
+              <label class="form-label" for="shopSlug">Slug</label>
+              <input id="shopSlug" class="input" type="text" value={shop.slug} disabled />
             </div>
 
             <div class="form-group full">
-              <label class="form-label" for="shopDesc">Опис</label>
+              <label class="form-label" for="shopDesc">{i18n.t('admin.description')}</label>
               <textarea id="shopDesc" class="input" rows="4" bind:value={description}></textarea>
             </div>
 
             <div class="form-group">
-              <label class="form-label" for="logoUrl">URL логотипу</label>
+              <label class="form-label" for="logoUrl">{i18n.t('admin.logoUrl')}</label>
               <input id="logoUrl" class="input" type="url" bind:value={logoUrl} placeholder="https://..." />
             </div>
 
             <div class="form-group">
-              <label class="form-label" for="bannerUrl">URL банеру</label>
+              <label class="form-label" for="bannerUrl">{i18n.t('admin.bannerUrl')}</label>
               <input id="bannerUrl" class="input" type="url" bind:value={bannerUrl} placeholder="https://..." />
             </div>
           </div>
@@ -158,11 +154,10 @@
       <!-- Owner info -->
       <section class="card">
         <div class="card-header">
-          <h2>Власник</h2>
+          <h2>{i18n.t('admin.owner')}</h2>
         </div>
         <div class="card-body">
           <p><strong>ID:</strong> <span class="mono">{shop.ownerId}</span></p>
-          <p><strong>Ім'я:</strong> {shop.ownerName}</p>
         </div>
       </section>
     </div>
@@ -171,17 +166,16 @@
     {#if recentProducts.length > 0}
       <section class="card mt-6">
         <div class="card-header">
-          <h2>Останні товари</h2>
+          <h2>{i18n.t('admin.recentProducts')}</h2>
         </div>
         <div class="card-body" style="padding: 0;">
           <div class="table-wrapper">
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>Назва</th>
-                  <th>Статус</th>
-                  <th>Ціна</th>
-                  <th>Рейтинг</th>
+                  <th>{i18n.t('admin.name')}</th>
+                  <th>{i18n.t('admin.status')}</th>
+                  <th>{i18n.t('admin.price')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -189,18 +183,15 @@
                   <tr>
                     <td>
                       <a href="/admin/products/{product.id}" class="product-link">
-                        {product.title}
+                        {product.name}
                       </a>
                     </td>
                     <td>
-                      <span class="badge {product.status === 'Active' ? 'badge-success' : 'badge-outline'}">
-                        {product.status}
+                      <span class="badge {product.isActive ? 'badge-success' : 'badge-error'}">
+                        {product.isActive ? i18n.t('admin.active') : i18n.t('admin.inactive')}
                       </span>
                     </td>
-                    <td class="cell-mono">{formatCurrency(product.minPrice)}</td>
-                    <td>
-                      <ReviewStars rating={product.averageRating} size="sm" />
-                    </td>
+                    <td class="cell-mono">{formatCurrency(product.price)}</td>
                   </tr>
                 {/each}
               </tbody>
@@ -210,7 +201,7 @@
       </section>
     {/if}
   {:else}
-    <p class="text-muted">Магазин не знайдено.</p>
+    <p class="text-muted">{i18n.t('admin.shopNotFound')}</p>
   {/if}
 </div>
 
@@ -235,7 +226,7 @@
 
   .stats-row {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: var(--space-4);
     margin-bottom: var(--space-6);
   }

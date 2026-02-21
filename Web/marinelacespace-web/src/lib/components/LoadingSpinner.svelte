@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { i18n } from '$i18n/index.svelte';
+
   let {
     size = 'md',
     message = undefined
@@ -16,7 +18,7 @@
   let dim = $derived(sizeMap[size]);
 </script>
 
-<div class="loading-spinner" role="status" aria-label={message ?? 'Loading'}>
+<div class="loading-spinner" role="status" aria-label={message ?? i18n.t('common.loading')}>
   <svg
     class="spinner"
     width={dim}

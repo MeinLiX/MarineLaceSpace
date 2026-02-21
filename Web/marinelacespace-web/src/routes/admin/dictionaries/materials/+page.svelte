@@ -3,7 +3,8 @@
   import LoadingSpinner from '$components/LoadingSpinner.svelte';
   import EmptyState from '$components/EmptyState.svelte';
   import Modal from '$components/Modal.svelte';
-  import { notificationStore } from '$stores/notification';
+  import { notificationStore } from '$stores/notification.svelte';
+  import { i18n } from '$i18n/index.svelte';
   import type { Material } from '$types';
 
   let loading = $state(true);
@@ -14,6 +15,7 @@
   let modalMode = $state<'create' | 'edit'>('create');
   let editingId = $state<string | null>(null);
   let modalName = $state('');
+  let modalImageUrl = $state('');
   let saving = $state(false);
 
   // Delete
@@ -29,7 +31,7 @@
       loading = true;
       materials = await catalogApi.getMaterials();
     } catch {
-      notificationStore.error('Помилка завантаження матеріалів');
+      notificationStore.error(i18n.t('admin.errorLoadingMaterials'));
     } finally {
       loading = false;
     }
@@ -39,6 +41,7 @@
     modalMode = 'create';
     editingId = null;
     modalName = '';
+    modalImageUrl = '';
     showModal = true;
   }
 
@@ -46,6 +49,7 @@
     modalMode = 'edit';
     editingId = material.id;
     modalName = material.name;
+    modalImageUrl = material.imageUrl ?? '';
     showModal = true;
   }
 
@@ -56,22 +60,22 @@
 
   async function saveMaterial() {
     if (!modalName.trim()) {
-      notificationStore.warning('Введіть назву матеріалу');
+      notificationStore.warning(i18n.t('admin.enterMaterialName'));
       return;
     }
     try {
       saving = true;
       if (modalMode === 'create') {
-        await catalogApi.createMaterial({ name: modalName.trim() });
-        notificationStore.success('Матеріал створено');
+        await catalogApi.createMaterial({ name: modalName.trim(), imageUrl: modalImageUrl.trim() || undefined });
+        notificationStore.success(i18n.t('admin.materialCreated'));
       } else if (editingId) {
-        await catalogApi.updateMaterial(editingId, { name: modalName.trim() });
-        notificationStore.success('Матеріал оновлено');
+        await catalogApi.updateMaterial(editingId, { name: modalName.trim(), imageUrl: modalImageUrl.trim() || undefined });
+        notificationStore.success(i18n.t('admin.materialUpdated'));
       }
       showModal = false;
       loadMaterials();
     } catch {
-      notificationStore.error('Помилка збереження матеріалу');
+      notificationStore.error(i18n.t('admin.errorSavingMaterial'));
     } finally {
       saving = false;
     }
@@ -81,28 +85,28 @@
     if (!deleteTarget) return;
     try {
       await catalogApi.deleteMaterial(deleteTarget.id);
-      notificationStore.success('Матеріал видалено');
+      notificationStore.success(i18n.t('admin.materialDeleted'));
       showDeleteModal = false;
       deleteTarget = null;
       loadMaterials();
     } catch {
-      notificationStore.error('Помилка видалення матеріалу');
+      notificationStore.error(i18n.t('admin.errorDeletingMaterial'));
     }
   }
 </script>
 
 <div class="materials-page">
   <div class="page-header">
-    <h1 class="page-title">Довідник матеріалів</h1>
-    <button class="btn btn-primary" on:click={openCreate}>Додати матеріал</button>
+    <h1 class="page-title">{i18n.t('admin.materialsDictionary')}</h1>
+    <button class="btn btn-primary" onclick={openCreate}>{i18n.t('admin.addMaterial')}</button>
   </div>
 
   {#if loading}
-    <LoadingSpinner message="Завантаження матеріалів..." />
+    <LoadingSpinner message={i18n.t('admin.loadingMaterials')} />
   {:else if materials.length === 0}
     <EmptyState
-      title="Матеріалів ще немає"
-      description="Додайте матеріали для товарів"
+      title={i18n.t('admin.noMaterialsYet')}
+      description={i18n.t('admin.addMaterialsForProducts')}
       icon="🧵"
     />
   {:else}
@@ -110,23 +114,31 @@
       <table class="data-table">
         <thead>
           <tr>
-            <th>Назва</th>
-            <th>Дії</th>
+            <th>{i18n.t('admin.image')}</th>
+            <th>{i18n.t('admin.name')}</th>
+            <th>{i18n.t('admin.actions')}</th>
           </tr>
         </thead>
         <tbody>
           {#each materials as material}
             <tr>
+              <td class="cell-image">
+                {#if material.imageUrl}
+                  <img src={material.imageUrl} alt={material.name} class="material-thumb" />
+                {:else}
+                  <span class="material-placeholder">🧵</span>
+                {/if}
+              </td>
               <td class="cell-name">{material.name}</td>
               <td class="cell-actions">
-                <button class="btn btn-sm btn-ghost" on:click={() => openEdit(material)}>
-                  Редагувати
+                <button class="btn btn-sm btn-ghost" onclick={() => openEdit(material)}>
+                  {i18n.t('common.edit')}
                 </button>
                 <button
                   class="btn btn-sm btn-ghost btn-danger-text"
-                  on:click={() => confirmDelete(material)}
+                  onclick={() => confirmDelete(material)}
                 >
-                  Видалити
+                  {i18n.t('common.delete')}
                 </button>
               </td>
             </tr>
@@ -139,32 +151,45 @@
 
 <Modal
   open={showModal}
-  title={modalMode === 'create' ? 'Новий матеріал' : 'Редагувати матеріал'}
+  title={modalMode === 'create' ? i18n.t('admin.newMaterial') : i18n.t('admin.editMaterial')}
   onclose={() => (showModal = false)}
 >
   <div class="form-group">
-    <label class="form-label" for="materialName">Назва</label>
+    <label class="form-label" for="materialName">{i18n.t('admin.name')}</label>
     <input
       id="materialName"
       class="input"
       type="text"
       bind:value={modalName}
-      placeholder="Шовк, Мереживо, Бавовна..."
+      placeholder={i18n.t('admin.materialPlaceholder')}
     />
   </div>
+  <div class="form-group">
+    <label class="form-label" for="materialImageUrl">{i18n.t('admin.imageUrl')}</label>
+    <input
+      id="materialImageUrl"
+      class="input"
+      type="url"
+      bind:value={modalImageUrl}
+      placeholder="https://..."
+    />
+    {#if modalImageUrl}
+      <img src={modalImageUrl} alt="Preview" class="material-preview" />
+    {/if}
+  </div>
   <div class="modal-actions">
-    <button class="btn btn-outline" on:click={() => (showModal = false)}>Скасувати</button>
-    <button class="btn btn-primary" on:click={saveMaterial} disabled={saving}>
-      {saving ? 'Збереження...' : 'Зберегти'}
+    <button class="btn btn-outline" onclick={() => (showModal = false)}>{i18n.t('common.cancel')}</button>
+    <button class="btn btn-primary" onclick={saveMaterial} disabled={saving}>
+      {saving ? i18n.t('common.saving') : i18n.t('common.save')}
     </button>
   </div>
 </Modal>
 
-<Modal open={showDeleteModal} title="Видалити матеріал?" onclose={() => (showDeleteModal = false)}>
-  <p>Ви впевнені, що хочете видалити матеріал <strong>{deleteTarget?.name}</strong>?</p>
+<Modal open={showDeleteModal} title={i18n.t('admin.deleteMaterialQuestion')} onclose={() => (showDeleteModal = false)}>
+  <p>{i18n.t('admin.confirmDeleteMaterial', { name: deleteTarget?.name ?? '' })}</p>
   <div class="modal-actions">
-    <button class="btn btn-outline" on:click={() => (showDeleteModal = false)}>Скасувати</button>
-    <button class="btn btn-danger" on:click={executeDelete}>Видалити</button>
+    <button class="btn btn-outline" onclick={() => (showDeleteModal = false)}>{i18n.t('common.cancel')}</button>
+    <button class="btn btn-danger" onclick={executeDelete}>{i18n.t('common.delete')}</button>
   </div>
 </Modal>
 
@@ -216,6 +241,36 @@
   .cell-name {
     font-weight: 600;
     font-size: 0.9375rem;
+  }
+
+  .cell-image {
+    width: 48px;
+  }
+
+  .material-thumb {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm);
+    object-fit: cover;
+  }
+
+  .material-placeholder {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: var(--color-border-light);
+    border-radius: var(--radius-sm);
+    font-size: 1rem;
+  }
+
+  .material-preview {
+    width: 64px;
+    height: 64px;
+    border-radius: var(--radius-sm);
+    object-fit: cover;
+    margin-top: var(--space-2);
   }
 
   .cell-actions {

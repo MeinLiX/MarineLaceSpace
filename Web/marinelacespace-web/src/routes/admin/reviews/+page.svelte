@@ -5,7 +5,8 @@
   import EmptyState from '$components/EmptyState.svelte';
   import Modal from '$components/Modal.svelte';
   import ReviewStars from '$components/ReviewStars.svelte';
-  import { notificationStore } from '$stores/notification';
+  import { notificationStore } from '$stores/notification.svelte';
+  import { i18n } from '$i18n/index.svelte';
   import type { ProductReview } from '$types';
 
   let loading = $state(true);
@@ -37,7 +38,7 @@
       reviews = result.items;
       totalPages = result.totalPages;
     } catch {
-      notificationStore.error('Помилка завантаження відгуків');
+      notificationStore.error(i18n.t('admin.errorLoadingReviews'));
     } finally {
       loading = false;
     }
@@ -61,12 +62,12 @@
     if (!deleteTarget) return;
     try {
       await catalogApi.deleteReview(deleteTarget.productId, deleteTarget.id);
-      notificationStore.success('Відгук видалено');
+      notificationStore.success(i18n.t('admin.reviewDeleted'));
       showDeleteModal = false;
       deleteTarget = null;
       loadReviews(currentPage, ratingFilter);
     } catch {
-      notificationStore.error('Помилка видалення відгуку');
+      notificationStore.error(i18n.t('admin.errorDeletingReview'));
     }
   }
 
@@ -81,19 +82,19 @@
 </script>
 
 <div class="reviews-page">
-  <h1 class="page-title">Модерація відгуків</h1>
+  <h1 class="page-title">{i18n.t('admin.reviewModeration')}</h1>
 
   <div class="toolbar">
     <select
       class="input input-sm filter-select"
       value={ratingFilter ?? ''}
-      on:change={(e) => {
+      onchange={(e) => {
         const v = e.currentTarget.value;
         ratingFilter = v ? parseInt(v) : null;
         currentPage = 1;
       }}
     >
-      <option value="">Всі рейтинги</option>
+      <option value="">{i18n.t('admin.allRatings')}</option>
       <option value="5">⭐⭐⭐⭐⭐ (5)</option>
       <option value="4">⭐⭐⭐⭐ (4)</option>
       <option value="3">⭐⭐⭐ (3)</option>
@@ -103,20 +104,20 @@
   </div>
 
   {#if loading}
-    <LoadingSpinner message="Завантаження відгуків..." />
+    <LoadingSpinner message={i18n.t('admin.loadingReviews')} />
   {:else if reviews.length === 0}
-    <EmptyState title="Відгуків не знайдено" icon="⭐" />
+    <EmptyState title={i18n.t('admin.noReviewsFound')} icon="⭐" />
   {:else}
     <div class="table-wrapper">
       <table class="data-table">
         <thead>
           <tr>
-            <th>Товар</th>
-            <th>Автор</th>
-            <th>Рейтинг</th>
-            <th>Текст</th>
-            <th>Дата</th>
-            <th>Дії</th>
+            <th>{i18n.t('admin.product')}</th>
+            <th>{i18n.t('admin.author')}</th>
+            <th>{i18n.t('admin.rating')}</th>
+            <th>{i18n.t('admin.text')}</th>
+            <th>{i18n.t('admin.date')}</th>
+            <th>{i18n.t('admin.actions')}</th>
           </tr>
         </thead>
         <tbody>
@@ -127,21 +128,21 @@
                   {(review as any).productName ?? review.productId.slice(0, 8)}
                 </a>
               </td>
-              <td>{review.guestName ?? 'Користувач'}</td>
+              <td>{review.guestName ?? i18n.t('admin.userDefault')}</td>
               <td>
                 <ReviewStars rating={review.rating} size="sm" />
               </td>
               <td class="cell-text">{truncate(review.text)}</td>
               <td class="cell-nowrap">{formatDate(review.createdAt)}</td>
               <td class="cell-actions">
-                <button class="btn btn-sm btn-ghost" on:click={() => viewReview(review)}>
-                  Переглянути
+                <button class="btn btn-sm btn-ghost" onclick={() => viewReview(review)}>
+                  {i18n.t('admin.view')}
                 </button>
                 <button
                   class="btn btn-sm btn-ghost btn-danger-text"
-                  on:click={() => confirmDelete(review)}
+                  onclick={() => confirmDelete(review)}
                 >
-                  Видалити
+                  {i18n.t('common.delete')}
                 </button>
               </td>
             </tr>
@@ -154,7 +155,7 @@
   {/if}
 </div>
 
-<Modal open={showViewModal} title="Відгук" onclose={() => (showViewModal = false)}>
+<Modal open={showViewModal} title={i18n.t('admin.review')} onclose={() => (showViewModal = false)}>
   {#if viewTarget}
     <div class="review-detail">
       <div class="review-meta">
@@ -167,22 +168,22 @@
       <p class="review-text">{viewTarget.text}</p>
       <div class="review-footer">
         <span class="text-sm">
-          Автор: <strong>{viewTarget.guestName ?? 'Користувач'}</strong>
+          {i18n.t('admin.author')}: <strong>{viewTarget.guestName ?? i18n.t('admin.userDefault')}</strong>
         </span>
         {#if viewTarget.isVerifiedPurchase}
-          <span class="badge badge-success">Підтверджена покупка</span>
+          <span class="badge badge-success">{i18n.t('admin.verifiedPurchase')}</span>
         {/if}
       </div>
     </div>
   {/if}
 </Modal>
 
-<Modal open={showDeleteModal} title="Видалити відгук?" onclose={() => (showDeleteModal = false)}>
-  <p>Ви впевнені, що хочете видалити цей відгук?</p>
-  <p class="text-sm text-muted mt-2">Цю дію неможливо скасувати.</p>
+<Modal open={showDeleteModal} title={i18n.t('admin.deleteReviewQuestion')} onclose={() => (showDeleteModal = false)}>
+  <p>{i18n.t('admin.confirmDeleteReview')}</p>
+  <p class="text-sm text-muted mt-2">{i18n.t('admin.actionIrreversible')}</p>
   <div class="modal-actions">
-    <button class="btn btn-outline" on:click={() => (showDeleteModal = false)}>Скасувати</button>
-    <button class="btn btn-danger" on:click={executeDelete}>Видалити</button>
+    <button class="btn btn-outline" onclick={() => (showDeleteModal = false)}>{i18n.t('common.cancel')}</button>
+    <button class="btn btn-danger" onclick={executeDelete}>{i18n.t('common.delete')}</button>
   </div>
 </Modal>
 

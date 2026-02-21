@@ -11,8 +11,8 @@ public class AuthUser : IdentityUser
     [StringLength(100)]
     public string? LastName { get; set; }
 
-    public DateTime CreatedAt { get; private set; } = DateTime.Now;
-    public DateTime UpdatedAt { get; set; } = DateTime.Now;
+    public DateTime CreatedAt { get; private set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public bool IsAnonimous => string.IsNullOrWhiteSpace(PasswordHash);
 
     public ICollection<RefreshToken> RefreshTokens { get; set; } = [];

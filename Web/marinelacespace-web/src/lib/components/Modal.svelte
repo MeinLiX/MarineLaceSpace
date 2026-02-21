@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import { i18n } from '$i18n/index.svelte';
 
   let {
     open = false,
@@ -37,22 +38,24 @@
   });
 </script>
 
-<svelte:window on:keydown={handleKeydown} />
+<svelte:window onkeydown={handleKeydown} />
 
 {#if open}
   <div
     class="modal-backdrop"
-    on:click={handleBackdropClick}
+    onclick={handleBackdropClick}
+    onkeydown={handleKeydown}
     role="dialog"
+    tabindex="-1"
     aria-modal="true"
-    aria-label={title ?? 'Dialog'}
+    aria-label={title ?? i18n.t('common.dialog')}
   >
     <div class="modal-card" role="document">
       <header class="modal-header">
         {#if title}
           <h2 class="modal-title">{title}</h2>
         {/if}
-        <button class="modal-close" on:click={onclose} aria-label="Close dialog">
+        <button class="modal-close" onclick={onclose} aria-label={i18n.t('common.close')}>
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />

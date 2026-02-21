@@ -1,7 +1,8 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { authStore } from '$lib/stores/auth';
-  import { notificationStore } from '$lib/stores/notification';
+  import { authStore } from '$lib/stores/auth.svelte';
+  import { notificationStore } from '$lib/stores/notification.svelte';
+  import { i18n } from '$i18n/index.svelte';
 
   let firstName = $state('');
   let lastName = $state('');
@@ -24,40 +25,40 @@
 
   let firstNameError = $derived.by(() => {
     if (!touched.firstName) return '';
-    if (!firstName.trim()) return 'Ім\'я є обов\'язковим';
+    if (!firstName.trim()) return i18n.t('auth.firstNameRequired');
     return '';
   });
 
   let lastNameError = $derived.by(() => {
     if (!touched.lastName) return '';
-    if (!lastName.trim()) return 'Прізвище є обов\'язковим';
+    if (!lastName.trim()) return i18n.t('auth.lastNameRequired');
     return '';
   });
 
   let emailError = $derived.by(() => {
     if (!touched.email) return '';
-    if (!email.trim()) return 'Email є обов\'язковим';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Невірний формат email';
+    if (!email.trim()) return i18n.t('auth.emailRequired');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return i18n.t('auth.emailInvalid');
     return '';
   });
 
   let passwordError = $derived.by(() => {
     if (!touched.password) return '';
-    if (!password) return 'Пароль є обов\'язковим';
-    if (password.length < 8) return 'Пароль має містити мінімум 8 символів';
+    if (!password) return i18n.t('auth.passwordRequired');
+    if (password.length < 8) return i18n.t('auth.passwordMinRegister');
     return '';
   });
 
   let confirmPasswordError = $derived.by(() => {
     if (!touched.confirmPassword) return '';
-    if (!confirmPassword) return 'Підтвердіть пароль';
-    if (confirmPassword !== password) return 'Паролі не збігаються';
+    if (!confirmPassword) return i18n.t('auth.confirmPasswordRequired');
+    if (confirmPassword !== password) return i18n.t('auth.confirmPasswordMismatch');
     return '';
   });
 
   let termsError = $derived.by(() => {
     if (!touched.terms) return '';
-    if (!termsAccepted) return 'Необхідно прийняти умови використання';
+    if (!termsAccepted) return i18n.t('auth.termsRequired');
     return '';
   });
 
@@ -70,9 +71,9 @@
     if (/[0-9]/.test(password)) score++;
     if (/[^A-Za-z0-9]/.test(password)) score++;
 
-    if (score <= 2) return { level: 1, label: 'Слабкий', color: 'var(--color-error)' };
-    if (score <= 3) return { level: 2, label: 'Середній', color: 'var(--color-warning)' };
-    return { level: 3, label: 'Сильний', color: 'var(--color-success)' };
+    if (score <= 2) return { level: 1, label: i18n.t('auth.passwordStrengthWeak'), color: 'var(--color-error)' };
+    if (score <= 3) return { level: 2, label: i18n.t('auth.passwordStrengthMedium'), color: 'var(--color-warning)' };
+    return { level: 3, label: i18n.t('auth.passwordStrengthStrong'), color: 'var(--color-success)' };
   });
 
   let isFormValid = $derived(
@@ -100,10 +101,12 @@
     isSubmitting = true;
     try {
       await authStore.register({ email, password, firstName, lastName });
-      notificationStore.success('Акаунт створено успішно!');
+      notificationStore.success(i18n.t('auth.registerSuccess'));
       await goto('/auth/login');
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Помилка реєстрації. Спробуйте ще раз.';
+      const message = (err && typeof err === 'object' && 'message' in err)
+        ? String((err as { message: string }).message)
+        : i18n.t('auth.registerError');
       notificationStore.error(message);
     } finally {
       isSubmitting = false;
@@ -112,7 +115,7 @@
 </script>
 
 <svelte:head>
-  <title>Реєстрація — MarineLaceSpace</title>
+  <title>{i18n.t('auth.registerTitle')} — MarineLaceSpace</title>
 </svelte:head>
 
 <div class="auth-page">
@@ -122,18 +125,18 @@
       <h1 class="brand-name">MarineLaceSpace</h1>
     </div>
 
-    <h2 class="auth-heading">Створити акаунт</h2>
+    <h2 class="auth-heading">{i18n.t('auth.registerHeading')}</h2>
 
     <form onsubmit={handleSubmit} novalidate>
       <div class="form-row-2">
         <div class="form-group">
-          <label for="firstName" class="form-label">Ім'я</label>
+          <label for="firstName" class="form-label">{i18n.t('auth.firstName')}</label>
           <input
             id="firstName"
             type="text"
             class="input"
             class:input-error={firstNameError}
-            placeholder="Марія"
+            placeholder={i18n.t('auth.firstNamePlaceholder')}
             autocomplete="given-name"
             bind:value={firstName}
             onblur={() => touched.firstName = true}
@@ -146,13 +149,13 @@
         </div>
 
         <div class="form-group">
-          <label for="lastName" class="form-label">Прізвище</label>
+          <label for="lastName" class="form-label">{i18n.t('auth.lastName')}</label>
           <input
             id="lastName"
             type="text"
             class="input"
             class:input-error={lastNameError}
-            placeholder="Іваненко"
+            placeholder={i18n.t('auth.lastNamePlaceholder')}
             autocomplete="family-name"
             bind:value={lastName}
             onblur={() => touched.lastName = true}
@@ -166,13 +169,13 @@
       </div>
 
       <div class="form-group">
-        <label for="email" class="form-label">Email</label>
+        <label for="email" class="form-label">{i18n.t('auth.email')}</label>
         <input
           id="email"
           type="email"
           class="input"
           class:input-error={emailError}
-          placeholder="your@email.com"
+          placeholder={i18n.t('auth.emailPlaceholder')}
           autocomplete="email"
           bind:value={email}
           onblur={() => touched.email = true}
@@ -185,14 +188,14 @@
       </div>
 
       <div class="form-group">
-        <label for="password" class="form-label">Пароль</label>
+        <label for="password" class="form-label">{i18n.t('auth.password')}</label>
         <div class="password-wrapper">
           <input
             id="password"
             type={showPassword ? 'text' : 'password'}
             class="input"
             class:input-error={passwordError}
-            placeholder="Мінімум 8 символів"
+            placeholder={i18n.t('auth.passwordPlaceholderRegister')}
             autocomplete="new-password"
             bind:value={password}
             onblur={() => touched.password = true}
@@ -203,7 +206,7 @@
             type="button"
             class="password-toggle"
             onclick={() => showPassword = !showPassword}
-            aria-label={showPassword ? 'Сховати пароль' : 'Показати пароль'}
+            aria-label={showPassword ? i18n.t('auth.hidePassword') : i18n.t('auth.showPassword')}
           >
             {#if showPassword}
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
@@ -222,7 +225,7 @@
           <p id="password-error" class="field-error" role="alert">{passwordError}</p>
         {/if}
         {#if password && !passwordError}
-          <div id="password-strength" class="strength-indicator" aria-label="Надійність пароля: {passwordStrength.label}">
+          <div id="password-strength" class="strength-indicator" aria-label={`${i18n.t('auth.passwordStrength')}: ${passwordStrength.label}`}>
             <div class="strength-bars">
               {#each [1, 2, 3] as level}
                 <div
@@ -237,14 +240,14 @@
       </div>
 
       <div class="form-group">
-        <label for="confirmPassword" class="form-label">Підтвердження пароля</label>
+        <label for="confirmPassword" class="form-label">{i18n.t('auth.confirmPassword')}</label>
         <div class="password-wrapper">
           <input
             id="confirmPassword"
             type={showConfirmPassword ? 'text' : 'password'}
             class="input"
             class:input-error={confirmPasswordError}
-            placeholder="Повторіть пароль"
+            placeholder={i18n.t('auth.confirmPasswordPlaceholder')}
             autocomplete="new-password"
             bind:value={confirmPassword}
             onblur={() => touched.confirmPassword = true}
@@ -255,7 +258,7 @@
             type="button"
             class="password-toggle"
             onclick={() => showConfirmPassword = !showConfirmPassword}
-            aria-label={showConfirmPassword ? 'Сховати пароль' : 'Показати пароль'}
+            aria-label={showConfirmPassword ? i18n.t('auth.hidePassword') : i18n.t('auth.showPassword')}
           >
             {#if showConfirmPassword}
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
@@ -282,7 +285,7 @@
             bind:checked={termsAccepted}
             onchange={() => touched.terms = true}
           />
-          <span>Я погоджуюсь з <a href="/terms" class="terms-link">умовами використання</a></span>
+          <span>{i18n.t('auth.termsAgree')} <a href="/terms" class="terms-link">{i18n.t('auth.termsLink')}</a></span>
         </label>
         {#if termsError}
           <p class="field-error" role="alert">{termsError}</p>
@@ -296,15 +299,15 @@
       >
         {#if isSubmitting}
           <span class="spinner" aria-hidden="true"></span>
-          Реєстрація...
+          {i18n.t('auth.registering')}
         {:else}
-          Зареєструватися
+          {i18n.t('auth.registerTitle')}
         {/if}
       </button>
     </form>
 
     <p class="auth-footer">
-      Вже маєте акаунт? <a href="/auth/login" class="auth-link">Увійти</a>
+      {i18n.t('auth.hasAccount')} <a href="/auth/login" class="auth-link">{i18n.t('auth.signInLink')}</a>
     </p>
   </div>
 </div>

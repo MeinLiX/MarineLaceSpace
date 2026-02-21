@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { i18n } from '$i18n/index.svelte';
+
   let {
     rating,
     count = undefined,
@@ -19,14 +21,14 @@
   );
 </script>
 
-<div class="review-stars {size}" aria-label="Rating: {rating} out of 5{count != null ? `, ${count} reviews` : ''}">
+<div class="review-stars {size}" aria-label={i18n.t('product.ratingLabel', { rating, count: count ?? 0 })}>
   <div class="stars" aria-hidden="true">
     {#each stars as star, i (i)}
       <span class="star {star}">★</span>
     {/each}
   </div>
   {#if count != null}
-    <span class="count">({count}{count === 1 ? ' review' : ' reviews'})</span>
+    <span class="count">({i18n.t('product.reviewCount', { count })})</span>
   {/if}
 </div>
 

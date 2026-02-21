@@ -1,24 +1,27 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import type { ShippingAddress, CheckoutRequest, BasketItem } from '$types';
-  import { basketStore } from '$stores/basket';
-  import { notificationStore } from '$stores/notification';
-  import Breadcrumb from '$components/Breadcrumb.svelte';
+  import { basketStore } from '$stores/basket.svelte';
+  import { authStore } from '$stores/auth.svelte';
+  import { notificationStore } from '$stores/notification.svelte';
+  import { createCheckoutSession } from '$api/payment';
+  import { i18n } from '$i18n/index.svelte';
   import PriceDisplay from '$components/PriceDisplay.svelte';
   import LoadingSpinner from '$components/LoadingSpinner.svelte';
 
-  const breadcrumbs = [
-    { label: 'Головна', href: '/' },
-    { label: 'Кошик', href: '/basket' },
-    { label: 'Оформлення' }
-  ];
+  /* ── Auth guard ── */
+  $effect(() => {
+    if (!authStore.isLoading && !authStore.isAuthenticated) {
+      goto('/auth/login');
+    }
+  });
 
   /* ── Steps ── */
-  const STEPS = [
-    { num: 1, label: 'Доставка' },
-    { num: 2, label: 'Оплата' },
-    { num: 3, label: 'Підтвердження' }
-  ] as const;
+  const STEPS = $derived([
+    { num: 1, label: i18n.t('checkout.shipping') },
+    { num: 2, label: i18n.t('checkout.payment') },
+    { num: 3, label: i18n.t('checkout.review') }
+  ]);
 
   let currentStep = $state(1);
 
@@ -39,24 +42,24 @@
 
   function validateShipping(): boolean {
     const errs: Partial<Record<keyof ShippingAddress, string>> = {};
-    if (!shipping.fullName.trim()) errs.fullName = "Ім'я обов'язкове";
-    if (!shipping.phone.trim()) errs.phone = "Телефон обов'язковий";
-    if (!shipping.country.trim()) errs.country = "Країна обов'язкова";
-    if (!shipping.city.trim()) errs.city = "Місто обов'язкове";
-    if (!shipping.addressLine1.trim()) errs.addressLine1 = "Адреса обов'язкова";
-    if (!shipping.postalCode.trim()) errs.postalCode = "Поштовий індекс обов'язковий";
-    if (!shipping.state.trim()) errs.state = "Область обов'язкова";
+    if (!shipping.fullName.trim()) errs.fullName = i18n.t('checkout.fullNameRequired');
+    if (!shipping.phone.trim()) errs.phone = i18n.t('checkout.phoneRequired');
+    if (!shipping.country.trim()) errs.country = i18n.t('checkout.countryRequired');
+    if (!shipping.city.trim()) errs.city = i18n.t('checkout.cityRequired');
+    if (!shipping.addressLine1.trim()) errs.addressLine1 = i18n.t('checkout.addressRequired');
+    if (!shipping.postalCode.trim()) errs.postalCode = i18n.t('checkout.postalCodeRequired');
+    if (!shipping.state.trim()) errs.state = i18n.t('checkout.stateRequired');
     shippingErrors = errs;
     return Object.keys(errs).length === 0;
   }
 
   /* ── Payment ── */
   type PaymentOption = { id: string; icon: string; label: string; recommended?: boolean };
-  const paymentOptions: PaymentOption[] = [
-    { id: 'Stripe', icon: '💳', label: 'Банківська картка (Stripe)', recommended: true },
-    { id: 'LiqPay', icon: '🏦', label: 'LiqPay' },
-    { id: 'PayPal', icon: '💰', label: 'PayPal' }
-  ];
+  const paymentOptions: PaymentOption[] = $derived([
+    { id: 'Stripe', icon: '💳', label: i18n.t('checkout.paymentStripe'), recommended: true },
+    { id: 'Payoneer', icon: '🏦', label: i18n.t('checkout.paymentPayoneer') },
+    { id: 'PayPal', icon: '💰', label: i18n.t('checkout.paymentPayPal') }
+  ]);
 
   let selectedPayment = $state('Stripe');
 
@@ -67,8 +70,8 @@
   /* ── Derived ── */
   const items = $derived(basketStore.basket?.items ?? []);
   const subtotal = $derived(items.reduce((s, i) => s + i.unitPrice * i.quantity, 0));
-  const FREE_SHIPPING_THRESHOLD = 2000;
-  const SHIPPING_COST = 150;
+  const FREE_SHIPPING_THRESHOLD = 75;
+  const SHIPPING_COST = 2;
   const shippingCost = $derived(subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_COST);
   const total = $derived(subtotal + shippingCost);
 
@@ -102,7 +105,7 @@
 
   async function handleSubmit() {
     if (!termsAccepted) {
-      termsError = 'Необхідно погодитись з умовами';
+      termsError = i18n.t('checkout.termsRequired');
       return;
     }
     termsError = '';
@@ -115,10 +118,28 @@
 
     try {
       const order = await basketStore.checkout(req);
-      notificationStore.success('Замовлення оформлено!');
+
+      // Create payment session and redirect to payment provider
+      try {
+        const session = await createCheckoutSession({
+          orderId: order.id,
+          provider: selectedPayment as 'Stripe' | 'Payoneer' | 'PayPal',
+          returnUrl: `${window.location.origin}/checkout/success?orderId=${order.id}`
+        });
+
+        if (session.paymentUrl) {
+          window.location.href = session.paymentUrl;
+          return;
+        }
+      } catch {
+        // If payment session fails, still go to success page
+        // The order has been created — payment can be retried
+      }
+
+      notificationStore.success(i18n.t('checkout.success'));
       goto(`/checkout/success?orderId=${order.id}`);
     } catch {
-      notificationStore.error('Помилка при оформленні замовлення. Спробуйте ще раз.');
+      notificationStore.error(i18n.t('checkout.orderError'));
     } finally {
       isSubmitting = false;
     }
@@ -134,21 +155,19 @@
 </script>
 
 <svelte:head>
-  <title>Оформлення замовлення — MarineLaceSpace</title>
+  <title>{i18n.t('checkout.title')} — MarineLaceSpace</title>
 </svelte:head>
 
-<section class="checkout-page container" aria-label="Оформлення замовлення">
-  <Breadcrumb items={breadcrumbs} />
-
+<section class="checkout-page container" aria-label={i18n.t('checkout.title')}>
   {#if basketStore.isLoading && !basketStore.basket}
-    <LoadingSpinner size="lg" message="Завантаження…" />
+    <LoadingSpinner size="lg" message={i18n.t('common.loading')} />
   {:else if items.length === 0}
     <div class="checkout-empty">
-      <p>Кошик порожній. <a href="/catalog" class="link-primary">Перейти до каталогу</a></p>
+      <p>{i18n.t('basket.empty')}. <a href="/catalog" class="link-primary">{i18n.t('basket.continueShopping')}</a></p>
     </div>
   {:else}
     <!-- Stepper -->
-    <nav class="stepper" aria-label="Кроки оформлення">
+    <nav class="stepper" aria-label={i18n.t('checkout.steps')}>
       <ol class="stepper-list">
         {#each STEPS as step (step.num)}
           <li class="stepper-item" class:active={currentStep === step.num} class:completed={currentStep > step.num}>
@@ -181,13 +200,13 @@
       <div class="checkout-main">
         <!-- Step 1: Shipping -->
         {#if currentStep === 1}
-          <div class="step-panel animate-fade-in" role="group" aria-label="Адреса доставки">
-            <h2 class="step-heading">Адреса доставки</h2>
+          <div class="step-panel animate-fade-in" role="group" aria-label={i18n.t('checkout.shippingAddress')}>
+            <h2 class="step-heading">{i18n.t('checkout.shippingAddress')}</h2>
 
             <form class="shipping-form" onsubmit={(e) => { e.preventDefault(); nextStep(); }} novalidate>
               <div class="form-grid">
                 <div class="form-field full-width">
-                  <label for="fullName" class="form-label">Повне ім'я <span class="required">*</span></label>
+                  <label for="fullName" class="form-label">{i18n.t('checkout.fullName')} <span class="required">*</span></label>
                   <input
                     id="fullName"
                     type="text"
@@ -195,7 +214,7 @@
                     class:input-error={shippingTouched.fullName && shippingErrors.fullName}
                     bind:value={shipping.fullName}
                     onblur={() => { shippingTouched.fullName = true; validateShipping(); }}
-                    placeholder="Іваненко Марія Олексіївна"
+                    placeholder={i18n.t('checkout.fullNamePlaceholder')}
                     autocomplete="name"
                     required
                   />
@@ -205,7 +224,7 @@
                 </div>
 
                 <div class="form-field full-width">
-                  <label for="phone" class="form-label">Телефон <span class="required">*</span></label>
+                  <label for="phone" class="form-label">{i18n.t('checkout.phone')} <span class="required">*</span></label>
                   <input
                     id="phone"
                     type="tel"
@@ -223,22 +242,22 @@
                 </div>
 
                 <div class="form-field">
-                  <label for="country" class="form-label">Країна <span class="required">*</span></label>
+                  <label for="country" class="form-label">{i18n.t('checkout.country')} <span class="required">*</span></label>
                   <select
                     id="country"
                     class="input"
                     bind:value={shipping.country}
                   >
-                    <option value="Україна">Україна</option>
-                    <option value="Польща">Польща</option>
-                    <option value="Німеччина">Німеччина</option>
-                    <option value="Чехія">Чехія</option>
-                    <option value="Інше">Інше</option>
+                    <option value="Україна">{i18n.t('checkout.countryUkraine')}</option>
+                    <option value="Польща">{i18n.t('checkout.countryPoland')}</option>
+                    <option value="Німеччина">{i18n.t('checkout.countryGermany')}</option>
+                    <option value="Чехія">{i18n.t('checkout.countryCzechia')}</option>
+                    <option value="Інше">{i18n.t('checkout.countryOther')}</option>
                   </select>
                 </div>
 
                 <div class="form-field">
-                  <label for="city" class="form-label">Місто <span class="required">*</span></label>
+                  <label for="city" class="form-label">{i18n.t('checkout.city')} <span class="required">*</span></label>
                   <input
                     id="city"
                     type="text"
@@ -246,7 +265,7 @@
                     class:input-error={shippingTouched.city && shippingErrors.city}
                     bind:value={shipping.city}
                     onblur={() => { shippingTouched.city = true; validateShipping(); }}
-                    placeholder="Київ"
+                    placeholder={i18n.t('checkout.cityPlaceholder')}
                     autocomplete="address-level2"
                     required
                   />
@@ -256,7 +275,7 @@
                 </div>
 
                 <div class="form-field full-width">
-                  <label for="addressLine1" class="form-label">Адреса <span class="required">*</span></label>
+                  <label for="addressLine1" class="form-label">{i18n.t('checkout.address')} <span class="required">*</span></label>
                   <input
                     id="addressLine1"
                     type="text"
@@ -264,7 +283,7 @@
                     class:input-error={shippingTouched.addressLine1 && shippingErrors.addressLine1}
                     bind:value={shipping.addressLine1}
                     onblur={() => { shippingTouched.addressLine1 = true; validateShipping(); }}
-                    placeholder="вул. Хрещатик, 1, кв. 10"
+                    placeholder={i18n.t('checkout.addressPlaceholder')}
                     autocomplete="address-line1"
                     required
                   />
@@ -274,19 +293,19 @@
                 </div>
 
                 <div class="form-field full-width">
-                  <label for="addressLine2" class="form-label">Адреса (додатково)</label>
+                  <label for="addressLine2" class="form-label">{i18n.t('checkout.addressLine2')}</label>
                   <input
                     id="addressLine2"
                     type="text"
                     class="input"
                     bind:value={shipping.addressLine2}
-                    placeholder="Поверх, під'їзд тощо"
+                    placeholder={i18n.t('checkout.addressLine2Placeholder')}
                     autocomplete="address-line2"
                   />
                 </div>
 
                 <div class="form-field">
-                  <label for="postalCode" class="form-label">Поштовий індекс <span class="required">*</span></label>
+                  <label for="postalCode" class="form-label">{i18n.t('checkout.postalCode')} <span class="required">*</span></label>
                   <input
                     id="postalCode"
                     type="text"
@@ -304,7 +323,7 @@
                 </div>
 
                 <div class="form-field">
-                  <label for="state" class="form-label">Область <span class="required">*</span></label>
+                  <label for="state" class="form-label">{i18n.t('checkout.state')} <span class="required">*</span></label>
                   <input
                     id="state"
                     type="text"
@@ -312,7 +331,7 @@
                     class:input-error={shippingTouched.state && shippingErrors.state}
                     bind:value={shipping.state}
                     onblur={() => { shippingTouched.state = true; validateShipping(); }}
-                    placeholder="Київська"
+                    placeholder={i18n.t('checkout.statePlaceholder')}
                     autocomplete="address-level1"
                     required
                   />
@@ -324,7 +343,7 @@
 
               <div class="step-nav">
                 <span></span>
-                <button type="submit" class="btn btn-primary btn-lg">Далі</button>
+                <button type="submit" class="btn btn-primary btn-lg">{i18n.t('checkout.next')}</button>
               </div>
             </form>
           </div>
@@ -332,10 +351,10 @@
 
         <!-- Step 2: Payment -->
         {#if currentStep === 2}
-          <div class="step-panel animate-fade-in" role="group" aria-label="Спосіб оплати">
-            <h2 class="step-heading">Спосіб оплати</h2>
+          <div class="step-panel animate-fade-in" role="group" aria-label={i18n.t('checkout.paymentMethod')}>
+            <h2 class="step-heading">{i18n.t('checkout.paymentMethod')}</h2>
 
-            <div class="payment-options" role="radiogroup" aria-label="Оберіть спосіб оплати">
+            <div class="payment-options" role="radiogroup" aria-label={i18n.t('checkout.selectPayment')}>
               {#each paymentOptions as option (option.id)}
                 <label
                   class="payment-card card"
@@ -352,7 +371,7 @@
                   <span class="payment-label">
                     {option.label}
                     {#if option.recommended}
-                      <span class="badge badge-primary recommended-badge">Рекомендовано</span>
+                      <span class="badge badge-primary recommended-badge">{i18n.t('checkout.recommended')}</span>
                     {/if}
                   </span>
                   <span class="payment-check" aria-hidden="true">
@@ -372,23 +391,23 @@
             </div>
 
             <div class="step-nav">
-              <button type="button" class="btn btn-outline" onclick={prevStep}>Назад</button>
-              <button type="button" class="btn btn-primary btn-lg" onclick={nextStep}>Далі</button>
+              <button type="button" class="btn btn-outline" onclick={prevStep}>{i18n.t('checkout.back')}</button>
+              <button type="button" class="btn btn-primary btn-lg" onclick={nextStep}>{i18n.t('checkout.next')}</button>
             </div>
           </div>
         {/if}
 
         <!-- Step 3: Confirmation -->
         {#if currentStep === 3}
-          <div class="step-panel animate-fade-in" role="group" aria-label="Підтвердження замовлення">
-            <h2 class="step-heading">Перевірте замовлення</h2>
+          <div class="step-panel animate-fade-in" role="group" aria-label={i18n.t('checkout.orderConfirmation')}>
+            <h2 class="step-heading">{i18n.t('checkout.reviewOrder')}</h2>
 
             <!-- Shipping Summary -->
             <div class="confirm-section card">
               <div class="card-body">
                 <div class="confirm-section-header">
-                  <h3 class="confirm-section-title">📦 Доставка</h3>
-                  <button class="edit-link" onclick={() => goToStep(1)}>Змінити</button>
+                  <h3 class="confirm-section-title">📦 {i18n.t('checkout.shipping')}</h3>
+                  <button class="edit-link" onclick={() => goToStep(1)}>{i18n.t('checkout.edit')}</button>
                 </div>
                 <address class="shipping-summary">
                   <p class="summary-name">{shipping.fullName}</p>
@@ -404,8 +423,8 @@
             <div class="confirm-section card">
               <div class="card-body">
                 <div class="confirm-section-header">
-                  <h3 class="confirm-section-title">💳 Оплата</h3>
-                  <button class="edit-link" onclick={() => goToStep(2)}>Змінити</button>
+                  <h3 class="confirm-section-title">💳 {i18n.t('checkout.payment')}</h3>
+                  <button class="edit-link" onclick={() => goToStep(2)}>{i18n.t('checkout.edit')}</button>
                 </div>
                 <p>{paymentOptions.find(o => o.id === selectedPayment)?.icon} {paymentOptions.find(o => o.id === selectedPayment)?.label}</p>
               </div>
@@ -414,7 +433,7 @@
             <!-- Items Summary -->
             <div class="confirm-section card">
               <div class="card-body">
-                <h3 class="confirm-section-title">🛍️ Товари</h3>
+                <h3 class="confirm-section-title">🛍️ {i18n.t('checkout.items')}</h3>
                 <ul class="confirm-items-list">
                   {#each items as item (item.itemId)}
                     <li class="confirm-item">
@@ -439,23 +458,23 @@
               <div class="card-body">
                 <dl class="totals-list">
                   <div class="totals-row">
-                    <dt>Товари</dt>
-                    <dd>₴{subtotal.toFixed(2)}</dd>
+                    <dt>{i18n.t('basket.subtotal')}</dt>
+                    <dd>{i18n.t('common.currency', { amount: subtotal.toFixed(2) })}</dd>
                   </div>
                   <div class="totals-row">
-                    <dt>Доставка</dt>
+                    <dt>{i18n.t('basket.shipping')}</dt>
                     <dd>
                       {#if shippingCost === 0}
-                        <span class="free-shipping">Безкоштовно</span>
+                        <span class="free-shipping">{i18n.t('basket.shippingFree')}</span>
                       {:else}
-                        ₴{shippingCost.toFixed(2)}
+                        {i18n.t('common.currency', { amount: shippingCost.toFixed(2) })}
                       {/if}
                     </dd>
                   </div>
                   <hr class="divider" />
                   <div class="totals-row totals-grand">
-                    <dt>Разом</dt>
-                    <dd>₴{total.toFixed(2)}</dd>
+                    <dt>{i18n.t('basket.total')}</dt>
+                    <dd>{i18n.t('common.currency', { amount: total.toFixed(2) })}</dd>
                   </div>
                 </dl>
               </div>
@@ -465,14 +484,14 @@
             <div class="checkout-submit">
               <label class="terms-label">
                 <input type="checkbox" bind:checked={termsAccepted} class="terms-checkbox" />
-                <span>Я погоджуюсь з <a href="/terms" class="link-primary">умовами використання</a> та <a href="/privacy" class="link-primary">політикою конфіденційності</a></span>
+                <span>{i18n.t('checkout.termsAgree')} <a href="/terms" class="link-primary">{i18n.t('checkout.termsOfService')}</a> {i18n.t('checkout.and')} <a href="/privacy" class="link-primary">{i18n.t('checkout.privacyPolicy')}</a></span>
               </label>
               {#if termsError}
                 <p class="field-error" role="alert">{termsError}</p>
               {/if}
 
               <div class="step-nav step-nav-final">
-                <button type="button" class="btn btn-outline" onclick={prevStep}>Назад</button>
+                <button type="button" class="btn btn-outline" onclick={prevStep}>{i18n.t('checkout.back')}</button>
                 <button
                   type="button"
                   class="btn btn-primary btn-lg"
@@ -480,9 +499,9 @@
                   disabled={isSubmitting || basketStore.isLoading}
                 >
                   {#if isSubmitting}
-                    Обробка…
+                    {i18n.t('checkout.processing')}
                   {:else}
-                    Оплатити ₴{total.toFixed(2)}
+                    {i18n.t('checkout.payAmount', { amount: total.toFixed(2) })}
                   {/if}
                 </button>
               </div>
@@ -492,10 +511,10 @@
       </div>
 
       <!-- Sidebar Summary (visible on desktop) -->
-      <aside class="checkout-sidebar" aria-label="Підсумок замовлення">
+      <aside class="checkout-sidebar" aria-label={i18n.t('checkout.orderSummary')}>
         <div class="sidebar-card card">
           <div class="card-body">
-            <h3 class="sidebar-heading">Ваше замовлення</h3>
+            <h3 class="sidebar-heading">{i18n.t('checkout.yourOrder')}</h3>
 
             <ul class="sidebar-items">
               {#each items as item (item.itemId)}
@@ -514,7 +533,7 @@
                       <span class="sidebar-item-variant">{formatVariant(item)}</span>
                     {/if}
                   </div>
-                  <span class="sidebar-item-price">₴{(item.unitPrice * item.quantity).toFixed(2)}</span>
+                  <span class="sidebar-item-price">{i18n.t('common.currency', { amount: (item.unitPrice * item.quantity).toFixed(2) })}</span>
                 </li>
               {/each}
             </ul>
@@ -523,23 +542,23 @@
 
             <dl class="sidebar-totals">
               <div class="sidebar-totals-row">
-                <dt>Товари</dt>
-                <dd>₴{subtotal.toFixed(2)}</dd>
+                <dt>{i18n.t('basket.subtotal')}</dt>
+                <dd>{i18n.t('common.currency', { amount: subtotal.toFixed(2) })}</dd>
               </div>
               <div class="sidebar-totals-row">
-                <dt>Доставка</dt>
+                <dt>{i18n.t('basket.shipping')}</dt>
                 <dd>
                   {#if shippingCost === 0}
-                    <span class="free-shipping">Безкоштовно</span>
+                    <span class="free-shipping">{i18n.t('basket.shippingFree')}</span>
                   {:else}
-                    ₴{shippingCost.toFixed(2)}
+                    {i18n.t('common.currency', { amount: shippingCost.toFixed(2) })}
                   {/if}
                 </dd>
               </div>
               <hr class="divider" />
               <div class="sidebar-totals-row sidebar-grand">
-                <dt>Разом</dt>
-                <dd>₴{total.toFixed(2)}</dd>
+                <dt>{i18n.t('basket.total')}</dt>
+                <dd>{i18n.t('common.currency', { amount: total.toFixed(2) })}</dd>
               </div>
             </dl>
           </div>

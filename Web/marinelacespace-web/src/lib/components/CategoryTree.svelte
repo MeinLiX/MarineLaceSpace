@@ -1,5 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import CategoryTree from './CategoryTree.svelte';
+  import { i18n } from '$i18n/index.svelte';
 
   interface CategoryItem {
     id: string;
@@ -53,7 +55,7 @@
     {@const hasChildren = category.children != null && category.children.length > 0}
     {@const isExpanded = expandedIds.has(category.id)}
     {@const isActive = category.id === selectedId}
-    <li class="tree-item" role="treeitem" aria-expanded={hasChildren ? isExpanded : undefined}>
+    <li class="tree-item" role="treeitem" aria-selected={isActive} aria-expanded={hasChildren ? isExpanded : undefined}>
       <div
         class="tree-node"
         class:active={isActive}
@@ -62,8 +64,8 @@
         {#if hasChildren}
           <button
             class="expand-btn"
-            aria-label={isExpanded ? 'Collapse' : 'Expand'}
-            on:click={(e) => toggleExpand(category.id, e)}
+            aria-label={isExpanded ? i18n.t('common.collapse') : i18n.t('common.expand')}
+            onclick={(e) => toggleExpand(category.id, e)}
           >
             <svg
               class="expand-icon"
@@ -86,15 +88,15 @@
         <button
           class="tree-label"
           class:active={isActive}
-          on:click={() => navigateToCategory(category.id)}
-          on:keydown={(e) => handleKeydown(category.id, hasChildren, e)}
+          onclick={() => navigateToCategory(category.id)}
+          onkeydown={(e) => handleKeydown(category.id, hasChildren, e)}
         >
           {category.name}
         </button>
       </div>
 
       {#if hasChildren && isExpanded}
-        <svelte:self
+        <CategoryTree
           categories={category.children ?? []}
           {selectedId}
           level={level + 1}

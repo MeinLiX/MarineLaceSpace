@@ -4,7 +4,8 @@
   import Pagination from '$components/Pagination.svelte';
   import EmptyState from '$components/EmptyState.svelte';
   import Modal from '$components/Modal.svelte';
-  import { notificationStore } from '$stores/notification';
+  import { notificationStore } from '$stores/notification.svelte';
+  import { i18n } from '$i18n/index.svelte';
   import type { AuthUser } from '$types';
 
   let loading = $state(true);
@@ -36,7 +37,7 @@
       users = result.items;
       totalPages = result.totalPages;
     } catch {
-      notificationStore.error('Помилка завантаження користувачів');
+      notificationStore.error(i18n.t('admin.errorLoadingUsers'));
     } finally {
       loading = false;
     }
@@ -65,11 +66,11 @@
       if (roles.length === 0) roles.push('Customer');
 
       await authApi.assignRoles(roleTarget.id, roles);
-      notificationStore.success('Ролі оновлено');
+      notificationStore.success(i18n.t('admin.rolesUpdated'));
       showRoleModal = false;
       loadUsers(currentPage, search);
     } catch {
-      notificationStore.error('Помилка збереження ролей');
+      notificationStore.error(i18n.t('admin.errorSavingRoles'));
     } finally {
       savingRoles = false;
     }
@@ -90,31 +91,31 @@
 </script>
 
 <div class="users-page">
-  <h1 class="page-title">Користувачі</h1>
+  <h1 class="page-title">{i18n.t('admin.users')}</h1>
 
   <div class="toolbar">
     <input
       class="input input-sm search-input"
       type="search"
-      placeholder="Пошук за ім'ям або email..."
+      placeholder={i18n.t('admin.searchByNameOrEmail')}
       bind:value={search}
-      on:input={() => { currentPage = 1; }}
+      oninput={() => { currentPage = 1; }}
     />
   </div>
 
   {#if loading}
-    <LoadingSpinner message="Завантаження користувачів..." />
+    <LoadingSpinner message={i18n.t('admin.loadingUsers')} />
   {:else if users.length === 0}
-    <EmptyState title="Користувачів не знайдено" icon="👥" />
+    <EmptyState title={i18n.t('admin.noUsersFound')} icon="👥" />
   {:else}
     <div class="table-wrapper">
       <table class="data-table">
         <thead>
           <tr>
-            <th>Ім'я</th>
+            <th>{i18n.t('admin.name')}</th>
             <th>Email</th>
-            <th>Ролі</th>
-            <th>Дії</th>
+            <th>{i18n.t('admin.roles')}</th>
+            <th>{i18n.t('admin.actions')}</th>
           </tr>
         </thead>
         <tbody>
@@ -130,8 +131,8 @@
                 </div>
               </td>
               <td class="cell-actions">
-                <button class="btn btn-sm btn-ghost" on:click={() => openRoleModal(user)}>
-                  Ролі
+                <button class="btn btn-sm btn-ghost" onclick={() => openRoleModal(user)}>
+                  {i18n.t('admin.roles')}
                 </button>
               </td>
             </tr>
@@ -144,33 +145,33 @@
   {/if}
 </div>
 
-<Modal open={showRoleModal} title="Призначити ролі" onclose={() => (showRoleModal = false)}>
+<Modal open={showRoleModal} title={i18n.t('admin.assignRoles')} onclose={() => (showRoleModal = false)}>
   {#if roleTarget}
     <p class="mb-4">
-      Користувач: <strong>{roleTarget.firstName} {roleTarget.lastName}</strong>
+      {i18n.t('admin.user')}: <strong>{roleTarget.firstName} {roleTarget.lastName}</strong>
       ({roleTarget.email})
     </p>
     <div class="role-checkboxes">
       <label class="role-checkbox">
         <input type="checkbox" bind:checked={roleAdmin} />
         <span class="badge badge-error">Admin</span>
-        <span class="role-desc">Повний доступ до адмін-панелі</span>
+        <span class="role-desc">{i18n.t('admin.roleDescAdmin')}</span>
       </label>
       <label class="role-checkbox">
         <input type="checkbox" bind:checked={roleSeller} />
         <span class="badge badge-warning">Seller</span>
-        <span class="role-desc">Може створювати та керувати магазинами</span>
+        <span class="role-desc">{i18n.t('admin.roleDescSeller')}</span>
       </label>
       <label class="role-checkbox">
         <input type="checkbox" bind:checked={roleCustomer} />
         <span class="badge badge-info">Customer</span>
-        <span class="role-desc">Базова роль покупця</span>
+        <span class="role-desc">{i18n.t('admin.roleDescCustomer')}</span>
       </label>
     </div>
     <div class="modal-actions">
-      <button class="btn btn-outline" on:click={() => (showRoleModal = false)}>Скасувати</button>
-      <button class="btn btn-primary" on:click={saveRoles} disabled={savingRoles}>
-        {savingRoles ? 'Збереження...' : 'Зберегти'}
+      <button class="btn btn-outline" onclick={() => (showRoleModal = false)}>{i18n.t('common.cancel')}</button>
+      <button class="btn btn-primary" onclick={saveRoles} disabled={savingRoles}>
+        {savingRoles ? i18n.t('common.saving') : i18n.t('common.save')}
       </button>
     </div>
   {/if}

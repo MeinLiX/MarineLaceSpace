@@ -1,7 +1,7 @@
 <script lang="ts">
+  import { i18n } from '$i18n/index.svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import Breadcrumb from '$components/Breadcrumb.svelte';
   import CategoryTree from '$components/CategoryTree.svelte';
   import ProductCard from '$components/ProductCard.svelte';
   import Pagination from '$components/Pagination.svelte';
@@ -32,13 +32,13 @@
   let selectedMaterials = $state<Set<string>>(new Set());
   let sortBy = $state('popular');
 
-  const sortOptions: { value: string; label: string }[] = [
-    { value: 'popular', label: 'За популярністю' },
-    { value: 'price_asc', label: 'Ціна: від низької' },
-    { value: 'price_desc', label: 'Ціна: від високої' },
-    { value: 'newest', label: 'Новинки' },
-    { value: 'rating', label: 'За рейтингом' },
-  ];
+  let sortOptions = $derived([
+    { value: 'popular', label: i18n.t('catalog.sortPopular') },
+    { value: 'price_asc', label: i18n.t('catalog.sortPriceAsc') },
+    { value: 'price_desc', label: i18n.t('catalog.sortPriceDesc') },
+    { value: 'newest', label: i18n.t('catalog.sortNewest') },
+    { value: 'rating', label: i18n.t('catalog.sortRating') },
+  ]);
 
   // ─── URL Sync ──────────────────────────────────────────────────────────────
 
@@ -174,53 +174,40 @@
     loadProducts();
   });
 
-  // ─── Derived ───────────────────────────────────────────────────────────────
-
-  let breadcrumbItems = $derived([
-    { label: 'Головна', href: '/' },
-    { label: 'Каталог' },
-  ]);
-
   function mapProductToCard(p: Product) {
     return {
       id: p.id,
-      title: p.title,
+      title: p.name,
       shopName: p.shopName,
       imageUrl: p.mainImageUrl ?? undefined,
-      basePrice: p.minPrice,
-      minPrice: p.minPrice,
-      maxPrice: p.maxPrice,
-      rating: p.averageRating,
-      reviewCount: p.reviewCount,
+      basePrice: p.price,
     };
   }
 </script>
 
 <svelte:head>
-  <title>Каталог — MarineLaceSpace</title>
+  <title>{i18n.t('catalog.title')} — MarineLaceSpace</title>
 </svelte:head>
 
 <div class="catalog-page">
   <div class="container">
-    <Breadcrumb items={breadcrumbItems} />
-
     <div class="catalog-header">
-      <h1>Каталог</h1>
+      <h1>{i18n.t('catalog.title')}</h1>
       <div class="catalog-controls">
         <button
           class="btn btn-outline filter-toggle"
-          on:click={() => (mobileFiltersOpen = !mobileFiltersOpen)}
+          onclick={() => (mobileFiltersOpen = !mobileFiltersOpen)}
           aria-expanded={mobileFiltersOpen}
           aria-controls="filters-sidebar"
         >
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <line x1="4" y1="6" x2="20" y2="6" /><line x1="4" y1="12" x2="16" y2="12" /><line x1="4" y1="18" x2="12" y2="18" />
           </svg>
-          Фільтри
+          {i18n.t('catalog.filters')}
         </button>
         <div class="sort-wrapper">
-          <label for="sort-select" class="sr-only">Сортування</label>
-          <select id="sort-select" class="input input-sm sort-select" value={sortBy} on:change={handleSortChange}>
+          <label for="sort-select" class="sr-only">{i18n.t('catalog.sort')}</label>
+          <select id="sort-select" class="input input-sm sort-select" value={sortBy} onchange={handleSortChange}>
             {#each sortOptions as opt (opt.value)}
               <option value={opt.value}>{opt.label}</option>
             {/each}
@@ -235,42 +222,42 @@
         id="filters-sidebar"
         class="sidebar"
         class:open={mobileFiltersOpen}
-        aria-label="Фільтри товарів"
+        aria-label={i18n.t('catalog.filters')}
       >
         <div class="sidebar-inner">
           <div class="sidebar-header">
-            <h2 class="sidebar-title">Фільтри</h2>
-            <button class="btn btn-ghost btn-sm sidebar-close" on:click={() => (mobileFiltersOpen = false)} aria-label="Закрити фільтри">
+            <h2 class="sidebar-title">{i18n.t('catalog.filters')}</h2>
+            <button class="btn btn-ghost btn-sm sidebar-close" onclick={() => (mobileFiltersOpen = false)} aria-label={i18n.t('common.close')}>
               ✕
             </button>
           </div>
 
           <!-- Category Tree -->
           <section class="filter-section">
-            <h3 class="filter-heading">Категорії</h3>
+            <h3 class="filter-heading">{i18n.t('catalog.categories')}</h3>
             <CategoryTree categories={categories} selectedId={selectedCategory} />
           </section>
 
           <!-- Price Range -->
           <section class="filter-section">
-            <h3 class="filter-heading">Ціна, ₴</h3>
+            <h3 class="filter-heading">{i18n.t('catalog.priceRange')}</h3>
             <div class="price-range-inputs">
               <input
                 type="number"
                 class="input input-sm"
-                placeholder="Від"
+                placeholder={i18n.t('catalog.minPrice')}
                 bind:value={minPrice}
                 min="0"
-                aria-label="Мінімальна ціна"
+                aria-label={i18n.t('catalog.minPrice')}
               />
               <span class="price-divider">—</span>
               <input
                 type="number"
                 class="input input-sm"
-                placeholder="До"
+                placeholder={i18n.t('catalog.maxPrice')}
                 bind:value={maxPrice}
                 min="0"
-                aria-label="Максимальна ціна"
+                aria-label={i18n.t('catalog.maxPrice')}
               />
             </div>
           </section>
@@ -278,14 +265,14 @@
           <!-- Sizes -->
           {#if allSizes.length > 0}
             <section class="filter-section">
-              <h3 class="filter-heading">Розмір</h3>
+              <h3 class="filter-heading">{i18n.t('product.size')}</h3>
               <div class="checkbox-group">
                 {#each allSizes as size (size.id)}
                   <label class="checkbox-label">
                     <input
                       type="checkbox"
                       checked={selectedSizes.has(size.id)}
-                      on:change={() => toggleSize(size.id)}
+                      onchange={() => toggleSize(size.id)}
                     />
                     <span>{size.name}</span>
                   </label>
@@ -297,14 +284,14 @@
           <!-- Colors -->
           {#if allColors.length > 0}
             <section class="filter-section">
-              <h3 class="filter-heading">Колір</h3>
+              <h3 class="filter-heading">{i18n.t('product.color')}</h3>
               <div class="color-swatches">
                 {#each allColors as color (color.id)}
                   <button
                     class="color-swatch"
                     class:selected={selectedColors.has(color.id)}
                     style="--swatch-color: {color.hexCode}"
-                    on:click={() => toggleColor(color.id)}
+                    onclick={() => toggleColor(color.id)}
                     title={color.name}
                     aria-label={color.name}
                     aria-pressed={selectedColors.has(color.id)}
@@ -317,14 +304,14 @@
           <!-- Materials -->
           {#if allMaterials.length > 0}
             <section class="filter-section">
-              <h3 class="filter-heading">Матеріал</h3>
+              <h3 class="filter-heading">{i18n.t('product.materials')}</h3>
               <div class="checkbox-group">
                 {#each allMaterials as material (material.id)}
                   <label class="checkbox-label">
                     <input
                       type="checkbox"
                       checked={selectedMaterials.has(material.id)}
-                      on:change={() => toggleMaterial(material.id)}
+                      onchange={() => toggleMaterial(material.id)}
                     />
                     <span>{material.name}</span>
                   </label>
@@ -334,11 +321,11 @@
           {/if}
 
           <div class="filter-actions">
-            <button class="btn btn-primary w-full" on:click={applyFilters}>
-              Застосувати
+            <button class="btn btn-primary w-full" onclick={applyFilters}>
+              {i18n.t('catalog.apply')}
             </button>
-            <button class="btn btn-ghost w-full" on:click={clearFilters}>
-              Скинути фільтри
+            <button class="btn btn-ghost w-full" onclick={clearFilters}>
+              {i18n.t('catalog.reset')}
             </button>
           </div>
         </div>
@@ -348,21 +335,21 @@
       {#if mobileFiltersOpen}
         <button
           class="sidebar-backdrop"
-          on:click={() => (mobileFiltersOpen = false)}
-          aria-label="Закрити фільтри"
+          onclick={() => (mobileFiltersOpen = false)}
+          aria-label={i18n.t('common.close')}
         ></button>
       {/if}
 
       <!-- Product Grid -->
-      <section class="catalog-content" aria-label="Товари">
+      <section class="catalog-content" aria-label={i18n.t('catalog.products')}>
         {#if isLoading}
-          <LoadingSpinner size="lg" message="Завантаження товарів…" />
+          <LoadingSpinner size="lg" message={i18n.t('common.loading')} />
         {:else if products.length === 0}
           <EmptyState
-            title="Товарів не знайдено"
-            description="Спробуйте змінити фільтри або переглянути інші категорії"
+            title={i18n.t('emptyState.noProducts')}
+            description={i18n.t('emptyState.noProductsDescription')}
             icon="🔍"
-            actionLabel="Скинути фільтри"
+            actionLabel={i18n.t('catalog.reset')}
           />
         {:else}
           <div class="product-grid">

@@ -1,7 +1,8 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { authStore } from '$lib/stores/auth';
-  import { notificationStore } from '$lib/stores/notification';
+  import { authStore } from '$lib/stores/auth.svelte';
+  import { notificationStore } from '$lib/stores/notification.svelte';
+  import { i18n } from '$i18n/index.svelte';
 
   let email = $state('');
   let password = $state('');
@@ -12,15 +13,15 @@
 
   let emailError = $derived.by(() => {
     if (!touched.email) return '';
-    if (!email.trim()) return 'Email є обов\'язковим';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Невірний формат email';
+    if (!email.trim()) return i18n.t('auth.emailRequired');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return i18n.t('auth.emailInvalid');
     return '';
   });
 
   let passwordError = $derived.by(() => {
     if (!touched.password) return '';
-    if (!password) return 'Пароль є обов\'язковим';
-    if (password.length < 6) return 'Пароль має містити мінімум 6 символів';
+    if (!password) return i18n.t('auth.passwordRequired');
+    if (password.length < 6) return i18n.t('auth.passwordMinLogin');
     return '';
   });
 
@@ -39,10 +40,12 @@
     isSubmitting = true;
     try {
       await authStore.login({ email, password });
-      notificationStore.success('Вхід виконано успішно!');
+      notificationStore.success(i18n.t('auth.loginSuccess'));
       await goto('/');
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Помилка входу. Перевірте дані та спробуйте ще раз.';
+      const message = (err && typeof err === 'object' && 'message' in err)
+        ? String((err as { message: string }).message)
+        : i18n.t('auth.loginError');
       notificationStore.error(message);
     } finally {
       isSubmitting = false;
@@ -51,7 +54,7 @@
 </script>
 
 <svelte:head>
-  <title>Увійти — MarineLaceSpace</title>
+  <title>{i18n.t('auth.loginTitle')} — MarineLaceSpace</title>
 </svelte:head>
 
 <div class="auth-page">
@@ -61,17 +64,17 @@
       <h1 class="brand-name">MarineLaceSpace</h1>
     </div>
 
-    <h2 class="auth-heading">Увійти в акаунт</h2>
+    <h2 class="auth-heading">{i18n.t('auth.loginHeading')}</h2>
 
     <form onsubmit={handleSubmit} novalidate>
       <div class="form-group">
-        <label for="email" class="form-label">Email</label>
+        <label for="email" class="form-label">{i18n.t('auth.email')}</label>
         <input
           id="email"
           type="email"
           class="input"
           class:input-error={emailError}
-          placeholder="your@email.com"
+          placeholder={i18n.t('auth.emailPlaceholder')}
           autocomplete="email"
           bind:value={email}
           onblur={() => touched.email = true}
@@ -84,14 +87,14 @@
       </div>
 
       <div class="form-group">
-        <label for="password" class="form-label">Пароль</label>
+        <label for="password" class="form-label">{i18n.t('auth.password')}</label>
         <div class="password-wrapper">
           <input
             id="password"
             type={showPassword ? 'text' : 'password'}
             class="input"
             class:input-error={passwordError}
-            placeholder="Введіть пароль"
+            placeholder={i18n.t('auth.passwordPlaceholder')}
             autocomplete="current-password"
             bind:value={password}
             onblur={() => touched.password = true}
@@ -102,7 +105,7 @@
             type="button"
             class="password-toggle"
             onclick={() => showPassword = !showPassword}
-            aria-label={showPassword ? 'Сховати пароль' : 'Показати пароль'}
+            aria-label={showPassword ? i18n.t('auth.hidePassword') : i18n.t('auth.showPassword')}
           >
             {#if showPassword}
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
@@ -125,9 +128,9 @@
       <div class="form-row">
         <label class="checkbox-label">
           <input type="checkbox" bind:checked={rememberMe} />
-          <span>Запам'ятати мене</span>
+          <span>{i18n.t('auth.rememberMe')}</span>
         </label>
-        <a href="/auth/forgot-password" class="forgot-link">Забули пароль?</a>
+        <a href="/auth/forgot-password" class="forgot-link">{i18n.t('auth.forgotPassword')}</a>
       </div>
 
       <button
@@ -137,19 +140,19 @@
       >
         {#if isSubmitting}
           <span class="spinner" aria-hidden="true"></span>
-          Вхід...
+          {i18n.t('auth.loggingIn')}
         {:else}
-          Увійти
+          {i18n.t('auth.loginTitle')}
         {/if}
       </button>
     </form>
 
     <div class="divider">
-      <span>або</span>
+      <span>{i18n.t('auth.or')}</span>
     </div>
 
     <a href="/auth/register" class="btn btn-outline btn-submit">
-      Створити акаунт
+      {i18n.t('auth.signUpLink')}
     </a>
   </div>
 </div>

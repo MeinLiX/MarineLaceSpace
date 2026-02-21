@@ -3,6 +3,7 @@
   import type { Product } from '$types';
   import ProductCard from '$components/ProductCard.svelte';
   import LoadingSpinner from '$components/LoadingSpinner.svelte';
+  import { i18n } from '$i18n/index.svelte';
 
   // ─── State ───────────────────────────────────────────────────────────────────
 
@@ -16,54 +17,50 @@
 
   // ─── Categories (static with emoji placeholders) ─────────────────────────────
 
-  const categories = [
-    { emoji: '👙', name: 'Бюстгальтери', slug: 'biusthaltery' },
-    { emoji: '🩲', name: 'Трусики', slug: 'trusyky' },
-    { emoji: '💝', name: 'Комплекти', slug: 'komplekty' },
-    { emoji: '🌙', name: 'Піжами & Халати', slug: 'pizhamy-khalaty' },
-    { emoji: '🦵', name: 'Панчохи & Колготки', slug: 'panchokhy-kolhotky' },
-    { emoji: '🧔', name: 'Чоловіча білизна', slug: 'cholovicha-bilyzna' },
-  ];
+  const categories = $derived([
+    { emoji: '👙', name: i18n.t('home.catBras'), slug: 'biusthaltery' },
+    { emoji: '🩲', name: i18n.t('home.catPanties'), slug: 'trusyky' },
+    { emoji: '💝', name: i18n.t('home.catSets'), slug: 'komplekty' },
+    { emoji: '🌙', name: i18n.t('home.catSleepwear'), slug: 'pizhamy-khalaty' },
+    { emoji: '🦵', name: i18n.t('home.catHosiery'), slug: 'panchokhy-kolhotky' },
+    { emoji: '🧔', name: i18n.t('home.catMens'), slug: 'cholovicha-bilyzna' },
+  ]);
 
   // ─── Features ────────────────────────────────────────────────────────────────
 
-  const features = [
+  const features = $derived([
     {
       icon: '✋',
-      title: 'Ручна робота',
-      description: 'Кожен виріб створений з любов\u2019ю та увагою до деталей',
+      title: i18n.t('home.featureHandmade'),
+      description: i18n.t('home.featureHandmadeDesc'),
     },
     {
       icon: '🌿',
-      title: 'Натуральні тканини',
-      description: 'Використовуємо лише найякісніші матеріали',
+      title: i18n.t('home.featureNatural'),
+      description: i18n.t('home.featureNaturalDesc'),
     },
     {
       icon: '🎨',
-      title: 'Індивідуальний підхід',
-      description: 'Можливість персоналізації кожного замовлення',
+      title: i18n.t('home.featureCustom'),
+      description: i18n.t('home.featureCustomDesc'),
     },
     {
       icon: '🔒',
-      title: 'Безпечна оплата',
-      description: 'Захищені платежі та гарантія повернення',
+      title: i18n.t('home.featureSecure'),
+      description: i18n.t('home.featureSecureDesc'),
     },
-  ];
+  ]);
 
   // ─── Product mapping for ProductCard ─────────────────────────────────────────
 
   function mapProduct(p: Product) {
     return {
       id: p.id,
-      title: p.title,
+      title: p.name,
       shopName: p.shopName,
       imageUrl: p.mainImageUrl ?? undefined,
-      imageAlt: p.title,
-      basePrice: p.minPrice,
-      minPrice: p.minPrice,
-      maxPrice: p.maxPrice,
-      rating: p.averageRating,
-      reviewCount: p.reviewCount,
+      imageAlt: p.name,
+      basePrice: p.price,
     };
   }
 
@@ -82,7 +79,7 @@
         }
       } catch (err) {
         if (!cancelled) {
-          productsError = err instanceof Error ? err.message : 'Не вдалося завантажити товари';
+          productsError = err instanceof Error ? err.message : i18n.t('home.productsError');
         }
       } finally {
         if (!cancelled) {
@@ -125,6 +122,34 @@
     return () => observer.disconnect();
   });
 
+  // ─── Mannequin scroll animation ─────────────────────────────────────────────
+
+  let mannequinSection: HTMLElement | undefined = $state();
+  let scrollProgress = $state(0);
+
+  $effect(() => {
+    const section = mannequinSection;
+    if (!section) return;
+
+    function onScroll() {
+      const rect = section!.getBoundingClientRect();
+      const sectionHeight = section!.offsetHeight - window.innerHeight;
+      const scrolled = -rect.top;
+      scrollProgress = Math.max(0, Math.min(1, scrolled / sectionHeight));
+    }
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener('scroll', onScroll);
+  });
+
+  const mannequinScale = $derived(0.4 + Math.min(scrollProgress / 0.35, 1) * 0.6);
+  const mannequinOpacity = $derived(Math.min(scrollProgress / 0.15, 1));
+  const lingerieReveal = $derived(Math.max(0, Math.min((scrollProgress - 0.3) / 0.35, 1)));
+  const ctaOpacity = $derived(Math.max(0, (scrollProgress - 0.75) / 0.25));
+  const pantyReveal = $derived(Math.max(0, Math.min((scrollProgress - 0.3) / 0.2, 1)));
+  const braReveal = $derived(Math.max(0, Math.min((scrollProgress - 0.45) / 0.2, 1)));
+
   // ─── Newsletter ──────────────────────────────────────────────────────────────
 
   function handleNewsletterSubmit(e: Event) {
@@ -137,15 +162,33 @@
       newsletterSubmitting = false;
     }, 800);
   }
+
+  // ─── Scroll-to-top button ──────────────────────────────────────────────────
+
+  let showScrollTop = $state(false);
+
+  $effect(() => {
+    function onScroll() {
+      showScrollTop = window.scrollY > 400;
+    }
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener('scroll', onScroll);
+  });
+
+  function scrollToTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 </script>
 
 <svelte:head>
-  <title>MarineLaceSpace — Елегантність у кожній деталі</title>
-  <meta name="description" content="Відкрийте світ вишуканої білизни від найкращих українських майстрів. Ручна робота, натуральні тканини, індивідуальний підхід." />
+  <title>MarineLaceSpace — {i18n.t('home.heroTitle')}</title>
+  <meta name="description" content={i18n.t('home.heroSubtitle')} />
 </svelte:head>
 
 <!-- Skip to content -->
-<a href="#main-content" class="skip-link">Перейти до основного вмісту</a>
+<a href="#main-content" class="skip-link">{i18n.t('common.skipToContent')}</a>
 
 <main id="main-content">
   <!-- ═══════════════════════════════════════════════════════════════════════ -->
@@ -155,13 +198,13 @@
     <div class="hero-pattern" aria-hidden="true"></div>
     <div class="hero-overlay" aria-hidden="true"></div>
     <div class="hero-content container">
-      <h1 class="hero-title">Елегантність у кожній деталі</h1>
+      <h1 class="hero-title">{i18n.t('home.heroTitle')}</h1>
       <p class="hero-subtitle">
-        Відкрийте світ вишуканої білизни від найкращих українських майстрів
+        {i18n.t('home.heroSubtitle')}
       </p>
       <div class="hero-actions">
-        <a href="/catalog" class="btn btn-primary btn-lg">Переглянути каталог</a>
-        <a href="/shops" class="btn btn-outline btn-lg hero-btn-outline">Наші магазини</a>
+        <a href="/catalog" class="btn btn-primary btn-lg">{i18n.t('home.heroCatalog')}</a>
+        <a href="/shops" class="btn btn-outline btn-lg hero-btn-outline">{i18n.t('home.heroShops')}</a>
       </div>
       <div class="hero-scroll-hint" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
@@ -172,20 +215,363 @@
   </section>
 
   <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- MANNEQUIN SCROLL SHOWCASE                                             -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <section class="mannequin-scroll" bind:this={mannequinSection} aria-label="Демонстрація колекції">
+    <div class="mannequin-sticky">
+      <div class="mannequin-canvas">
+        
+        <svg
+          class="mannequin-svg floating-breath"
+          viewBox="0 0 200 520"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          style="transform: scale({mannequinScale}); opacity: {mannequinOpacity}; filter: drop-shadow(0px 10px 20px rgba(0,0,0,0.1));"
+          aria-hidden="true"
+        >
+          <defs>
+            <!-- Silk fabric gradient -->
+            <linearGradient id="silkGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#C8788C;stop-opacity:1" />
+              <stop offset="30%" style="stop-color:#D4A574;stop-opacity:1" />
+              <stop offset="60%" style="stop-color:#C8788C;stop-opacity:1" />
+              <stop offset="100%" style="stop-color:#B0687A;stop-opacity:1" />
+            </linearGradient>
+            <!-- Deeper silk for shadows -->
+            <linearGradient id="silkShadow" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" style="stop-color:#A05A6C;stop-opacity:0.5" />
+              <stop offset="100%" style="stop-color:#C8788C;stop-opacity:0" />
+            </linearGradient>
+            <!-- Highlight for fabric sheen -->
+            <linearGradient id="silkHighlight" x1="30%" y1="0%" x2="70%" y2="100%">
+              <stop offset="0%" style="stop-color:#fff;stop-opacity:0.3" />
+              <stop offset="50%" style="stop-color:#fff;stop-opacity:0" />
+              <stop offset="100%" style="stop-color:#fff;stop-opacity:0.1" />
+            </linearGradient>
+            <!-- Skin gradient -->
+            <linearGradient id="skinGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" style="stop-color:#F5DCC8;stop-opacity:0.35" />
+              <stop offset="100%" style="stop-color:#E8C9B0;stop-opacity:0.25" />
+            </linearGradient>
+            <!-- Lace mesh pattern -->
+            <pattern id="laceMesh" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
+              <circle cx="4" cy="4" r="2.5" fill="none" stroke="#A05A6C" stroke-width="0.4" opacity="0.6"/>
+              <circle cx="0" cy="0" r="1.5" fill="none" stroke="#A05A6C" stroke-width="0.3" opacity="0.4"/>
+              <circle cx="8" cy="0" r="1.5" fill="none" stroke="#A05A6C" stroke-width="0.3" opacity="0.4"/>
+              <circle cx="0" cy="8" r="1.5" fill="none" stroke="#A05A6C" stroke-width="0.3" opacity="0.4"/>
+              <circle cx="8" cy="8" r="1.5" fill="none" stroke="#A05A6C" stroke-width="0.3" opacity="0.4"/>
+            </pattern>
+            <!-- Floral lace overlay -->
+            <pattern id="floralLace" x="0" y="0" width="16" height="16" patternUnits="userSpaceOnUse">
+              <path d="M8,2 C10,4 12,4 12,6 C12,8 10,10 8,8 C6,10 4,8 4,6 C4,4 6,4 8,2Z" fill="none" stroke="#A05A6C" stroke-width="0.35" opacity="0.5"/>
+              <circle cx="8" cy="6" r="0.8" fill="#A05A6C" opacity="0.25"/>
+              <path d="M0,10 C2,12 4,12 4,14 C4,16 2,18 0,16" fill="none" stroke="#A05A6C" stroke-width="0.3" opacity="0.3"/>
+              <path d="M16,10 C14,12 12,12 12,14 C12,16 14,18 16,16" fill="none" stroke="#A05A6C" stroke-width="0.3" opacity="0.3"/>
+            </pattern>
+            <!-- Clip path for bra cups -->
+            <clipPath id="leftCup">
+              <path d="M100,122 C90,122 78,115 74,98 C70,110 74,137 86,142 C96,146 100,136 100,122Z"/>
+            </clipPath>
+            <clipPath id="rightCup">
+              <path d="M100,122 C110,122 122,115 126,98 C130,110 126,137 114,142 C104,146 100,136 100,122Z"/>
+            </clipPath>
+            <!-- Clip for panty -->
+            <clipPath id="pantyClip">
+              <path d="M64,244 C64,244 80,266 100,266 C120,266 136,244 136,244 L133,272 C131,288 116,308 100,308 C84,308 69,288 67,272Z"/>
+            </clipPath>
+          </defs>
+  
+          <!-- Body silhouette outline -->
+          <path
+            class="mannequin-body"
+            d="M100,18 
+               C116,18 126,28 126,44 
+               C126,56 120,66 114,72
+               C136,77 146,98 140,118 
+               C137,130 128,155 118,165 
+               C113,170 116,185 124,195 
+               C134,210 142,235 142,264 
+               C142,300 136,352 131,422 
+               L126,500
+               M100,18
+               C84,18 74,28 74,44 
+               C74,56 80,66 86,72
+               C64,77 54,98 60,118
+               C63,130 72,155 82,165
+               C87,170 84,185 76,195
+               C66,210 58,235 58,264
+               C58,300 64,352 69,422
+               L74,500"
+            stroke="var(--color-primary)"
+            stroke-width="0.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            opacity="0.5"
+          />
+          
+          <!-- Collar detail -->
+          <path 
+            d="M86,56 Q100,64 114,56" 
+            stroke="var(--color-primary)" 
+            stroke-width="0.4" 
+            opacity="0.25"
+          />
+  
+          <!-- Body fill (skin tone) -->
+          <path
+            d="M86,72 C64,77 54,98 60,118
+               C63,130 72,155 82,165
+               C87,170 84,185 76,195
+               C66,210 58,235 58,264
+               C58,284 60,304 63,316
+               L137,316
+               C140,304 142,284 142,264
+               C142,235 134,210 124,195
+               C116,185 113,170 118,165
+               C128,155 137,130 140,118
+               C146,98 136,77 114,72"
+            fill="url(#skinGrad)"
+          />
+          <!-- Subtle body contour lines -->
+          <path d="M95,164 Q100,168 105,164" stroke="var(--color-primary)" stroke-width="0.3" opacity="0.15" fill="none"/>
+          <path d="M88,200 Q100,210 112,200" stroke="var(--color-primary)" stroke-width="0.25" opacity="0.12" fill="none"/>
+  
+          <!-- ─── PANTIES ─── -->
+          <g style="opacity: {pantyReveal}; transform: translateY({(1 - pantyReveal) * 25}px)">
+            <!-- Shadow behind panty -->
+            <path
+              d="M69,248 Q100,272 131,248 L128,276 Q126,292 100,310 Q74,292 72,276Z"
+              fill="#A05A6C"
+              opacity="0.12"
+              transform="translate(0, 2)"
+            />
+            <!-- Main panty shape -->
+            <path
+              d="M64,244 
+                 C64,244 80,266 100,266 
+                 C120,266 136,244 136,244
+                 L133,272
+                 C131,288 116,308 100,308
+                 C84,308 69,288 67,272
+                 Z"
+              fill="url(#silkGradient)"
+              filter="drop-shadow(0px 2px 4px rgba(0,0,0,0.15))"
+            />
+            <!-- Fabric highlight sheen -->
+            <path
+              d="M64,244 
+                 C64,244 80,266 100,266 
+                 C120,266 136,244 136,244
+                 L133,272
+                 C131,288 116,308 100,308
+                 C84,308 69,288 67,272
+                 Z"
+              fill="url(#silkHighlight)"
+              clip-path="url(#pantyClip)"
+            />
+            <!-- Lace overlay on panty -->
+            <path
+              d="M64,244 
+                 C64,244 80,266 100,266 
+                 C120,266 136,244 136,244
+                 L133,272
+                 C131,288 116,308 100,308
+                 C84,308 69,288 67,272
+                 Z"
+              fill="url(#floralLace)"
+              clip-path="url(#pantyClip)"
+              opacity="0.7"
+            />
+            <!-- Lace scalloped waistband -->
+            <path
+              d="M63,244 Q66,240 69,244 T75,244 T81,244 T87,244 T93,244 T99,244 T105,244 T111,244 T117,244 T123,244 T129,244 T135,244 T137,244"
+              stroke="#A05A6C"
+              stroke-width="0.8"
+              fill="none"
+              opacity="0.7"
+            />
+            <!-- Second scallop row -->
+            <path
+              d="M65,247 Q68,243 71,247 T77,247 T83,247 T89,247 T95,247 T101,247 T107,247 T113,247 T119,247 T125,247 T131,247 T135,247"
+              stroke="#A05A6C"
+              stroke-width="0.4"
+              fill="none"
+              opacity="0.4"
+            />
+            <!-- Center seam -->
+            <path d="M100,250 L100,302" stroke="#A05A6C" stroke-width="0.3" opacity="0.2"/>
+            <!-- Fabric fold lines -->
+            <path d="M85,260 Q90,262 95,258" stroke="#A05A6C" stroke-width="0.3" opacity="0.15" fill="none"/>
+            <path d="M105,260 Q110,262 115,258" stroke="#A05A6C" stroke-width="0.3" opacity="0.15" fill="none"/>
+            <!-- Lace trim at leg openings -->
+            <path d="M67,272 Q72,280 80,288 Q85,293 90,296" stroke="#A05A6C" stroke-width="0.5" fill="none" opacity="0.5" stroke-dasharray="2 2"/>
+            <path d="M133,272 Q128,280 120,288 Q115,293 110,296" stroke="#A05A6C" stroke-width="0.5" fill="none" opacity="0.5" stroke-dasharray="2 2"/>
+            <!-- Side ties / straps -->
+            <path d="M64,244 Q57,240 59,233" stroke="#C8788C" stroke-width="1.2" stroke-linecap="round"/>
+            <path d="M136,244 Q143,240 141,233" stroke="#C8788C" stroke-width="1.2" stroke-linecap="round"/>
+            <!-- Small bow at center waist -->
+            <path d="M97,244 Q100,240 103,244" stroke="#D4A574" stroke-width="0.8" fill="none"/>
+            <circle cx="100" cy="243" r="1" fill="#D4A574" opacity="0.8"/>
+          </g>
+  
+          <!-- ─── BRA ─── -->
+          <g style="opacity: {braReveal}; transform: translateY({(1 - braReveal) * 25}px)">
+            <!-- Shadow under cups -->
+            <ellipse cx="86" cy="138" rx="16" ry="5" fill="#A05A6C" opacity="0.08"/>
+            <ellipse cx="114" cy="138" rx="16" ry="5" fill="#A05A6C" opacity="0.08"/>
+            
+            <!-- Left cup -->
+            <path
+              d="M100,122 
+                 C90,122 78,115 74,98
+                 C70,110 74,137 86,142
+                 C96,146 100,136 100,122Z"
+              fill="url(#silkGradient)"
+            />
+            <!-- Left cup highlight -->
+            <path
+              d="M100,122 
+                 C90,122 78,115 74,98
+                 C70,110 74,137 86,142
+                 C96,146 100,136 100,122Z"
+              fill="url(#silkHighlight)"
+              clip-path="url(#leftCup)"
+            />
+            <!-- Left cup lace overlay -->
+            <path
+              d="M100,122 
+                 C90,122 78,115 74,98
+                 C70,110 74,137 86,142
+                 C96,146 100,136 100,122Z"
+              fill="url(#laceMesh)"
+              clip-path="url(#leftCup)"
+              opacity="0.6"
+            />
+            <!-- Floral lace on left cup upper -->
+            <path
+              d="M74,98 C78,96 82,98 86,96 C90,94 94,96 98,98"
+              fill="url(#floralLace)"
+              clip-path="url(#leftCup)"
+              opacity="0.5"
+            />
+  
+            <!-- Right cup -->
+            <path
+              d="M100,122 
+                 C110,122 122,115 126,98
+                 C130,110 126,137 114,142
+                 C104,146 100,136 100,122Z"
+              fill="url(#silkGradient)"
+            />
+            <!-- Right cup highlight -->
+            <path
+              d="M100,122 
+                 C110,122 122,115 126,98
+                 C130,110 126,137 114,142
+                 C104,146 100,136 100,122Z"
+              fill="url(#silkHighlight)"
+              clip-path="url(#rightCup)"
+            />
+            <!-- Right cup lace overlay -->
+            <path
+              d="M100,122 
+                 C110,122 122,115 126,98
+                 C130,110 126,137 114,142
+                 C104,146 100,136 100,122Z"
+              fill="url(#laceMesh)"
+              clip-path="url(#rightCup)"
+              opacity="0.6"
+            />
+  
+            <!-- Band / underwire line -->
+            <path
+              d="M74,125 C74,140 84,146 98,141 M102,141 C116,146 126,140 126,125"
+              stroke="#A05A6C"
+              stroke-width="0.7"
+              stroke-linecap="round"
+              fill="none"
+              opacity="0.4"
+            />
+            
+            <!-- Scalloped lace trim on cup edges -->
+            <path d="M74,98 Q77,95 80,98 T86,98 T92,98 T98,100" stroke="#A05A6C" stroke-width="0.5" fill="none" opacity="0.5"/>
+            <path d="M126,98 Q123,95 120,98 T114,98 T108,98 T102,100" stroke="#A05A6C" stroke-width="0.5" fill="none" opacity="0.5"/>
+            
+            <!-- Straps -->
+            <path
+              d="M80,103 L81,64"
+              stroke="#C8788C"
+              stroke-width="1"
+              stroke-linecap="round"
+            />
+            <path
+              d="M120,103 L119,64"
+              stroke="#C8788C"
+              stroke-width="1"
+              stroke-linecap="round"
+            />
+            <!-- Strap adjuster detail -->
+            <rect x="79.5" y="78" width="3" height="5" rx="0.5" fill="none" stroke="#D4A574" stroke-width="0.5" opacity="0.6"/>
+            <rect x="117.5" y="78" width="3" height="5" rx="0.5" fill="none" stroke="#D4A574" stroke-width="0.5" opacity="0.6"/>
+            
+            <!-- Center gore / golden charm -->
+            <circle cx="100" cy="124" r="2.5" fill="none" stroke="#D4AF37" stroke-width="0.6" opacity="0.8"/>
+            <circle cx="100" cy="124" r="1.2" fill="#D4AF37" opacity="0.6"/>
+            <!-- Small bow at center -->
+            <path d="M97,120 Q100,116 103,120" stroke="#D4A574" stroke-width="0.6" fill="none" opacity="0.7"/>
+          </g>
+        </svg>
+  
+        <div class="mannequin-detail mannequin-detail-left" style="opacity: {braReveal}; transform: translateX({(1 - braReveal) * -30}px)">
+          <span class="detail-line"></span>
+          <span class="detail-label">{i18n.t('home.mannequinLace')}</span>
+        </div>
+        <div class="mannequin-detail mannequin-detail-right" style="opacity: {pantyReveal}; transform: translateX({(1 - pantyReveal) * 30}px)">
+          <span class="detail-label">{i18n.t('home.mannequinSilk')}</span>
+          <span class="detail-line"></span>
+        </div>
+      </div>
+  
+      <div class="mannequin-cta" style="opacity: {ctaOpacity}; transform: translate(-50%, {(1 - ctaOpacity) * 20}px)">
+        <h2 class="mannequin-cta-title">{i18n.t('home.mannequinCta')}</h2>
+        <p class="mannequin-cta-subtitle">{i18n.t('home.mannequinSubtitle')}</p>
+        <a href="/catalog" class="btn btn-primary btn-lg">{i18n.t('home.mannequinCollection')}</a>
+      </div>
+  
+      <div class="mannequin-progress" aria-hidden="true">
+        <div class="mannequin-progress-bar" style="height: {scrollProgress * 100}%"></div>
+      </div>
+    </div>
+    
+    <style>
+      /* Додатковий стиль для "живого" дихання */
+      @keyframes breathe {
+        0%, 100% { transform: scale(var(--scale, 1)) translateY(0); }
+        50% { transform: scale(var(--scale, 1.005)) translateY(-2px); }
+      }
+      
+      .floating-breath {
+        /* Використовуємо змінні з інлайн-стилів Svelte як базу */
+        animation: breathe 4s ease-in-out infinite;
+      }
+    </style>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
   <!-- CATEGORIES SECTION                                                    -->
   <!-- ═══════════════════════════════════════════════════════════════════════ -->
   <section class="categories reveal-section" use:addRevealRef aria-labelledby="categories-heading">
     <div class="container">
       <div class="section-header">
-        <h2 id="categories-heading" class="section-title">Категорії</h2>
-        <p class="section-subtitle">Знайдіть ідеальну білизну для кожного випадку</p>
+        <h2 id="categories-heading" class="section-title">{i18n.t('home.categoriesTitle')}</h2>
+        <p class="section-subtitle">{i18n.t('home.categoriesSubtitle')}</p>
       </div>
       <div class="categories-grid">
         {#each categories as cat (cat.slug)}
           <a href="/catalog?category={cat.slug}" class="category-card" aria-label="Категорія: {cat.name}">
             <span class="category-icon" aria-hidden="true">{cat.emoji}</span>
             <h3 class="category-name">{cat.name}</h3>
-            <span class="category-link">Переглянути →</span>
+            <span class="category-link">{i18n.t('home.categoriesView')}</span>
           </a>
         {/each}
       </div>
@@ -198,8 +584,8 @@
   <section class="products reveal-section" use:addRevealRef aria-labelledby="products-heading">
     <div class="container">
       <div class="section-header">
-        <h2 id="products-heading" class="section-title">Популярні товари</h2>
-        <p class="section-subtitle">Найбільш бажані вироби від наших майстрів</p>
+        <h2 id="products-heading" class="section-title">{i18n.t('home.productsTitle')}</h2>
+        <p class="section-subtitle">{i18n.t('home.productsSubtitle')}</p>
       </div>
 
       {#if productsLoading}
@@ -211,7 +597,7 @@
           <p class="error-icon" aria-hidden="true">⚠️</p>
           <p class="error-message">{productsError}</p>
           <button class="btn btn-outline" onclick={() => location.reload()}>
-            Спробувати знову
+            {i18n.t('common.tryAgain')}
           </button>
         </div>
       {:else if products.length > 0}
@@ -221,11 +607,11 @@
           {/each}
         </div>
         <div class="products-footer">
-          <a href="/catalog" class="btn btn-secondary btn-lg">Дивитись все</a>
+          <a href="/catalog" class="btn btn-secondary btn-lg">{i18n.t('home.productsViewAll')}</a>
         </div>
       {:else}
         <div class="products-empty">
-          <p>Наразі немає доступних товарів. Поверніться пізніше!</p>
+          <p>{i18n.t('home.productsEmpty')}</p>
         </div>
       {/if}
     </div>
@@ -237,8 +623,8 @@
   <section class="features reveal-section" use:addRevealRef aria-labelledby="features-heading">
     <div class="container">
       <div class="section-header">
-        <h2 id="features-heading" class="section-title">Чому обирають нас</h2>
-        <p class="section-subtitle">Ми створюємо не просто білизну — ми створюємо впевненість</p>
+        <h2 id="features-heading" class="section-title">{i18n.t('home.featuresTitle')}</h2>
+        <p class="section-subtitle">{i18n.t('home.featuresSubtitle')}</p>
       </div>
       <div class="features-grid">
         {#each features as feature (feature.title)}
@@ -258,15 +644,15 @@
   <section class="newsletter reveal-section" use:addRevealRef aria-labelledby="newsletter-heading">
     <div class="newsletter-bg" aria-hidden="true"></div>
     <div class="container newsletter-content">
-      <h2 id="newsletter-heading" class="newsletter-title">Підпишіться на новини</h2>
+      <h2 id="newsletter-heading" class="newsletter-title">{i18n.t('home.newsletterTitle')}</h2>
       <p class="newsletter-subtitle">
-        Отримуйте першими інформацію про нові колекції, акції та ексклюзивні пропозиції
+        {i18n.t('home.newsletterSubtitle')}
       </p>
 
       {#if newsletterSubmitted}
         <div class="newsletter-success" role="status">
           <span aria-hidden="true">✉️</span>
-          <p>Дякуємо! Ви успішно підписались на наші новини.</p>
+          <p>{i18n.t('home.newsletterSuccess')}</p>
         </div>
       {:else}
         <form class="newsletter-form" onsubmit={handleNewsletterSubmit} aria-label="Підписка на новини">
@@ -275,7 +661,7 @@
             <input
               id="newsletter-email"
               type="email"
-              placeholder="Ваш email"
+              placeholder={i18n.t('home.newsletterPlaceholder')}
               required
               autocomplete="email"
               bind:value={newsletterEmail}
@@ -283,20 +669,33 @@
             />
             <button type="submit" class="btn btn-primary" disabled={newsletterSubmitting}>
               {#if newsletterSubmitting}
-                Відправка...
+                {i18n.t('home.newsletterSubmitting')}
               {:else}
-                Підписатись
+                {i18n.t('home.newsletterSubmit')}
               {/if}
             </button>
           </div>
         </form>
         <p class="newsletter-privacy">
-          Натискаючи «Підписатись», ви погоджуєтесь з нашою
-          <a href="/privacy">політикою конфіденційності</a>. Відписатись можна у будь-який момент.
+          {i18n.t('home.newsletterPrivacy')}
+          <a href="/privacy">{i18n.t('home.newsletterPrivacyLink')}</a>{i18n.t('home.newsletterPrivacyEnd')}
         </p>
       {/if}
     </div>
   </section>
+
+  <!-- Scroll-to-top button -->
+  <button
+    class="scroll-to-top"
+    class:visible={showScrollTop}
+    onclick={scrollToTop}
+    aria-label={i18n.t('common.scrollToTop')}
+    title={i18n.t('common.scrollToTop')}
+  >
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M18 15l-6-6-6 6"/>
+    </svg>
+  </button>
 </main>
 
 <style>
@@ -907,6 +1306,200 @@
 
     .features-grid {
       grid-template-columns: repeat(4, 1fr);
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════ */
+  /* SCROLL-TO-TOP BUTTON                                                      */
+  /* ═══════════════════════════════════════════════════════════════════════════ */
+
+  .scroll-to-top {
+    position: fixed;
+    bottom: var(--space-8);
+    right: var(--space-8);
+    z-index: 100;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 1px solid var(--color-border-light);
+    background: var(--color-surface);
+    color: var(--color-primary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 16px rgba(139, 94, 107, 0.12), 0 2px 6px rgba(0, 0, 0, 0.06);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(12px);
+    transition: opacity 0.3s ease, visibility 0.3s ease, transform 0.3s ease,
+                background-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .scroll-to-top.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+  }
+
+  .scroll-to-top:hover {
+    background: var(--color-primary);
+    color: #fff;
+    border-color: var(--color-primary);
+    box-shadow: 0 6px 24px rgba(139, 94, 107, 0.25), 0 2px 8px rgba(0, 0, 0, 0.08);
+  }
+
+  .scroll-to-top:active {
+    transform: translateY(2px);
+  }
+
+  @media (max-width: 768px) {
+    .scroll-to-top {
+      bottom: var(--space-4);
+      right: var(--space-4);
+      width: 42px;
+      height: 42px;
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════ */
+  /* MANNEQUIN SCROLL SHOWCASE                                                 */
+  /* ═══════════════════════════════════════════════════════════════════════════ */
+
+  .mannequin-scroll {
+    position: relative;
+    height: 400vh;
+    background: var(--color-background);
+  }
+
+  .mannequin-sticky {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .mannequin-canvas {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+  }
+
+  .mannequin-svg {
+    width: auto;
+    height: 70vh;
+    max-height: 600px;
+    transition: none;
+    will-change: transform, opacity;
+    filter: drop-shadow(0 4px 30px rgba(139, 94, 107, 0.15));
+  }
+
+  .mannequin-body {
+    transition: none;
+  }
+
+  .mannequin-detail {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    will-change: transform, opacity;
+    pointer-events: none;
+  }
+
+  .mannequin-detail-left {
+    left: 8%;
+    top: 30%;
+  }
+
+  .mannequin-detail-right {
+    right: 8%;
+    top: 55%;
+  }
+
+  .detail-label {
+    font-family: var(--font-display);
+    font-size: clamp(0.8rem, 1.5vw, 1rem);
+    color: var(--color-primary);
+    font-weight: 500;
+    white-space: nowrap;
+    letter-spacing: 0.04em;
+  }
+
+  .detail-line {
+    display: block;
+    width: 60px;
+    height: 1px;
+    background: var(--color-primary-light);
+  }
+
+  .mannequin-cta {
+    position: absolute;
+    bottom: 8vh;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    will-change: transform, opacity;
+    pointer-events: auto;
+  }
+
+  .mannequin-cta-title {
+    font-family: var(--font-display);
+    font-size: clamp(1.5rem, 3.5vw, 2.5rem);
+    font-weight: 700;
+    color: var(--color-text);
+    margin-bottom: var(--space-3);
+  }
+
+  .mannequin-cta-subtitle {
+    font-size: clamp(0.9rem, 1.5vw, 1.1rem);
+    color: var(--color-text-light);
+    margin-bottom: var(--space-6);
+  }
+
+  .mannequin-progress {
+    position: absolute;
+    right: var(--space-6);
+    top: 50%;
+    transform: translateY(-50%);
+    width: 2px;
+    height: 120px;
+    background: var(--color-border-light);
+    border-radius: 1px;
+  }
+
+  .mannequin-progress-bar {
+    width: 100%;
+    background: var(--color-primary);
+    border-radius: 1px;
+    transition: none;
+  }
+
+  @media (max-width: 768px) {
+    .mannequin-scroll {
+      height: 300vh;
+    }
+
+    .mannequin-svg {
+      height: 55vh;
+    }
+
+    .mannequin-detail {
+      display: none;
+    }
+
+    .mannequin-cta {
+      bottom: 5vh;
+    }
+
+    .mannequin-progress {
+      right: var(--space-3);
     }
   }
 </style>

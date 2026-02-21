@@ -5,15 +5,19 @@ import type {
 	PaginatedResponse,
 } from '$types';
 
-export async function getOrders(params?: { page?: number; pageSize?: number; status?: string }): Promise<PaginatedResponse<Order>> {
+export async function getOrders(params?: { page?: number; pageSize?: number; statusId?: number }): Promise<PaginatedResponse<Order>> {
 	return api.get<PaginatedResponse<Order>>('/orders', params as Record<string, string | number | boolean | undefined>);
+}
+
+export async function getAdminOrders(params?: { page?: number; pageSize?: number; statusId?: number; search?: string; shopId?: string }): Promise<PaginatedResponse<Order>> {
+	return api.get<PaginatedResponse<Order>>('/orders/admin', params as Record<string, string | number | boolean | undefined>);
 }
 
 export async function getOrderById(id: string): Promise<Order> {
 	return api.get<Order>(`/orders/${id}`);
 }
 
-export async function getShopOrders(shopId: string, params?: { page?: number; pageSize?: number; status?: string }): Promise<PaginatedResponse<Order>> {
+export async function getShopOrders(shopId: string, params?: { page?: number; pageSize?: number; statusId?: number }): Promise<PaginatedResponse<Order>> {
 	return api.get<PaginatedResponse<Order>>(`/shops/${shopId}/orders`, params as Record<string, string | number | boolean | undefined>);
 }
 

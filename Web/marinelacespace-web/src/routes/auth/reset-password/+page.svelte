@@ -2,7 +2,8 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import * as authApi from '$lib/api/auth';
-  import { notificationStore } from '$lib/stores/notification';
+  import { notificationStore } from '$lib/stores/notification.svelte';
+  import { i18n } from '$i18n/index.svelte';
 
   let newPassword = $state('');
   let confirmPassword = $state('');
@@ -16,15 +17,15 @@
 
   let newPasswordError = $derived.by(() => {
     if (!touched.newPassword) return '';
-    if (!newPassword) return 'Пароль є обов\'язковим';
-    if (newPassword.length < 8) return 'Пароль має містити мінімум 8 символів';
+    if (!newPassword) return i18n.t('auth.passwordRequired');
+    if (newPassword.length < 8) return i18n.t('auth.passwordMinRegister');
     return '';
   });
 
   let confirmPasswordError = $derived.by(() => {
     if (!touched.confirmPassword) return '';
-    if (!confirmPassword) return 'Підтвердіть пароль';
-    if (confirmPassword !== newPassword) return 'Паролі не збігаються';
+    if (!confirmPassword) return i18n.t('auth.confirmPasswordRequired');
+    if (confirmPassword !== newPassword) return i18n.t('auth.confirmPasswordMismatch');
     return '';
   });
 
@@ -37,9 +38,9 @@
     if (/[0-9]/.test(newPassword)) score++;
     if (/[^A-Za-z0-9]/.test(newPassword)) score++;
 
-    if (score <= 2) return { level: 1, label: 'Слабкий', color: 'var(--color-error)' };
-    if (score <= 3) return { level: 2, label: 'Середній', color: 'var(--color-warning)' };
-    return { level: 3, label: 'Сильний', color: 'var(--color-success)' };
+    if (score <= 2) return { level: 1, label: i18n.t('auth.passwordStrengthWeak'), color: 'var(--color-error)' };
+    if (score <= 3) return { level: 2, label: i18n.t('auth.passwordStrengthMedium'), color: 'var(--color-warning)' };
+    return { level: 3, label: i18n.t('auth.passwordStrengthStrong'), color: 'var(--color-success)' };
   });
 
   let isFormValid = $derived(
@@ -58,10 +59,10 @@
     isSubmitting = true;
     try {
       await authApi.resetPassword({ email, token, newPassword });
-      notificationStore.success('Пароль успішно змінено! Увійдіть з новим паролем.');
+      notificationStore.success(i18n.t('auth.resetPasswordSuccess'));
       await goto('/auth/login');
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Помилка зміни пароля. Спробуйте ще раз.';
+      const message = err instanceof Error ? err.message : i18n.t('auth.resetPasswordError');
       notificationStore.error(message);
     } finally {
       isSubmitting = false;
@@ -70,7 +71,7 @@
 </script>
 
 <svelte:head>
-  <title>Новий пароль — MarineLaceSpace</title>
+  <title>{i18n.t('auth.resetPasswordTitle')} — MarineLaceSpace</title>
 </svelte:head>
 
 <div class="auth-page">
@@ -80,26 +81,26 @@
       <h1 class="brand-name">MarineLaceSpace</h1>
     </div>
 
-    <h2 class="auth-heading">Новий пароль</h2>
+    <h2 class="auth-heading">{i18n.t('auth.resetPasswordHeading')}</h2>
 
     {#if !token || !email}
       <div class="error-state" role="alert">
-        <p class="error-text">Невірне або відсутнє посилання для відновлення пароля.</p>
+        <p class="error-text">{i18n.t('auth.invalidResetLink')}</p>
         <a href="/auth/forgot-password" class="btn btn-primary btn-submit">
-          Надіслати посилання повторно
+          {i18n.t('auth.resendLink')}
         </a>
       </div>
     {:else}
       <form onsubmit={handleSubmit} novalidate>
         <div class="form-group">
-          <label for="newPassword" class="form-label">Новий пароль</label>
+          <label for="newPassword" class="form-label">{i18n.t('auth.newPassword')}</label>
           <div class="password-wrapper">
             <input
               id="newPassword"
               type={showPassword ? 'text' : 'password'}
               class="input"
               class:input-error={newPasswordError}
-              placeholder="Мінімум 8 символів"
+              placeholder={i18n.t('auth.passwordPlaceholderRegister')}
               autocomplete="new-password"
               bind:value={newPassword}
               onblur={() => touched.newPassword = true}
@@ -110,7 +111,7 @@
               type="button"
               class="password-toggle"
               onclick={() => showPassword = !showPassword}
-              aria-label={showPassword ? 'Сховати пароль' : 'Показати пароль'}
+              aria-label={showPassword ? i18n.t('auth.hidePassword') : i18n.t('auth.showPassword')}
             >
               {#if showPassword}
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
@@ -129,7 +130,7 @@
             <p id="newPassword-error" class="field-error" role="alert">{newPasswordError}</p>
           {/if}
           {#if newPassword && !newPasswordError}
-            <div id="password-strength" class="strength-indicator" aria-label="Надійність пароля: {passwordStrength.label}">
+            <div id="password-strength" class="strength-indicator" aria-label={`${i18n.t('auth.passwordStrength')}: ${passwordStrength.label}`}>
               <div class="strength-bars">
                 {#each [1, 2, 3] as level}
                   <div
@@ -144,14 +145,14 @@
         </div>
 
         <div class="form-group">
-          <label for="confirmPassword" class="form-label">Підтвердження пароля</label>
+          <label for="confirmPassword" class="form-label">{i18n.t('auth.confirmPassword')}</label>
           <div class="password-wrapper">
             <input
               id="confirmPassword"
               type={showConfirmPassword ? 'text' : 'password'}
               class="input"
               class:input-error={confirmPasswordError}
-              placeholder="Повторіть новий пароль"
+              placeholder={i18n.t('auth.confirmNewPasswordPlaceholder')}
               autocomplete="new-password"
               bind:value={confirmPassword}
               onblur={() => touched.confirmPassword = true}
@@ -162,7 +163,7 @@
               type="button"
               class="password-toggle"
               onclick={() => showConfirmPassword = !showConfirmPassword}
-              aria-label={showConfirmPassword ? 'Сховати пароль' : 'Показати пароль'}
+              aria-label={showConfirmPassword ? i18n.t('auth.hidePassword') : i18n.t('auth.showPassword')}
             >
               {#if showConfirmPassword}
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
@@ -189,15 +190,15 @@
         >
           {#if isSubmitting}
             <span class="spinner" aria-hidden="true"></span>
-            Збереження...
+            {i18n.t('auth.saving')}
           {:else}
-            Зберегти пароль
+            {i18n.t('auth.savePassword')}
           {/if}
         </button>
       </form>
 
       <p class="auth-footer">
-        <a href="/auth/login" class="auth-link">← Повернутися до входу</a>
+        <a href="/auth/login" class="auth-link">← {i18n.t('auth.backToLogin')}</a>
       </p>
     {/if}
   </div>

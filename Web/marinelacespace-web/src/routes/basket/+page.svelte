@@ -1,9 +1,9 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import type { BasketItem } from '$types';
-  import { basketStore } from '$stores/basket';
-  import { notificationStore } from '$stores/notification';
-  import Breadcrumb from '$components/Breadcrumb.svelte';
+  import { basketStore } from '$stores/basket.svelte';
+  import { notificationStore } from '$stores/notification.svelte';
+  import { i18n } from '$i18n/index.svelte';
   import PriceDisplay from '$components/PriceDisplay.svelte';
   import LoadingSpinner from '$components/LoadingSpinner.svelte';
   import EmptyState from '$components/EmptyState.svelte';
@@ -12,17 +12,10 @@
   let showClearModal = $state(false);
   let itemToRemove = $state<BasketItem | null>(null);
 
-  const breadcrumbs = [
-    { label: 'Головна', href: '/' },
-    { label: 'Кошик' }
-  ];
-
   const itemCountLabel = $derived(() => {
     const count = basketStore.itemCount;
     if (count === 0) return '';
-    if (count === 1) return '(1 товар)';
-    if (count >= 2 && count <= 4) return `(${count} товари)`;
-    return `(${count} товарів)`;
+    return `(${i18n.t('basket.itemCount', { count })})`;
   });
 
   const subtotal = $derived(
@@ -48,7 +41,7 @@
     try {
       await basketStore.updateItem(item.itemId, { quantity: newQty, personalization: item.personalization ?? undefined });
     } catch {
-      notificationStore.error('Не вдалось оновити кількість');
+      notificationStore.error(i18n.t('basket.updateError'));
     }
   }
 
@@ -56,9 +49,9 @@
     if (!itemToRemove) return;
     try {
       await basketStore.removeItem(itemToRemove.itemId);
-      notificationStore.success('Товар видалено з кошика');
+      notificationStore.success(i18n.t('basket.itemRemoved'));
     } catch {
-      notificationStore.error('Не вдалось видалити товар');
+      notificationStore.error(i18n.t('basket.removeError'));
     } finally {
       itemToRemove = null;
     }
@@ -67,9 +60,9 @@
   async function confirmClearBasket() {
     try {
       await basketStore.clearBasket();
-      notificationStore.success('Кошик очищено');
+      notificationStore.success(i18n.t('basket.cleared'));
     } catch {
-      notificationStore.error('Не вдалось очистити кошик');
+      notificationStore.error(i18n.t('basket.clearError'));
     } finally {
       showClearModal = false;
     }
@@ -81,43 +74,41 @@
 </script>
 
 <svelte:head>
-  <title>Кошик — MarineLaceSpace</title>
+  <title>{i18n.t('basket.title')} — MarineLaceSpace</title>
 </svelte:head>
 
-<section class="basket-page container" aria-label="Кошик">
-  <Breadcrumb items={breadcrumbs} />
-
+<section class="basket-page container" aria-label={i18n.t('basket.title')}>
   {#if basketStore.isLoading && !basketStore.basket}
-    <LoadingSpinner size="lg" message="Завантаження кошика…" />
+    <LoadingSpinner size="lg" message={i18n.t('basket.loading')} />
   {:else if !basketStore.basket || basketStore.basket.items.length === 0}
     <EmptyState
       icon="🛒"
-      title="Ваш кошик порожній"
-      description="Додайте товари з каталогу"
-      actionLabel="Перейти до каталогу"
+      title={i18n.t('basket.empty')}
+      description={i18n.t('basket.emptyDescription')}
+      actionLabel={i18n.t('basket.continueShopping')}
       actionHref="/catalog"
     />
   {:else}
     <header class="basket-header">
       <div class="basket-title-row">
-        <h1 class="basket-title">Кошик <span class="item-count">{itemCountLabel()}</span></h1>
+        <h1 class="basket-title">{i18n.t('basket.title')} <span class="item-count">{itemCountLabel()}</span></h1>
         <button
           class="clear-basket-link"
           onclick={() => (showClearModal = true)}
-          aria-label="Очистити кошик"
+          aria-label={i18n.t('basket.clear')}
         >
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <polyline points="3 6 5 6 21 6" />
             <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
           </svg>
-          Очистити кошик
+          {i18n.t('basket.clear')}
         </button>
       </div>
     </header>
 
     <div class="basket-layout">
       <!-- Items Column -->
-      <div class="basket-items" role="list" aria-label="Товари в кошику">
+      <div class="basket-items" role="list" aria-label={i18n.t('basket.itemsInBasket')}>
         {#each basketStore.basket.items as item (item.itemId)}
           <article class="basket-item card" role="listitem">
             <div class="item-image-wrap">
@@ -166,12 +157,12 @@
                   <PriceDisplay price={item.unitPrice} />
                 </div>
 
-                <div class="quantity-control" role="group" aria-label="Кількість для {item.productName}">
+                <div class="quantity-control" role="group" aria-label={i18n.t('basket.quantityFor', { name: item.productName })}>
                   <button
                     class="qty-btn"
                     onclick={() => handleQuantityChange(item, -1)}
                     disabled={item.quantity <= 1 || basketStore.isLoading}
-                    aria-label="Зменшити кількість"
+                    aria-label={i18n.t('basket.decreaseQuantity')}
                   >
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                       <line x1="5" y1="12" x2="19" y2="12" />
@@ -182,7 +173,7 @@
                     class="qty-btn"
                     onclick={() => handleQuantityChange(item, 1)}
                     disabled={item.quantity >= 99 || basketStore.isLoading}
-                    aria-label="Збільшити кількість"
+                    aria-label={i18n.t('basket.increaseQuantity')}
                   >
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                       <line x1="12" y1="5" x2="12" y2="19" />
@@ -198,7 +189,7 @@
                 <button
                   class="remove-btn"
                   onclick={() => (itemToRemove = item)}
-                  aria-label="Видалити {item.productName}"
+                  aria-label={i18n.t('basket.removeItem', { name: item.productName })}
                 >
                   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <polyline points="3 6 5 6 21 6" />
@@ -214,23 +205,23 @@
       </div>
 
       <!-- Order Summary -->
-      <aside class="order-summary" aria-label="Підсумок замовлення">
+      <aside class="order-summary" aria-label={i18n.t('basket.orderSummary')}>
         <div class="summary-card card">
           <div class="card-body">
-            <h2 class="summary-heading">Підсумок замовлення</h2>
+            <h2 class="summary-heading">{i18n.t('basket.orderSummary')}</h2>
 
             <dl class="summary-lines">
               <div class="summary-row">
-                <dt>Товари ({basketStore.itemCount})</dt>
-                <dd>₴{subtotal.toFixed(2)}</dd>
+                <dt>{i18n.t('basket.items', { count: basketStore.itemCount })}</dt>
+                <dd>{i18n.t('common.currency', { amount: subtotal.toFixed(2) })}</dd>
               </div>
               <div class="summary-row">
-                <dt>Доставка</dt>
+                <dt>{i18n.t('basket.shipping')}</dt>
                 <dd>
                   {#if shippingCost === 0}
-                    <span class="free-shipping">Безкоштовно</span>
+                    <span class="free-shipping">{i18n.t('basket.shippingFree')}</span>
                   {:else}
-                    ₴{shippingCost.toFixed(2)}
+                    {i18n.t('common.currency', { amount: shippingCost.toFixed(2) })}
                   {/if}
                 </dd>
               </div>
@@ -238,15 +229,15 @@
 
             {#if freeShippingRemaining > 0}
               <p class="shipping-hint">
-                🚚 Безкоштовна доставка від {FREE_SHIPPING_THRESHOLD}₴ — залишилось ₴{freeShippingRemaining.toFixed(2)}
+                🚚 {i18n.t('basket.freeShippingHint', { threshold: FREE_SHIPPING_THRESHOLD, remaining: freeShippingRemaining.toFixed(2) })}
               </p>
             {/if}
 
             <hr class="divider" />
 
             <div class="summary-total">
-              <span>Разом</span>
-              <span class="total-price">₴{total.toFixed(2)}</span>
+              <span>{i18n.t('basket.total')}</span>
+              <span class="total-price">{i18n.t('common.currency', { amount: total.toFixed(2) })}</span>
             </div>
 
             <div class="summary-actions">
@@ -255,14 +246,14 @@
                 onclick={proceedToCheckout}
                 disabled={basketStore.isLoading}
               >
-                Оформити замовлення
+                {i18n.t('basket.checkout')}
               </button>
               <a href="/catalog" class="btn btn-outline w-full">
-                Продовжити покупки
+                {i18n.t('basket.continueShopping')}
               </a>
             </div>
 
-            <p class="summary-trust">🔒 Безпечна оплата • Повернення протягом 14 днів</p>
+            <p class="summary-trust">{i18n.t('basket.trustBadge')}</p>
           </div>
         </div>
       </aside>
@@ -272,37 +263,37 @@
     <div class="mobile-sticky-bar">
       <div class="mobile-sticky-inner">
         <div class="mobile-sticky-total">
-          <span class="mobile-total-label">Разом:</span>
-          <span class="mobile-total-price">₴{total.toFixed(2)}</span>
+          <span class="mobile-total-label">{i18n.t('basket.total')}:</span>
+          <span class="mobile-total-price">{i18n.t('common.currency', { amount: total.toFixed(2) })}</span>
         </div>
         <button
           class="btn btn-primary btn-lg mobile-checkout-btn"
           onclick={proceedToCheckout}
           disabled={basketStore.isLoading}
         >
-          Оформити
+          {i18n.t('basket.checkoutShort')}
         </button>
       </div>
     </div>
   {/if}
 
   <!-- Remove item confirm modal -->
-  <Modal open={itemToRemove !== null} title="Видалити товар?" onclose={() => (itemToRemove = null)}>
+  <Modal open={itemToRemove !== null} title={i18n.t('basket.removeConfirmTitle')} onclose={() => (itemToRemove = null)}>
     {#if itemToRemove}
-      <p>Ви впевнені, що хочете видалити <strong>{itemToRemove.productName}</strong> з кошика?</p>
+      <p>{i18n.t('basket.removeConfirmMessage', { name: itemToRemove.productName })}</p>
       <div class="modal-actions">
-        <button class="btn btn-outline" onclick={() => (itemToRemove = null)}>Скасувати</button>
-        <button class="btn btn-primary" onclick={confirmRemoveItem} disabled={basketStore.isLoading}>Видалити</button>
+        <button class="btn btn-outline" onclick={() => (itemToRemove = null)}>{i18n.t('common.cancel')}</button>
+        <button class="btn btn-primary" onclick={confirmRemoveItem} disabled={basketStore.isLoading}>{i18n.t('basket.remove')}</button>
       </div>
     {/if}
   </Modal>
 
   <!-- Clear basket confirm modal -->
-  <Modal open={showClearModal} title="Очистити кошик?" onclose={() => (showClearModal = false)}>
-    <p>Ви впевнені, що хочете видалити всі товари з кошика?</p>
+  <Modal open={showClearModal} title={i18n.t('basket.clearConfirmTitle')} onclose={() => (showClearModal = false)}>
+    <p>{i18n.t('basket.clearConfirmMessage')}</p>
     <div class="modal-actions">
-      <button class="btn btn-outline" onclick={() => (showClearModal = false)}>Скасувати</button>
-      <button class="btn btn-primary" onclick={confirmClearBasket} disabled={basketStore.isLoading}>Очистити</button>
+      <button class="btn btn-outline" onclick={() => (showClearModal = false)}>{i18n.t('common.cancel')}</button>
+      <button class="btn btn-primary" onclick={confirmClearBasket} disabled={basketStore.isLoading}>{i18n.t('basket.clear')}</button>
     </div>
   </Modal>
 </section>

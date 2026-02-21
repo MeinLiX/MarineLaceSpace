@@ -89,7 +89,9 @@ public static class TBuilderExtensions
 
         builder.Services.Configure<ServiceDiscoveryOptions>(options =>
         {
-            options.AllowedSchemes = ["https"];
+            options.AllowedSchemes = builder.Environment.IsDevelopment()
+                ? ["https", "http"]
+                : ["https"];
         });
 
         builder.Services.AddLogging(logging =>

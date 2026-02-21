@@ -23,10 +23,8 @@ public class Category
     public virtual ICollection<Category> Subcategories { get; set; } = [];
     public virtual ICollection<Product> Products { get; set; } = [];
 
-    // Рівень вкладеності (для швидкого доступу)
     public int Level { get; set; } = 0;
 
-    // Повний шлях категорії (для швидкого пошуку)
     [StringLength(1000)]
     public string? FullPath { get; set; }
 }

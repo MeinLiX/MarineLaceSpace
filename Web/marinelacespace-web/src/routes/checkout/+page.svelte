@@ -82,7 +82,6 @@
   /* ── Navigation ── */
   function nextStep() {
     if (currentStep === 1) {
-      // Mark all fields touched
       shippingTouched = {
         fullName: true, phone: true, country: true, city: true,
         addressLine1: true, postalCode: true, state: true
@@ -119,7 +118,6 @@
     try {
       const order = await basketStore.checkout(req);
 
-      // Create payment session and redirect to payment provider
       try {
         const session = await createCheckoutSession({
           orderId: order.id,

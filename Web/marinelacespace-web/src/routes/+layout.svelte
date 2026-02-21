@@ -7,10 +7,15 @@
   import Footer from '$lib/components/Footer.svelte';
   import Toast from '$lib/components/Toast.svelte';
   import BasketModal from '$lib/components/BasketModal.svelte';
+  import { authStore } from '$stores/auth.svelte';
 
   let { children }: { children: Snippet } = $props();
   let basketModalOpen = $state(false);
   let isAdminPage = $derived($page.url.pathname.startsWith('/admin'));
+
+  $effect(() => {
+    authStore.loadUser();
+  });
 
   function openBasketModal() {
     basketModalOpen = true;

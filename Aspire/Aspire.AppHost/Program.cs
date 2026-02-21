@@ -22,6 +22,14 @@ var rabbitmq = builder.AddRabbitMQ("rabbitmq")
                       .WithLifetime(ContainerLifetime.Persistent)
                       .WithManagementPlugin();
 
+var minio = builder.AddContainer("minio", "minio/minio")
+                   .WithArgs("server", "/data", "--console-address", ":9001")
+                   .WithEnvironment("MINIO_ROOT_USER", "minioadmin")
+                   .WithEnvironment("MINIO_ROOT_PASSWORD", "minioadmin")
+                   .WithHttpEndpoint(port: 9000, targetPort: 9000, name: "api")
+                   .WithHttpEndpoint(port: 9001, targetPort: 9001, name: "console")
+                   .WithLifetime(ContainerLifetime.Persistent);
+
 #endregion Infrastructure
 
 
@@ -73,7 +81,8 @@ apiGateway.WithReference(redis).WaitFor(redis)
           .WithReference(basket).WaitFor(basket)
           .WithReference(order).WaitFor(order)
           .WithReference(payment).WaitFor(payment)
-          .WithReference(notification).WaitFor(notification);
+          .WithReference(notification).WaitFor(notification)
+          .WithReference(minio.GetEndpoint("api")).WaitFor(minio);
 
 auth.WithReference(rabbitmq).WaitFor(rabbitmq)
     .WithReference(identitydb).WaitFor(identitydb);
@@ -84,14 +93,16 @@ basket.WithReference(redis).WaitFor(redis)
 
 catalog.WithReference(redis).WaitFor(redis)
        .WithReference(catalogdb).WaitFor(catalogdb)
-       .WithReference(rabbitmq).WaitFor(rabbitmq);
+       .WithReference(rabbitmq).WaitFor(rabbitmq)
+       .WithReference(minio.GetEndpoint("api")).WaitFor(minio);
 
 
 notification.WithReference(rabbitmq).WaitFor(rabbitmq);
 
 
 order.WithReference(orderdb).WaitFor(orderdb)
-     .WithReference(rabbitmq).WaitFor(rabbitmq);
+     .WithReference(rabbitmq).WaitFor(rabbitmq)
+     .WithReference(catalog).WaitFor(catalog);
 
 
 payment.WithReference(paymentdb).WaitFor(paymentdb)

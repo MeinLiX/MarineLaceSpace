@@ -2,6 +2,7 @@
   import * as catalogApi from '$api/catalog';
   import * as orderApi from '$api/order';
   import LoadingSpinner from '$components/LoadingSpinner.svelte';
+  import { authStore } from '$lib/stores/auth.svelte';
   import { i18n } from '$i18n/index.svelte';
   import type { Order } from '$types';
 
@@ -14,28 +15,56 @@
     newReviews: 0,
   });
 
+  let dashboardTitle = $derived(
+    authStore.isAdmin ? i18n.t('admin.dashboard') : `${i18n.t('admin.dashboard')} (Seller)`
+  );
+
   $effect(() => {
-    loadDashboard();
+    if (!authStore.isLoading) {
+      loadDashboard();
+    }
   });
 
   async function loadDashboard() {
     try {
       loading = true;
-      const [ordersRes, productsRes] = await Promise.all([
-        orderApi.getAdminOrders({ page: 1, pageSize: 10 }),
-        catalogApi.getAdminProducts({ page: 1, pageSize: 1 }),
-      ]);
 
-      recentOrders = ordersRes.items;
-      stats.activeProducts = productsRes.totalCount;
+      let allOrders: Order[] = [];
+      let totalProducts = 0;
+
+      if (authStore.isAdmin) {
+        const [ordersRes, productsRes] = await Promise.all([
+          orderApi.getAdminOrders({ page: 1, pageSize: 1000 }),
+          catalogApi.getAdminProducts({ page: 1, pageSize: 1 }),
+        ]);
+        allOrders = ordersRes.items;
+        totalProducts = productsRes.totalCount;
+      } else {
+        const shops = await catalogApi.getMyShops();
+        const orderResults = await Promise.all(
+          shops.map((shop) => orderApi.getShopOrders(shop.id, { page: 1, pageSize: 1000 }))
+        );
+        allOrders = orderResults.flatMap((r) => r.items);
+
+        const productResults = await Promise.all(
+          shops.map((shop) => catalogApi.getAdminProducts({ shopId: shop.id, page: 1, pageSize: 1 }))
+        );
+        totalProducts = productResults.reduce((sum, r) => sum + r.totalCount, 0);
+      }
+
+      recentOrders = allOrders
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 10);
+
+      stats.activeProducts = totalProducts;
 
       const today = new Date().toDateString();
-      stats.ordersToday = ordersRes.items.filter(
+      stats.ordersToday = allOrders.filter(
         (o) => new Date(o.createdAt).toDateString() === today
       ).length;
 
       const now = new Date();
-      stats.monthlyRevenue = ordersRes.items
+      stats.monthlyRevenue = allOrders
         .filter((o) => {
           const d = new Date(o.createdAt);
           return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
@@ -88,7 +117,7 @@
 </script>
 
 <div class="dashboard">
-  <h1 class="page-title">{i18n.t('admin.dashboard')}</h1>
+  <h1 class="page-title">{dashboardTitle}</h1>
 
   {#if loading}
     <LoadingSpinner message={i18n.t('common.loading')} />
@@ -189,10 +218,12 @@
               <span class="action-icon">📋</span>
               <span class="action-label">{i18n.t('admin.viewOrders')}</span>
             </a>
-            <a href="/admin/categories" class="action-card">
-              <span class="action-icon">📂</span>
-              <span class="action-label">{i18n.t('admin.manageCatalog')}</span>
-            </a>
+            {#if authStore.isAdmin}
+              <a href="/admin/categories" class="action-card">
+                <span class="action-icon">📂</span>
+                <span class="action-label">{i18n.t('admin.manageCatalog')}</span>
+              </a>
+            {/if}
           </div>
         </div>
       </section>

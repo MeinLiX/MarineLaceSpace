@@ -951,6 +951,7 @@ export const en = {
 		user: 'User',
 		userDefault: 'User',
 		administrator: 'Administrator',
+		seller: 'Seller',
 		roles: 'Roles',
 		assignRoles: 'Assign Roles',
 		rolesUpdated: 'Roles updated',
@@ -1166,6 +1167,9 @@ export const en = {
 		errorLoadingShops: 'Failed to load shops',
 		errorLoadingShop: 'Failed to load shop',
 		errorDeletingShop: 'Failed to delete shop',
+		yourShop: 'This is your shop',
+		notYourShop: 'You do not have permission to edit this shop.',
+		accessDenied: 'Access denied',
 
 		// Dictionaries - Sizes
 		size: 'Size',

@@ -3,7 +3,6 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace MarineLaceSpace.Models.Database.Catalog;
 
-// Довідник кольорів
 public class Color
 {
     [Key]

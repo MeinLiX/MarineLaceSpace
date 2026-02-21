@@ -14,7 +14,7 @@ interface AuthState {
 function createAuthStore() {
 	let state = $state<AuthState>({
 		currentUser: null,
-		isLoading: false,
+		isLoading: true,
 	});
 
 	const isAuthenticated = $derived(state.currentUser !== null && !state.currentUser.isAnonymous);
@@ -78,7 +78,10 @@ function createAuthStore() {
 
 	async function loadUser(): Promise<void> {
 		const token = localStorage.getItem('access_token');
-		if (!token) return;
+		if (!token) {
+			state.isLoading = false;
+			return;
+		}
 
 		state.isLoading = true;
 		try {

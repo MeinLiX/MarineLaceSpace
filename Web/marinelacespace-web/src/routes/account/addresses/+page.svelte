@@ -19,7 +19,6 @@
   let editingAddress = $state<SavedAddress | null>(null);
   let deleteTarget = $state<SavedAddress | null>(null);
 
-  // Form fields
   let formLabel = $state('');
   let formFullName = $state('');
   let formAddressLine1 = $state('');

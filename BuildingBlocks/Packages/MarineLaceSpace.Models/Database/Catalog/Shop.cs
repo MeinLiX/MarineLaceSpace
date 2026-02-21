@@ -1,6 +1,4 @@
-﻿using MarineLaceSpace.Models.Database.Auth;
-using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace MarineLaceSpace.Models.Database.Catalog;
 
@@ -18,9 +16,6 @@ public class Shop
 
     [Required]
     public required string OwnerId { get; set; }
-
-    [ForeignKey("OwnerId")]
-    public virtual AuthUser Owner { get; set; }
 
     [Required]
     [StringLength(100)]

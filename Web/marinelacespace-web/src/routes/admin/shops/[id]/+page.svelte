@@ -4,6 +4,7 @@
   import * as catalogApi from '$api/catalog';
   import LoadingSpinner from '$components/LoadingSpinner.svelte';
   import { notificationStore } from '$stores/notification.svelte';
+  import { authStore } from '$stores/auth.svelte';
   import { i18n } from '$i18n/index.svelte';
   import type { Shop, Product } from '$types';
 
@@ -12,8 +13,13 @@
   let saving = $state(false);
   let shop = $state<Shop | null>(null);
   let recentProducts = $state<Product[]>([]);
+  let accessDenied = $state(false);
 
-  // Form state
+  let isOwner = $derived(
+    authStore.isAdmin || (shop !== null && shop.ownerId === authStore.currentUser?.id)
+  );
+  let canEdit = $derived(authStore.isAdmin || isOwner);
+
   let name = $state('');
   let description = $state('');
   let logoUrl = $state('');
@@ -33,7 +39,11 @@
       shop = shopRes;
       recentProducts = productsRes.items;
 
-      // Populate form
+      if (!authStore.isAdmin && shopRes.ownerId !== authStore.currentUser?.id) {
+        accessDenied = true;
+        return;
+      }
+
       name = shopRes.name;
       description = shopRes.description;
       logoUrl = shopRes.logoUrl ?? '';
@@ -78,15 +88,46 @@
 <div class="shop-detail">
   {#if loading}
     <LoadingSpinner message={i18n.t('admin.loadingShop')} />
+  {:else if accessDenied}
+    <div class="access-denied card">
+      <div class="card-body" style="text-align: center; padding: var(--space-8);">
+        <p style="font-size: 1.5rem; margin-bottom: var(--space-2);">🚫</p>
+        <p class="text-muted" style="font-size: 1.125rem;">{i18n.t('admin.accessDenied')}</p>
+        <p class="text-muted text-sm" style="margin-top: var(--space-2);">{i18n.t('admin.notYourShop')}</p>
+        <a href="/admin/shops" class="btn btn-outline" style="margin-top: var(--space-4);">{i18n.t('common.back')}</a>
+      </div>
+    </div>
   {:else if shop}
     <div class="page-header">
-      <h1 class="page-title">{shop.name}</h1>
+      <div>
+        <h1 class="page-title">{shop.name}</h1>
+        {#if !authStore.isAdmin && isOwner}
+          <span class="badge badge-success" style="margin-top: var(--space-1);">
+            ✅ {i18n.t('admin.yourShop')}
+          </span>
+        {/if}
+      </div>
       <div class="header-actions">
         <a href="/admin/shops" class="btn btn-outline">{i18n.t('common.back')}</a>
-        <button class="btn btn-primary" onclick={save} disabled={saving}>
-          {saving ? i18n.t('common.saving') : i18n.t('common.save')}
-        </button>
+        {#if canEdit}
+          <button class="btn btn-primary" onclick={save} disabled={saving}>
+            {saving ? i18n.t('common.saving') : i18n.t('common.save')}
+          </button>
+        {/if}
       </div>
+    </div>
+
+    <!-- Cross-links bar -->
+    <div class="cross-links">
+      <a href="/admin/products?shopId={shop.id}" class="cross-link">
+        <span class="cross-icon">📦</span> {i18n.t('admin.products')} ({shop.productCount})
+      </a>
+      <a href="/admin/orders?shopId={shop.id}" class="cross-link">
+        <span class="cross-icon">🧾</span> {i18n.t('admin.orders')}
+      </a>
+      <a href="/shops/{shop.slug || shop.id}" class="cross-link" target="_blank" rel="noopener">
+        <span class="cross-icon">🌐</span> {i18n.t('admin.viewPublicPage')}
+      </a>
     </div>
 
     <!-- Stats -->
@@ -117,6 +158,7 @@
 
     <div class="detail-grid">
       <!-- Edit form -->
+      {#if canEdit}
       <section class="card">
         <div class="card-header">
           <h2>{i18n.t('admin.shopInfo')}</h2>
@@ -150,6 +192,18 @@
           </div>
         </div>
       </section>
+      {:else}
+      <section class="card">
+        <div class="card-header">
+          <h2>{i18n.t('admin.shopInfo')}</h2>
+        </div>
+        <div class="card-body">
+          <p><strong>{i18n.t('admin.name')}:</strong> {shop.name}</p>
+          <p><strong>Slug:</strong> {shop.slug}</p>
+          <p><strong>{i18n.t('admin.description')}:</strong> {shop.description}</p>
+        </div>
+      </section>
+      {/if}
 
       <!-- Owner info -->
       <section class="card">
@@ -222,6 +276,37 @@
   .header-actions {
     display: flex;
     gap: var(--space-3);
+  }
+
+  .cross-links {
+    display: flex;
+    gap: var(--space-3);
+    margin-bottom: var(--space-6);
+    flex-wrap: wrap;
+  }
+
+  .cross-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-text);
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all var(--transition-fast);
+  }
+
+  .cross-link:hover {
+    border-color: var(--color-primary);
+    background: var(--color-surface-hover);
+    color: var(--color-primary);
+  }
+
+  .cross-icon {
+    font-size: 1rem;
   }
 
   .stats-row {

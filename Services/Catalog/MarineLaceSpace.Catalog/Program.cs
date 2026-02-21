@@ -4,6 +4,7 @@ using MarineLaceSpace.Catalog.Data.DBContexts;
 using MarineLaceSpace.Catalog.Data.Repositories;
 using MarineLaceSpace.Interfaces.Repositories;
 using Microsoft.EntityFrameworkCore;
+using Minio;
 
 var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("pg-catalog");
@@ -22,6 +23,21 @@ else
     builder.Services.AddDistributedMemoryCache();
 }
 
+var minioConnectionString = builder.Configuration.GetConnectionString("minio");
+if (!string.IsNullOrEmpty(minioConnectionString))
+{
+    var uri = new Uri(minioConnectionString);
+    var minioEndpoint = uri.Authority;
+    var minioAccessKey = builder.Configuration["Minio:AccessKey"] ?? "minioadmin";
+    var minioSecretKey = builder.Configuration["Minio:SecretKey"] ?? "minioadmin";
+
+    builder.Services.AddMinio(configureClient => configureClient
+        .WithEndpoint(minioEndpoint)
+        .WithCredentials(minioAccessKey, minioSecretKey)
+        .WithSSL(uri.Scheme == "https")
+        .Build());
+}
+
 builder.Services.AddSingleton<ICategoryCacheService, CategoryCacheService>();
 
 builder.Services.AddScoped<IShopRepository, ShopRepository>();
@@ -38,7 +54,7 @@ var app = builder.BuildWithPostActions();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
-    await db.Database.EnsureCreatedAsync();
+    await db.Database.MigrateAsync();
 }
 
 app.MapShopRoutes();

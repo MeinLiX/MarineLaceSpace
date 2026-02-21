@@ -6,8 +6,13 @@
   import Modal from '$components/Modal.svelte';
   import ReviewStars from '$components/ReviewStars.svelte';
   import { notificationStore } from '$stores/notification.svelte';
+  import { authStore } from '$lib/stores/auth.svelte';
   import { i18n } from '$i18n/index.svelte';
   import type { ProductReview } from '$types';
+
+  // TODO: For sellers, reviews should be filtered server-side by shopId/products.
+  // The current getReviews() endpoint doesn't support a shopId filter, so for now
+  // all reviews are shown. Backend filtering is needed to scope reviews to seller's products.
 
   let loading = $state(true);
   let reviews = $state<(ProductReview & { productName?: string })[]>([]);
@@ -15,11 +20,9 @@
   let currentPage = $state(1);
   let ratingFilter = $state<number | null>(null);
 
-  // View modal
   let showViewModal = $state(false);
   let viewTarget = $state<ProductReview | null>(null);
 
-  // Delete modal
   let showDeleteModal = $state(false);
   let deleteTarget = $state<ProductReview | null>(null);
 

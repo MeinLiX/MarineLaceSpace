@@ -5,6 +5,7 @@
   import LoadingSpinner from '$components/LoadingSpinner.svelte';
   import Modal from '$components/Modal.svelte';
   import { notificationStore } from '$stores/notification.svelte';
+  import { authStore } from '$stores/auth.svelte';
   import { i18n } from '$i18n/index.svelte';
   import type {
     ProductDetail,
@@ -22,7 +23,6 @@
   let saving = $state(false);
   let activeTab = $state<'basic' | 'variants' | 'photos' | 'settings'>('basic');
 
-  // Form state — basic
   let name = $state('');
   let description = $state('');
   let categoryId = $state('');
@@ -30,26 +30,27 @@
   let isActive = $state(true);
   let allowPersonalization = $state(false);
 
-  // Variants
   let selectedSizeIds = $state<Set<string>>(new Set());
   let selectedColorIds = $state<Set<string>>(new Set());
   let selectedMaterialIds = $state<Set<string>>(new Set());
   let inventory = $state<ProductInventoryItem[]>([]);
 
-  // Photos
   let photos = $state<ProductPhoto[]>([]);
+  let uploading = $state(false);
+  let uploadTitle = $state('');
+  let uploadIsMain = $state(false);
+  let fileInput = $state<HTMLInputElement | null>(null);
 
-  // Dictionaries
   let categories = $state<Category[]>([]);
   let allSizes = $state<Size[]>([]);
   let allColors = $state<Color[]>([]);
   let allMaterials = $state<Material[]>([]);
 
-  // Shops for select
   let shops = $state<{ id: string; name: string }[]>([]);
 
-  // Delete
   let showDeleteModal = $state(false);
+  let showDeleteImageModal = $state(false);
+  let deleteImageTarget = $state<string | null>(null);
 
   let flatCategories = $derived(flattenCategories(categories));
 
@@ -74,19 +75,24 @@
   async function loadData(id: string) {
     try {
       loading = true;
+
+      const shopsPromise = authStore.isAdmin
+        ? catalogApi.getShops({ pageSize: 100 }).then((r) => r.items.map((s) => ({ id: s.id, name: s.name })))
+        : catalogApi.getMyShops().then((list) => list.map((s) => ({ id: s.id, name: s.name })));
+
       const [catsRes, sizesRes, colorsRes, materialsRes, shopsRes] = await Promise.all([
         catalogApi.getCategoryTree(),
         catalogApi.getSizes(),
         catalogApi.getColors(),
         catalogApi.getMaterials(),
-        catalogApi.getShops({ pageSize: 100 }),
+        shopsPromise,
       ]);
 
       categories = catsRes;
       allSizes = sizesRes;
       allColors = colorsRes;
       allMaterials = materialsRes;
-      shops = shopsRes.items.map((s) => ({ id: s.id, name: s.name }));
+      shops = shopsRes;
 
       if (id !== 'new') {
         const product = await catalogApi.getProductById(id);
@@ -177,8 +183,51 @@
       await catalogApi.deleteProductImage(shopId, productId, imageId);
       photos = photos.filter((img) => img.id !== imageId);
       notificationStore.success(i18n.t('admin.imageDeleted'));
+      showDeleteImageModal = false;
+      deleteImageTarget = null;
     } catch {
       notificationStore.error(i18n.t('admin.errorDeletingImage'));
+    }
+  }
+
+  function confirmDeleteImage(imageId: string) {
+    deleteImageTarget = imageId;
+    showDeleteImageModal = true;
+  }
+
+  function triggerFileInput() {
+    fileInput?.click();
+  }
+
+  async function handleFileSelected(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    if (!shopId) {
+      notificationStore.warning(i18n.t('admin.selectShop'));
+      return;
+    }
+
+    try {
+      uploading = true;
+      const newPhoto = await catalogApi.uploadProductImage(
+        shopId,
+        productId,
+        file,
+        uploadTitle.trim() || undefined,
+        uploadIsMain
+      );
+      photos = [...photos, newPhoto];
+      uploadTitle = '';
+      uploadIsMain = false;
+      notificationStore.success(i18n.t('admin.imageUploaded'));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      notificationStore.error(msg || i18n.t('admin.errorUploadingImage'));
+    } finally {
+      uploading = false;
+      if (input) input.value = '';
     }
   }
 
@@ -221,9 +270,14 @@
     <LoadingSpinner message={i18n.t('common.loading')} />
   {:else}
     <div class="editor-header">
-      <h1 class="page-title">{isNew ? i18n.t('admin.newProduct') : i18n.t('admin.editProduct')}</h1>
+      <div class="header-left">
+        <a href="/admin/products" class="back-link">← {i18n.t('admin.backToProducts')}</a>
+        <h1 class="page-title">{isNew ? i18n.t('admin.newProduct') : i18n.t('admin.editProduct')}</h1>
+      </div>
       <div class="header-actions">
-        <a href="/admin/products" class="btn btn-outline">{i18n.t('common.cancel')}</a>
+        {#if !isNew}
+          <a href="/products/{productId}" class="btn btn-outline btn-sm" target="_blank" rel="noopener">🌐 {i18n.t('admin.viewPublicPage')}</a>
+        {/if}
         <button class="btn btn-primary" onclick={save} disabled={saving}>
           {saving ? i18n.t('common.saving') : i18n.t('common.save')}
         </button>
@@ -392,9 +446,33 @@
                 <tbody>
                   {#each inventory as item, i}
                     <tr>
-                      <td>{item.sizeId ? getSizeName(item.sizeId) : '—'}</td>
-                      <td>{item.colorId ? getColorName(item.colorId) : '—'}</td>
-                      <td>{item.materialId ? getMaterialName(item.materialId) : '—'}</td>
+                      <td>
+                        {#if item.sizeId}
+                          {#if authStore.isAdmin}
+                            <a href="/admin/sizes" class="dict-link">{getSizeName(item.sizeId)}</a>
+                          {:else}
+                            {getSizeName(item.sizeId)}
+                          {/if}
+                        {:else}—{/if}
+                      </td>
+                      <td>
+                        {#if item.colorId}
+                          {#if authStore.isAdmin}
+                            <a href="/admin/colors" class="dict-link">{getColorName(item.colorId)}</a>
+                          {:else}
+                            {getColorName(item.colorId)}
+                          {/if}
+                        {:else}—{/if}
+                      </td>
+                      <td>
+                        {#if item.materialId}
+                          {#if authStore.isAdmin}
+                            <a href="/admin/materials" class="dict-link">{getMaterialName(item.materialId)}</a>
+                          {:else}
+                            {getMaterialName(item.materialId)}
+                          {/if}
+                        {:else}—{/if}
+                      </td>
                       <td>
                         <input
                           class="input input-sm price-input"
@@ -442,21 +520,53 @@
         <div class="card-body">
           <div class="photos-header">
             <h3 class="section-title">{i18n.t('admin.productPhotos')}</h3>
-            <button class="btn btn-outline btn-sm" disabled>
-              {i18n.t('admin.uploadImage')}
-            </button>
+          </div>
+
+          <!-- Upload form -->
+          <div class="upload-area">
+            <input
+              bind:this={fileInput}
+              type="file"
+              accept="image/*"
+              class="sr-only"
+              onchange={handleFileSelected}
+            />
+            <div class="upload-controls">
+              <input
+                class="input input-sm"
+                type="text"
+                placeholder="Image title (optional)"
+                bind:value={uploadTitle}
+                style="max-width: 200px;"
+              />
+              <label class="toggle-label text-sm">
+                <input type="checkbox" bind:checked={uploadIsMain} />
+                <span>{i18n.t('admin.main')}</span>
+              </label>
+              <button
+                class="btn btn-primary btn-sm"
+                onclick={triggerFileInput}
+                disabled={uploading}
+              >
+                {uploading ? i18n.t('common.uploading') : i18n.t('admin.uploadImage')}
+              </button>
+            </div>
+            {#if uploading}
+              <div class="upload-progress">
+                <div class="progress-bar"></div>
+              </div>
+            {/if}
           </div>
 
           {#if photos.length > 0}
             <div class="photos-grid">
               {#each photos as img}
                 <div class="photo-card" class:main={img.isMain}>
+                  {#if img.isMain}
+                    <span class="main-badge">{i18n.t('admin.main')}</span>
+                  {/if}
                   <img src={img.url} alt={img.altText ?? 'Product'} class="photo-img" />
                   <div class="photo-meta">
-                    <label class="toggle-label text-sm">
-                      <input type="checkbox" checked={img.isMain} disabled />
-                      <span>{i18n.t('admin.main')}</span>
-                    </label>
                     {#if img.sortOrder}
                       <span class="text-xs text-muted">{i18n.t('admin.order')}: {img.sortOrder}</span>
                     {/if}
@@ -469,7 +579,7 @@
                   </div>
                   <button
                     class="btn btn-sm btn-danger-text photo-delete"
-                    onclick={() => deleteImage(img.id)}
+                    onclick={() => confirmDeleteImage(img.id)}
                   >
                     {i18n.t('common.delete')}
                   </button>
@@ -521,14 +631,46 @@
   </div>
 </Modal>
 
+<Modal
+  open={showDeleteImageModal}
+  title={i18n.t('admin.deleteImage')}
+  onclose={() => (showDeleteImageModal = false)}
+>
+  <p>{i18n.t('admin.confirmDeleteImage')}</p>
+  <div class="modal-actions">
+    <button class="btn btn-outline" onclick={() => (showDeleteImageModal = false)}>
+      {i18n.t('common.cancel')}
+    </button>
+    <button class="btn btn-danger" onclick={() => deleteImageTarget && deleteImage(deleteImageTarget)}>
+      {i18n.t('common.delete')}
+    </button>
+  </div>
+</Modal>
+
 <style>
   .editor-header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     margin-bottom: var(--space-4);
     flex-wrap: wrap;
     gap: var(--space-3);
+  }
+
+  .header-left {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .back-link {
+    font-size: 0.8125rem;
+    color: var(--color-text-light);
+    text-decoration: none;
+  }
+
+  .back-link:hover {
+    color: var(--color-primary);
   }
 
   .page-title {
@@ -538,11 +680,12 @@
   .header-actions {
     display: flex;
     gap: var(--space-3);
+    align-items: center;
   }
 
   .tabs {
     display: flex;
-    gap: var(--space-1);
+    gap: 0;
     border-bottom: 2px solid var(--color-border);
     margin-bottom: var(--space-4);
   }
@@ -558,15 +701,18 @@
     border-bottom: 2px solid transparent;
     margin-bottom: -2px;
     transition: all var(--transition-fast);
+    position: relative;
   }
 
   .tab:hover:not(:disabled) {
     color: var(--color-text);
+    background: var(--color-surface-hover);
   }
 
   .tab.active {
     color: var(--color-primary);
     border-bottom-color: var(--color-primary);
+    font-weight: 600;
   }
 
   .tab:disabled {
@@ -688,6 +834,77 @@
 
   .photos-header .section-title {
     margin-bottom: 0;
+  }
+
+  .upload-area {
+    margin-bottom: var(--space-5);
+    padding: var(--space-4);
+    border: 2px dashed var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-hover);
+  }
+
+  .upload-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+
+  .upload-progress {
+    margin-top: var(--space-3);
+    height: 4px;
+    background: var(--color-border-light);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .progress-bar {
+    height: 100%;
+    width: 100%;
+    background: var(--color-primary);
+    animation: indeterminate 1.5s ease infinite;
+  }
+
+  @keyframes indeterminate {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
+  }
+
+  .main-badge {
+    position: absolute;
+    top: var(--space-2);
+    left: var(--space-2);
+    background: var(--color-primary);
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    z-index: 1;
+  }
+
+  .dict-link {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-size: 0.8125rem;
+  }
+
+  .dict-link:hover {
+    text-decoration: underline;
   }
 
   .photos-grid {

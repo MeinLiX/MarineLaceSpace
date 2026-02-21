@@ -17,7 +17,8 @@ public static class PhotoRoutes
 
         photosGroup.MapPost("/shops/{shopId}/products/{productId}/images", PhotoHandlers.UploadPhotoHandler)
             .WithSummary("Upload a photo for a product")
-            .RequireAuthorization("SellersOrAdmin");
+            .RequireAuthorization("SellersOrAdmin")
+            .DisableAntiforgery();
 
         photosGroup.MapDelete("/shops/{shopId}/products/{productId}/images/{imageId}", PhotoHandlers.DeletePhotoHandler)
             .WithSummary("Delete a product photo")

@@ -953,6 +953,7 @@ export const uk: Translations = {
 		user: 'Користувач',
 		userDefault: 'Користувач',
 		administrator: 'Адміністратор',
+		seller: 'Продавець',
 		roles: 'Ролі',
 		assignRoles: 'Призначити ролі',
 		rolesUpdated: 'Ролі оновлено',
@@ -1168,6 +1169,9 @@ export const uk: Translations = {
 		errorLoadingShops: 'Не вдалося завантажити магазини',
 		errorLoadingShop: 'Не вдалося завантажити магазин',
 		errorDeletingShop: 'Не вдалося видалити магазин',
+		yourShop: 'Це ваш магазин',
+		notYourShop: 'У вас немає дозволу редагувати цей магазин.',
+		accessDenied: 'Доступ заборонено',
 
 		// Довідники - Розміри
 		size: 'Розмір',

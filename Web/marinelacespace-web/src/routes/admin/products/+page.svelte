@@ -5,8 +5,10 @@
   import EmptyState from '$components/EmptyState.svelte';
   import Modal from '$components/Modal.svelte';
   import { notificationStore } from '$stores/notification.svelte';
+  import { authStore } from '$stores/auth.svelte';
   import { i18n } from '$i18n/index.svelte';
-  import type { Product } from '$types';
+  import { page } from '$app/stores';
+  import type { Product, Shop } from '$types';
 
   let loading = $state(true);
   let products = $state<Product[]>([]);
@@ -19,18 +21,43 @@
   let showDeleteModal = $state(false);
   let showBulkDeleteModal = $state(false);
 
+  let sellerShops = $state<Shop[]>([]);
+  let sellerShopIds = $derived(sellerShops.map((s) => s.id));
+
+  let shopIdFilter = $derived($page.url.searchParams.get('shopId') ?? '');
+
   $effect(() => {
-    loadProducts(currentPage, search, statusFilter);
+    init();
   });
 
-  async function loadProducts(page: number, q: string, status: string) {
+  async function init() {
+    if (!authStore.isAdmin) {
+      try {
+        sellerShops = await catalogApi.getMyShops();
+      } catch {
+        /* ignore */
+      }
+    }
+    loadProducts(currentPage, search, statusFilter);
+  }
+
+  async function loadProducts(pg: number, q: string, _status: string) {
     try {
       loading = true;
-      const result = await catalogApi.getAdminProducts({
-        page,
+
+      const filters: catalogApi.ProductFilters = {
+        page: pg,
         pageSize: 20,
         search: q || undefined,
-      });
+      };
+
+      if (shopIdFilter) {
+        filters.shopId = shopIdFilter;
+      } else if (!authStore.isAdmin && sellerShopIds.length > 0) {
+        filters.shopId = sellerShopIds[0];
+      }
+
+      const result = await catalogApi.getAdminProducts(filters);
       products = result.items;
       totalPages = result.totalPages;
     } catch {
@@ -181,7 +208,13 @@
                   {product.name}
                 </a>
               </td>
-              <td>{product.shopName ?? '—'}</td>
+              <td>
+                {#if product.shopId}
+                  <a href="/admin/shops/{product.shopId}" class="shop-link">{product.shopName ?? '—'}</a>
+                {:else}
+                  <span>—</span>
+                {/if}
+              </td>
               <td>{product.categoryName ?? '—'}</td>
               <td class="cell-mono">
                 {formatCurrency(product.price)}
@@ -194,6 +227,9 @@
               <td class="cell-actions">
                 <a href="/admin/products/{product.id}" class="btn btn-sm btn-ghost">
                   {i18n.t('common.edit')}
+                </a>
+                <a href="/products/{product.id}" class="btn btn-sm btn-ghost" target="_blank" rel="noopener" title="View public page">
+                  🌐
                 </a>
                 <button
                   class="btn btn-sm btn-ghost btn-danger-text"
@@ -332,6 +368,16 @@
   }
 
   .product-link:hover {
+    text-decoration: underline;
+  }
+
+  .shop-link {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-size: 0.8125rem;
+  }
+
+  .shop-link:hover {
     text-decoration: underline;
   }
 

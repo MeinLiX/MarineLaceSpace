@@ -8,7 +8,6 @@
     duration?: number;
   }
 
-  // Standalone reactive store for notifications
   let notifications = $state<Notification[]>([]);
   let timers = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -31,7 +30,6 @@
     notifications = notifications.filter((n) => n.id !== id);
   }
 
-  // Expose globally for other components via window (or import store)
   if (typeof window !== 'undefined') {
     (window as unknown as Record<string, unknown>).__mls_toast = addNotification;
   }

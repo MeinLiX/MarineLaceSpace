@@ -70,7 +70,6 @@
     }
   }
 
-  // Password change
   let showPasswordForm = $state(false);
   let currentPassword = $state('');
   let newPassword = $state('');

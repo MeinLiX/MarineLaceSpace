@@ -2,7 +2,6 @@
 
 namespace MarineLaceSpace.Models.Database.Catalog;
 
-// Зв'язкова таблиця між товаром і кольором
 public class ProductColor
 {
     [Key]

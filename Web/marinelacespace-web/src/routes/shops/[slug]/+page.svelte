@@ -60,7 +60,6 @@
     if (!shop) return;
     isReviewsLoading = true;
     try {
-      // Fetch reviews across shop's products (using shop id as source)
       const result: PaginatedResponse<ProductReview> = await getProductReviews(shop.id, {
         page: reviewPage,
         pageSize: 10,

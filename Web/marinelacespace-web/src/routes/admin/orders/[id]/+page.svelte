@@ -5,6 +5,7 @@
   import LoadingSpinner from '$components/LoadingSpinner.svelte';
   import Modal from '$components/Modal.svelte';
   import { notificationStore } from '$stores/notification.svelte';
+  import { authStore } from '$stores/auth.svelte';
   import { i18n } from '$i18n/index.svelte';
   import type { Order, OrderStatus, PaymentRecord } from '$types';
 
@@ -12,17 +13,15 @@
   let loading = $state(true);
   let order = $state<Order | null>(null);
   let payments = $state<PaymentRecord[]>([]);
+  let loadError = $state<string | null>(null);
 
-  // Status change
   let newStatusId = $state(0);
   let changingStatus = $state(false);
 
-  // Tracking
   let trackingInput = $state('');
   let showTrackingModal = $state(false);
   let addingTracking = $state(false);
 
-  // Cancel
   let showCancelModal = $state(false);
   let canceling = $state(false);
 
@@ -36,7 +35,7 @@
     5: 'Shipped', 6: 'Delivered', 7: 'Completed', 8: 'Canceled', 9: 'Refunded',
   };
 
-  let statusOptions = $derived([
+  const allStatusOptions = $derived([
     { value: 1, label: i18n.t('admin.orderStatusNew') },
     { value: 2, label: i18n.t('admin.orderStatusPendingPayment') },
     { value: 3, label: i18n.t('admin.orderStatusPaid') },
@@ -48,6 +47,14 @@
     { value: 9, label: i18n.t('admin.orderStatusRefunded') },
   ]);
 
+  const sellerAllowedStatuses = new Set([4, 5, 6]); // Processing, Shipped, Delivered
+
+  let statusOptions = $derived(
+    authStore.isAdmin
+      ? allStatusOptions
+      : allStatusOptions.filter((opt) => sellerAllowedStatuses.has(opt.value))
+  );
+
   $effect(() => {
     loadOrder(orderId);
   });
@@ -55,6 +62,7 @@
   async function loadOrder(id: string) {
     try {
       loading = true;
+      loadError = null;
       const [orderRes, paymentsRes] = await Promise.all([
         orderApi.getOrderById(id),
         paymentApi.getPaymentsByOrder(id).catch(() => [] as PaymentRecord[]),
@@ -62,8 +70,17 @@
       order = orderRes;
       payments = paymentsRes;
       newStatusId = statusIdMap[orderRes.status] ?? 1;
-    } catch {
-      notificationStore.error(i18n.t('admin.errorLoadingOrder'));
+    } catch (err: unknown) {
+      const status = (err as { status?: number })?.status
+        ?? (err as { response?: { status?: number } })?.response?.status;
+      if (status === 403) {
+        loadError = i18n.t('admin.accessDenied');
+      } else if (status === 404) {
+        loadError = i18n.t('admin.orderNotFound');
+      } else {
+        loadError = i18n.t('admin.errorLoadingOrder');
+      }
+      notificationStore.error(loadError);
     } finally {
       loading = false;
     }
@@ -155,9 +172,27 @@
     };
     return map[status] ?? status;
   }
+
+  const statusFlowSteps = ['New', 'Paid', 'Processing', 'Shipped', 'Delivered', 'Completed'] as const;
+
+  let statusFlow = $derived.by(() => {
+    const o = order;
+    if (!o) return [];
+    const currentIdx = statusFlowSteps.indexOf(o.status as typeof statusFlowSteps[number]);
+    const isCanceled = o.status === 'Canceled' || o.status === 'Refunded';
+
+    return statusFlowSteps.map((step, idx) => ({
+      label: statusLabel(step),
+      completed: !isCanceled && currentIdx >= 0 && idx < currentIdx,
+      current: !isCanceled && step === o.status,
+      canceled: isCanceled && idx === 0,
+    }));
+  });
 </script>
 
 <div class="order-detail">
+  <a href="/admin/orders" class="back-link">← {i18n.t('admin.orders')}</a>
+
   {#if loading}
     <LoadingSpinner message={i18n.t('admin.loadingOrder')} />
   {:else if order}
@@ -171,7 +206,7 @@
       <div class="header-actions">
         {#if order.status !== 'Canceled' && order.status !== 'Refunded'}
           <button class="btn btn-outline btn-sm" onclick={() => (showTrackingModal = true)}>
-            {i18n.t('admin.addTracking')}
+            📦 {i18n.t('admin.addTracking')}
           </button>
           <button
             class="btn btn-sm"
@@ -183,6 +218,25 @@
         {/if}
       </div>
     </div>
+
+    <!-- Status progression -->
+    <section class="status-progression card">
+      <div class="card-body">
+        <div class="progression-bar">
+          {#each statusFlow as step}
+            <div
+              class="progression-step"
+              class:completed={step.completed}
+              class:current={step.current}
+              class:canceled={step.canceled}
+            >
+              <div class="step-dot"></div>
+              <span class="step-label">{step.label}</span>
+            </div>
+          {/each}
+        </div>
+      </div>
+    </section>
 
     <div class="detail-grid">
       <div class="detail-main">
@@ -211,16 +265,19 @@
         <div class="info-cards-row">
           <section class="detail-section card">
             <div class="card-body">
-              <h3 class="section-title">{i18n.t('admin.customer')}</h3>
+              <h3 class="section-title">👤 {i18n.t('admin.customer')}</h3>
               <p><strong>{i18n.t('admin.ownerName')}:</strong> {order.shippingAddress.fullName}</p>
-              <p><strong>Email:</strong> {order.buyerEmail}</p>
+              <p>
+                <strong>Email:</strong>
+                <a href="mailto:{order.buyerEmail}" class="email-link">{order.buyerEmail}</a>
+              </p>
               <p><strong>{i18n.t('admin.phone')}:</strong> {order.shippingAddress.phone}</p>
             </div>
           </section>
 
           <section class="detail-section card">
             <div class="card-body">
-              <h3 class="section-title">{i18n.t('admin.shippingAddress')}</h3>
+              <h3 class="section-title">📍 {i18n.t('admin.shippingAddress')}</h3>
               <p>{order.shippingAddress.addressLine1}</p>
               {#if order.shippingAddress.addressLine2}
                 <p>{order.shippingAddress.addressLine2}</p>
@@ -237,7 +294,7 @@
         <!-- Tracking -->
         <section class="detail-section card">
           <div class="card-body">
-            <h3 class="section-title">{i18n.t('admin.tracking')}</h3>
+            <h3 class="section-title">📦 {i18n.t('admin.tracking')}</h3>
             {#if order.trackingNumber}
               <p class="tracking-number">{order.trackingNumber}</p>
             {:else}
@@ -249,7 +306,7 @@
         <!-- Order items -->
         <section class="detail-section card">
           <div class="card-header">
-            <h3>{i18n.t('admin.orderItems')}</h3>
+            <h3>🛒 {i18n.t('admin.orderItems')}</h3>
           </div>
           <div class="card-body" style="padding: 0;">
             <div class="table-wrapper">
@@ -274,7 +331,11 @@
                           <div class="item-thumb placeholder">📷</div>
                         {/if}
                       </td>
-                      <td class="cell-title">{item.productName}</td>
+                      <td class="cell-title">
+                        <a href="/admin/products/{item.productId}" class="product-link">
+                          {item.productName}
+                        </a>
+                      </td>
                       <td class="text-sm">
                         {[item.sizeName, item.colorName, item.materialName]
                           .filter(Boolean)
@@ -372,7 +433,12 @@
       </aside>
     </div>
   {:else}
-    <p class="text-muted">{i18n.t('admin.orderNotFound')}</p>
+    <div class="error-message card">
+      <div class="card-body" style="text-align: center; padding: var(--space-8);">
+        <p class="text-muted" style="font-size: 1.125rem;">{loadError ?? i18n.t('admin.orderNotFound')}</p>
+        <a href="/admin/orders" class="btn btn-outline" style="margin-top: var(--space-4);">{i18n.t('common.back')}</a>
+      </div>
+    </div>
   {/if}
 </div>
 
@@ -415,6 +481,21 @@
 </Modal>
 
 <style>
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    color: var(--color-text-light);
+    text-decoration: none;
+    font-size: 0.875rem;
+    margin-bottom: var(--space-4);
+    transition: color var(--transition-fast);
+  }
+
+  .back-link:hover {
+    color: var(--color-primary);
+  }
+
   .page-title {
     font-size: 1.5rem;
   }
@@ -423,7 +504,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: var(--space-6);
+    margin-bottom: var(--space-4);
     flex-wrap: wrap;
     gap: var(--space-3);
   }
@@ -437,6 +518,104 @@
   .header-actions {
     display: flex;
     gap: var(--space-2);
+  }
+
+  /* Status progression */
+  .status-progression {
+    margin-bottom: var(--space-6);
+  }
+
+  .progression-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    position: relative;
+  }
+
+  .progression-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    flex: 1;
+    position: relative;
+  }
+
+  .progression-step:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    top: 10px;
+    left: calc(50% + 12px);
+    right: calc(-50% + 12px);
+    height: 2px;
+    background: var(--color-border);
+  }
+
+  .progression-step.completed:not(:last-child)::after {
+    background: var(--color-success);
+  }
+
+  .step-dot {
+    width: 20px;
+    height: 20px;
+    border-radius: var(--radius-full);
+    background: var(--color-border);
+    border: 3px solid var(--color-surface);
+    box-shadow: 0 0 0 2px var(--color-border);
+    z-index: 1;
+    transition: all var(--transition-fast);
+  }
+
+  .progression-step.completed .step-dot {
+    background: var(--color-success);
+    box-shadow: 0 0 0 2px var(--color-success);
+  }
+
+  .progression-step.current .step-dot {
+    background: var(--color-primary);
+    box-shadow: 0 0 0 2px var(--color-primary), 0 0 0 5px color-mix(in srgb, var(--color-primary) 20%, transparent);
+  }
+
+  .progression-step.canceled .step-dot {
+    background: var(--color-error);
+    box-shadow: 0 0 0 2px var(--color-error);
+  }
+
+  .step-label {
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .progression-step.completed .step-label {
+    color: var(--color-success);
+  }
+
+  .progression-step.current .step-label {
+    color: var(--color-primary);
+    font-weight: 700;
+  }
+
+  .email-link {
+    color: var(--color-primary);
+    text-decoration: none;
+  }
+
+  .email-link:hover {
+    text-decoration: underline;
+  }
+
+  .product-link {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-weight: 500;
+  }
+
+  .product-link:hover {
+    text-decoration: underline;
   }
 
   .detail-grid {
@@ -636,6 +815,9 @@
     }
     .info-cards-row {
       grid-template-columns: 1fr;
+    }
+    .progression-bar {
+      flex-wrap: wrap;
     }
   }
 </style>

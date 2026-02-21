@@ -34,7 +34,6 @@
   let reviewTotalPages = $state(1);
   let isReviewsLoading = $state(false);
 
-  // Dictionaries for variant names
   let allSizes = $state<Size[]>([]);
   let allColors = $state<Color[]>([]);
 
@@ -167,7 +166,6 @@
       allSizes = sizesRes;
       allColors = colorsRes;
 
-      // Pre-select first available variants from inventory
       const sizeIds = [...new Set(productRes.inventory.map(i => i.sizeId).filter(Boolean) as string[])];
       const colorIds = [...new Set(productRes.inventory.map(i => i.colorId).filter(Boolean) as string[])];
       const materialNames = productRes.materials ?? [];
@@ -176,12 +174,10 @@
       if (colorIds.length > 0) selectedColor = colorIds[0];
       if (materialNames.length > 0) selectedMaterial = materialNames[0];
 
-      // Load category
       if (product.categoryId) {
         try { category = await getCategoryById(product.categoryId); } catch { /* noop */ }
       }
 
-      // Load reviews
       reviewSummary = await getReviewSummary(id);
       await loadReviews();
     } catch (err) {
@@ -223,7 +219,6 @@
   // ─── Reset image index when variant changes ───────────────────────────────
 
   $effect(() => {
-    // Track dependencies
     void selectedColor;
     void selectedMaterial;
     selectedImageIndex = 0;

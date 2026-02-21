@@ -148,6 +148,42 @@ export async function addProductImage(shopId: string, productId: string, data: {
 	return api.post<ProductPhoto>(`/shops/${shopId}/products/${productId}/images?${params.toString()}`);
 }
 
+export async function uploadProductImage(
+	shopId: string,
+	productId: string,
+	file: File,
+	title?: string,
+	isMain?: boolean
+): Promise<ProductPhoto> {
+	const formData = new FormData();
+	formData.append('file', file);
+	if (title) formData.append('title', title);
+	formData.append('isMain', String(isMain ?? false));
+
+	const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+	const baseUrl =
+		(typeof window !== 'undefined' && (window as unknown as Record<string, unknown>).__PUBLIC_API_URL__) as string
+		|| import.meta.env.PUBLIC_API_URL as string
+		|| '/api';
+
+	const res = await fetch(`${baseUrl}/shops/${shopId}/products/${productId}/images`, {
+		method: 'POST',
+		headers: token ? { Authorization: `Bearer ${token}` } : {},
+		body: formData,
+	});
+
+	if (!res.ok) {
+		const body = await res.text().catch(() => '');
+		throw new Error(body || `Upload failed (${res.status})`);
+	}
+
+	const parsed = await res.json();
+	if (parsed && typeof parsed === 'object' && 'succeeded' in parsed && 'data' in parsed) {
+		return parsed.data as ProductPhoto;
+	}
+	return parsed as ProductPhoto;
+}
+
 export async function deleteProductImage(shopId: string, productId: string, imageId: string): Promise<void> {
 	return api.delete<void>(`/shops/${shopId}/products/${productId}/images/${imageId}`);
 }

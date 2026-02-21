@@ -2,7 +2,6 @@
 
 namespace MarineLaceSpace.Models.Database.Catalog;
 
-// Довідник матеріалів/тканин
 public class Material
 {
     [Key]

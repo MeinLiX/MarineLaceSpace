@@ -3,7 +3,6 @@ using System.ComponentModel.DataAnnotations;
 
 namespace MarineLaceSpace.Models.Database.Catalog;
 
-// Довідник розмірів
 public class Size
 {
     [Key]
@@ -16,10 +15,8 @@ public class Size
     [StringLength(255)]
     public string Description { get; set; }
 
-    // Чи це кастомний розмір
     public bool IsCustom { get; set; } = false;
 
-    // Для якої статі цей розмір
     [StringLength(50)]
     public ProductSizeGender Gender { get; set; } = ProductSizeGender.Unisex;
 

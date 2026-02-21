@@ -156,7 +156,6 @@
     e.preventDefault();
     if (!newsletterEmail || newsletterSubmitting) return;
     newsletterSubmitting = true;
-    // Simulated submit
     setTimeout(() => {
       newsletterSubmitted = true;
       newsletterSubmitting = false;

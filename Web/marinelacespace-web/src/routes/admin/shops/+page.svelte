@@ -5,6 +5,7 @@
   import EmptyState from '$components/EmptyState.svelte';
   import Modal from '$components/Modal.svelte';
   import { notificationStore } from '$stores/notification.svelte';
+  import { authStore } from '$stores/auth.svelte';
   import { i18n } from '$i18n/index.svelte';
   import type { Shop } from '$types';
 
@@ -29,13 +30,23 @@
   async function loadShops(page: number, q: string) {
     try {
       loading = true;
-      const result = await catalogApi.getShops({
-        page,
-        pageSize: 20,
-        search: q || undefined,
-      });
-      shops = result.items;
-      totalPages = result.totalPages;
+
+      if (authStore.isAdmin) {
+        const result = await catalogApi.getShops({
+          page,
+          pageSize: 20,
+          search: q || undefined,
+        });
+        shops = result.items;
+        totalPages = result.totalPages;
+      } else {
+        const myShops = await catalogApi.getMyShops();
+        const filtered = q
+          ? myShops.filter((s) => s.name.toLowerCase().includes(q.toLowerCase()))
+          : myShops;
+        shops = filtered;
+        totalPages = 1;
+      }
     } catch {
       notificationStore.error(i18n.t('admin.errorLoadingShops'));
     } finally {
@@ -120,6 +131,7 @@
             <th>{i18n.t('admin.status')}</th>
             <th>{i18n.t('admin.products')}</th>
             <th>{i18n.t('admin.createdDate')}</th>
+            <th>{i18n.t('admin.quickLinks')}</th>
             <th>{i18n.t('admin.actions')}</th>
           </tr>
         </thead>
@@ -135,14 +147,25 @@
               </td>
               <td class="cell-title">
                 <a href="/admin/shops/{shop.id}" class="shop-link">{shop.name}</a>
+                {#if shop.slug}
+                  <span class="slug-hint">/{shop.slug}</span>
+                {/if}
               </td>
               <td>
-                <span class="badge {shop.isActive ? 'badge-success' : 'badge-error'}">
+                <span class="status-badge" class:active={shop.isActive} class:inactive={!shop.isActive}>
+                  <span class="status-dot"></span>
                   {shop.isActive ? i18n.t('admin.active') : i18n.t('admin.inactive')}
                 </span>
               </td>
-              <td class="text-center">{shop.productCount}</td>
+              <td class="text-center">
+                <a href="/admin/products?shopId={shop.id}" class="count-link">{shop.productCount}</a>
+              </td>
               <td>{formatDate(shop.createdAt)}</td>
+              <td class="cell-links">
+                <a href="/admin/products?shopId={shop.id}" class="quick-link" title="Products">📦</a>
+                <a href="/admin/orders?shopId={shop.id}" class="quick-link" title="Orders">🧾</a>
+                <a href="/shops/{shop.slug || shop.id}" class="quick-link" title="Public page">🌐</a>
+              </td>
               <td class="cell-actions">
                 <a href="/admin/shops/{shop.id}" class="btn btn-sm btn-ghost">{i18n.t('admin.details')}</a>
                 <button
@@ -254,6 +277,10 @@
     vertical-align: middle;
   }
 
+  .data-table tbody tr {
+    transition: background var(--transition-fast);
+  }
+
   .data-table tbody tr:hover {
     background: var(--color-surface-hover);
   }
@@ -284,6 +311,72 @@
 
   .shop-link:hover {
     text-decoration: underline;
+  }
+
+  .slug-hint {
+    display: block;
+    font-size: 0.7rem;
+    color: var(--color-text-light);
+    font-weight: 400;
+  }
+
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    padding: 2px 10px 2px 8px;
+    border-radius: 999px;
+  }
+
+  .status-badge.active {
+    color: #15803d;
+    background: #dcfce7;
+  }
+
+  .status-badge.inactive {
+    color: #6b7280;
+    background: #f3f4f6;
+  }
+
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  .count-link {
+    color: var(--color-primary);
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .count-link:hover {
+    text-decoration: underline;
+  }
+
+  .cell-links {
+    white-space: nowrap;
+    display: flex;
+    gap: var(--space-2);
+  }
+
+  .quick-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius-sm);
+    text-decoration: none;
+    font-size: 1rem;
+    transition: background var(--transition-fast);
+  }
+
+  .quick-link:hover {
+    background: var(--color-surface-hover);
   }
 
   .cell-actions {

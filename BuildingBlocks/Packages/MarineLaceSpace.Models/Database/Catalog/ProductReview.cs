@@ -2,7 +2,6 @@
 
 namespace MarineLaceSpace.Models.Database.Catalog;
 
-// Відгуки на товар
 public class ProductReview
 {
     [Key]
@@ -11,7 +10,6 @@ public class ProductReview
     public string ProductId { get; set; }
     public Product Product { get; set; }
 
-    // Рейтинг (від 0 до 5 з кроком 0.5)
     public decimal Rating { get; set; }
 
     [StringLength(1000)]

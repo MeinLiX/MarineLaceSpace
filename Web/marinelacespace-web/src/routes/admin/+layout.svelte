@@ -11,7 +11,7 @@
   let currentPath = $derived($page.url.pathname);
 
   $effect(() => {
-    if (!authStore.isLoading && !authStore.isAdmin) {
+    if (!authStore.isLoading && !authStore.isAdmin && !authStore.isSeller) {
       goto('/');
     }
   });
@@ -21,21 +21,31 @@
     sidebarOpen = false;
   });
 
-  let navItems = $derived([
-    { icon: '📊', label: i18n.t('admin.dashboard'), href: '/admin' },
-    { icon: '📦', label: i18n.t('admin.products'), href: '/admin/products' },
-    { icon: '📂', label: i18n.t('admin.categories'), href: '/admin/categories' },
-    { icon: '📋', label: i18n.t('admin.orders'), href: '/admin/orders' },
-    { icon: '🏪', label: i18n.t('admin.shops'), href: '/admin/shops' },
-    { icon: '⭐', label: i18n.t('admin.reviews'), href: '/admin/reviews' },
-    { icon: '👥', label: i18n.t('admin.users'), href: '/admin/users' },
-  ]);
+  let navItems = $derived.by(() => {
+    const items = [
+      { icon: '📊', label: i18n.t('admin.dashboard'), href: '/admin' },
+      { icon: '📦', label: i18n.t('admin.products'), href: '/admin/products' },
+      { icon: '📋', label: i18n.t('admin.orders'), href: '/admin/orders' },
+      { icon: '🏪', label: i18n.t('admin.shops'), href: '/admin/shops' },
+      { icon: '⭐', label: i18n.t('admin.reviews'), href: '/admin/reviews' },
+    ];
 
-  let dictionaryItems = $derived([
-    { icon: '📐', label: i18n.t('admin.sizes'), href: '/admin/dictionaries/sizes' },
-    { icon: '🎨', label: i18n.t('admin.colors'), href: '/admin/dictionaries/colors' },
-    { icon: '🧵', label: i18n.t('admin.materials'), href: '/admin/dictionaries/materials' },
-  ]);
+    if (authStore.isAdmin) {
+      items.splice(2, 0, { icon: '📂', label: i18n.t('admin.categories'), href: '/admin/categories' });
+      items.push({ icon: '👥', label: i18n.t('admin.users'), href: '/admin/users' });
+    }
+
+    return items;
+  });
+
+  let dictionaryItems = $derived.by(() => {
+    if (!authStore.isAdmin) return [];
+    return [
+      { icon: '📐', label: i18n.t('admin.sizes'), href: '/admin/dictionaries/sizes' },
+      { icon: '🎨', label: i18n.t('admin.colors'), href: '/admin/dictionaries/colors' },
+      { icon: '🧵', label: i18n.t('admin.materials'), href: '/admin/dictionaries/materials' },
+    ];
+  });
 
   function isLinkActive(href: string): boolean {
     if (href === '/admin') return currentPath === '/admin';
@@ -43,7 +53,7 @@
   }
 </script>
 
-{#if authStore.isAdmin}
+{#if authStore.isAdmin || authStore.isSeller}
   <div class="admin-wrapper">
     <button
       class="hamburger"
@@ -81,18 +91,20 @@
           </a>
         {/each}
 
-        <div class="nav-separator"></div>
+        {#if dictionaryItems.length > 0}
+          <div class="nav-separator"></div>
 
-        {#each dictionaryItems as item}
-          <a
-            href={item.href}
-            class="nav-link"
-            class:active={isLinkActive(item.href)}
-          >
-            <span class="nav-icon">{item.icon}</span>
-            <span class="nav-label">{item.label}</span>
-          </a>
-        {/each}
+          {#each dictionaryItems as item}
+            <a
+              href={item.href}
+              class="nav-link"
+              class:active={isLinkActive(item.href)}
+            >
+              <span class="nav-icon">{item.icon}</span>
+              <span class="nav-label">{item.label}</span>
+            </a>
+          {/each}
+        {/if}
       </nav>
 
       <div class="sidebar-user">
@@ -101,7 +113,7 @@
             <span class="user-name">
               {authStore.currentUser.firstName} {authStore.currentUser.lastName}
             </span>
-            <span class="user-role">{i18n.t('admin.administrator')}</span>
+            <span class="user-role">{authStore.isAdmin ? i18n.t('admin.administrator') : i18n.t('admin.seller')}</span>
           </div>
           <button class="btn-logout" onclick={() => authStore.logout()}>
             {i18n.t('common.logout')}

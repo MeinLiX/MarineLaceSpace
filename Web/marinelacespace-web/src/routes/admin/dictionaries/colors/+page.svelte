@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { goto } from '$app/navigation';
+  import { authStore } from '$lib/stores/auth.svelte';
   import * as catalogApi from '$api/catalog';
   import LoadingSpinner from '$components/LoadingSpinner.svelte';
   import EmptyState from '$components/EmptyState.svelte';
@@ -7,10 +9,15 @@
   import { i18n } from '$i18n/index.svelte';
   import type { Color } from '$types';
 
+  $effect(() => {
+    if (!authStore.isLoading && !authStore.isAdmin) {
+      goto('/admin');
+    }
+  });
+
   let loading = $state(true);
   let colors = $state<Color[]>([]);
 
-  // Modal state
   let showModal = $state(false);
   let modalMode = $state<'create' | 'edit'>('create');
   let editingId = $state<string | null>(null);
@@ -18,7 +25,6 @@
   let modalHex = $state('#000000');
   let saving = $state(false);
 
-  // Delete
   let showDeleteModal = $state(false);
   let deleteTarget = $state<Color | null>(null);
 
@@ -99,6 +105,7 @@
   }
 </script>
 
+{#if authStore.isAdmin}
 <div class="colors-page">
   <div class="page-header">
     <h1 class="page-title">{i18n.t('admin.colorsDictionary')}</h1>
@@ -225,6 +232,12 @@
     <button class="btn btn-danger" onclick={executeDelete}>{i18n.t('common.delete')}</button>
   </div>
 </Modal>
+{:else}
+  <div style="padding: 2rem; text-align: center;">
+    <p>Access denied. Admin only.</p>
+    <a href="/admin">← Back to Dashboard</a>
+  </div>
+{/if}
 
 <style>
   .page-header {

@@ -1,11 +1,13 @@
 <script lang="ts">
   import * as orderApi from '$api/order';
+  import * as catalogApi from '$api/catalog';
   import LoadingSpinner from '$components/LoadingSpinner.svelte';
   import Pagination from '$components/Pagination.svelte';
   import EmptyState from '$components/EmptyState.svelte';
   import { notificationStore } from '$stores/notification.svelte';
+  import { authStore } from '$stores/auth.svelte';
   import { i18n } from '$i18n/index.svelte';
-  import type { Order, OrderStatus } from '$types';
+  import type { Order, OrderStatus, Shop } from '$types';
 
   let loading = $state(true);
   let orders = $state<Order[]>([]);
@@ -13,6 +15,7 @@
   let currentPage = $state(1);
   let search = $state('');
   let activeStatusId = $state<number | null>(null);
+  let sellerShops = $state<Shop[]>([]);
 
   let statusTabs = $derived([
     { label: i18n.t('admin.all'), value: null as number | null },
@@ -24,6 +27,13 @@
     { label: i18n.t('admin.orderStatus.canceledPlural'), value: 8 },
   ]);
 
+  let orderStats = $derived({
+    total: orders.length,
+    pending: orders.filter((o) => o.status === 'New' || o.status === 'PendingPayment').length,
+    processing: orders.filter((o) => o.status === 'Processing' || o.status === 'Paid').length,
+    shipped: orders.filter((o) => o.status === 'Shipped').length,
+  });
+
   $effect(() => {
     loadOrders(currentPage, activeStatusId);
   });
@@ -31,14 +41,41 @@
   async function loadOrders(page: number, statusId: number | null) {
     try {
       loading = true;
-      const result = await orderApi.getAdminOrders({
-        page,
-        pageSize: 20,
-        statusId: statusId ?? undefined,
-        search: search || undefined,
-      });
-      orders = result.items;
-      totalPages = result.totalPages;
+
+      if (authStore.isAdmin) {
+        const result = await orderApi.getAdminOrders({
+          page,
+          pageSize: 20,
+          statusId: statusId ?? undefined,
+          search: search || undefined,
+        });
+        orders = result.items;
+        totalPages = result.totalPages;
+      } else if (authStore.isSeller) {
+        if (sellerShops.length === 0) {
+          sellerShops = await catalogApi.getMyShops();
+        }
+        if (sellerShops.length === 0) {
+          orders = [];
+          totalPages = 1;
+          return;
+        }
+
+        const shopResults = await Promise.all(
+          sellerShops.map((shop) =>
+            orderApi.getShopOrders(shop.id, {
+              page,
+              pageSize: 20,
+              statusId: statusId ?? undefined,
+            }),
+          ),
+        );
+
+        const merged = shopResults.flatMap((r) => r.items);
+        merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        orders = merged;
+        totalPages = Math.max(...shopResults.map((r) => r.totalPages), 1);
+      }
     } catch {
       notificationStore.error(i18n.t('admin.errorLoadingOrders'));
     } finally {
@@ -101,7 +138,40 @@
 </script>
 
 <div class="orders-page">
-  <h1 class="page-title">{i18n.t('admin.orders')}</h1>
+  <div class="page-header">
+    <h1 class="page-title">{i18n.t('admin.orders')}</h1>
+    {#if !loading && orders.length > 0}
+      <div class="order-stats">
+        <div class="stat-chip">
+          <span class="stat-count">{orderStats.total}</span>
+          <span class="stat-label">{i18n.t('admin.all')}</span>
+        </div>
+        <div class="stat-chip stat-pending">
+          <span class="stat-count">{orderStats.pending}</span>
+          <span class="stat-label">Pending</span>
+        </div>
+        <div class="stat-chip stat-processing">
+          <span class="stat-count">{orderStats.processing}</span>
+          <span class="stat-label">{i18n.t('admin.orderStatus.processing')}</span>
+        </div>
+        <div class="stat-chip stat-shipped">
+          <span class="stat-count">{orderStats.shipped}</span>
+          <span class="stat-label">{i18n.t('admin.orderStatus.shippedPlural')}</span>
+        </div>
+      </div>
+    {/if}
+  </div>
+
+  {#if authStore.isSeller && !authStore.isAdmin && sellerShops.length > 0}
+    <div class="seller-context">
+      <span class="seller-context-icon">🏪</span>
+      <span>
+        {sellerShops.length === 1
+          ? `Orders for: ${sellerShops[0].name}`
+          : `Orders across ${sellerShops.length} shops`}
+      </span>
+    </div>
+  {/if}
 
   <div class="status-tabs">
     {#each statusTabs as tab}
@@ -150,21 +220,31 @@
         </thead>
         <tbody>
           {#each orders as order}
-            <tr>
-              <td class="cell-mono">#{order.id.slice(0, 8)}</td>
+            <tr class="order-row" onclick={() => { window.location.href = `/admin/orders/${order.id}`; }}>
+              <td class="cell-mono">
+                <a href="/admin/orders/{order.id}" class="order-link" onclick={(e: MouseEvent) => e.stopPropagation()}>
+                  #{order.id.slice(0, 8)}
+                </a>
+              </td>
               <td class="cell-nowrap">{formatDate(order.createdAt)}</td>
-              <td>{order.shippingAddress.fullName}</td>
-              <td>{order.buyerEmail}</td>
-              <td class="text-center">{order.items.length}</td>
-              <td class="cell-mono">{formatCurrency(order.totalPrice)}</td>
+              <td class="cell-buyer">{order.shippingAddress.fullName}</td>
+              <td>
+                <a href="mailto:{order.buyerEmail}" class="email-link" onclick={(e: MouseEvent) => e.stopPropagation()}>
+                  {order.buyerEmail}
+                </a>
+              </td>
+              <td class="text-center">
+                <span class="items-count">{order.items.length}</span>
+              </td>
+              <td class="cell-mono cell-amount">{formatCurrency(order.totalPrice)}</td>
               <td>
                 <span class="badge {statusBadge(order.status)}">
                   {statusLabel(order.status)}
                 </span>
               </td>
               <td>
-                <a href="/admin/orders/{order.id}" class="btn btn-sm btn-ghost">
-                  {i18n.t('admin.details')}
+                <a href="/admin/orders/{order.id}" class="btn btn-sm btn-ghost detail-btn" onclick={(e: MouseEvent) => e.stopPropagation()}>
+                  {i18n.t('admin.details')} →
                 </a>
               </td>
             </tr>
@@ -178,9 +258,76 @@
 </div>
 
 <style>
+  .page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+  }
+
   .page-title {
     font-size: 1.75rem;
+    margin: 0;
+  }
+
+  .order-stats {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+
+  .stat-chip {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-full);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border-light);
+    font-size: 0.75rem;
+  }
+
+  .stat-count {
+    font-weight: 700;
+    font-size: 0.8125rem;
+  }
+
+  .stat-label {
+    color: var(--color-text-light);
+  }
+
+  .stat-pending {
+    border-color: var(--color-info);
+    background: color-mix(in srgb, var(--color-info) 8%, transparent);
+  }
+
+  .stat-processing {
+    border-color: var(--color-warning);
+    background: color-mix(in srgb, var(--color-warning) 8%, transparent);
+  }
+
+  .stat-shipped {
+    border-color: var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+  }
+
+  .seller-context {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    background: color-mix(in srgb, var(--color-primary) 6%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-primary) 20%, transparent);
+    border-radius: var(--radius-md);
+    font-size: 0.875rem;
+    color: var(--color-text);
     margin-bottom: var(--space-4);
+  }
+
+  .seller-context-icon {
+    font-size: 1.125rem;
   }
 
   .status-tabs {
@@ -207,6 +354,7 @@
 
   .status-tab:hover {
     color: var(--color-text);
+    background: var(--color-surface-hover);
   }
 
   .status-tab.active {
@@ -253,8 +401,34 @@
     vertical-align: middle;
   }
 
-  .data-table tbody tr:hover {
+  .order-row {
+    cursor: pointer;
+    transition: background var(--transition-fast);
+  }
+
+  .order-row:hover {
     background: var(--color-surface-hover);
+  }
+
+  .order-link {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-weight: 600;
+  }
+
+  .order-link:hover {
+    text-decoration: underline;
+  }
+
+  .email-link {
+    color: var(--color-text-light);
+    text-decoration: none;
+    font-size: 0.8125rem;
+  }
+
+  .email-link:hover {
+    color: var(--color-primary);
+    text-decoration: underline;
   }
 
   .cell-mono {
@@ -266,7 +440,33 @@
     white-space: nowrap;
   }
 
+  .cell-buyer {
+    font-weight: 500;
+  }
+
+  .cell-amount {
+    font-weight: 600;
+  }
+
+  .items-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.5rem;
+    height: 1.5rem;
+    padding: 0 var(--space-1);
+    border-radius: var(--radius-full);
+    background: var(--color-border-light);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
   .text-center {
     text-align: center;
+  }
+
+  .detail-btn {
+    font-weight: 500;
+    white-space: nowrap;
   }
 </style>

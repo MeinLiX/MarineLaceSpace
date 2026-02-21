@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Order.WebHost.Data;
+using System.Net.Http.Json;
 using System.Security.Claims;
 
 namespace Order.WebHost.Routes;
@@ -22,6 +23,46 @@ internal class OrderHandlers
         public required IHttpContextAccessor HttpContextAccessor { get; init; }
         public required ILogger<OrderHandlers> Logger { get; init; }
         public IEventBus? EventBus { get; init; }
+        public required IHttpClientFactory HttpClientFactory { get; init; }
+    }
+
+    /// <summary>
+    /// Verifies that the current seller owns the given shop by calling Catalog service.
+    /// Returns true if the user is admin or owns the shop.
+    /// </summary>
+    private static async Task<bool> VerifySellerOwnsShopAsync(OrderServices services, string shopId)
+    {
+        var httpContext = services.HttpContextAccessor.HttpContext!;
+        var isAdmin = httpContext.User.IsInRole("Admin");
+        if (isAdmin) return true;
+
+        var currentUserId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(currentUserId)) return false;
+
+        try
+        {
+            var client = services.HttpClientFactory.CreateClient("catalog-api");
+            // Forward the authorization header so the catalog service can verify
+            var authHeader = httpContext.Request.Headers["Authorization"].FirstOrDefault();
+            if (!string.IsNullOrEmpty(authHeader))
+                client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", authHeader);
+
+            var response = await client.GetAsync($"/shops/{shopId}");
+            if (!response.IsSuccessStatusCode) return false;
+
+            var json = await response.Content.ReadFromJsonAsync<ShopOwnerInfo>();
+            return json?.OwnerId == currentUserId;
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Failed to verify shop ownership for shop {ShopId}", shopId);
+            return false;
+        }
+    }
+
+    private record ShopOwnerInfo
+    {
+        public string? OwnerId { get; init; }
     }
 
     internal static Delegate GetMyOrdersHandler =>
@@ -65,7 +106,13 @@ internal class OrderHandlers
                     .FirstOrDefaultAsync(o => o.Id == id);
 
                 if (order == null) return Results.NotFound(RESTResult.Fail("Order not found."));
-                if (!isAdmin && order.BuyerId != userId) return Results.Forbid();
+
+                if (!isAdmin && order.BuyerId != userId)
+                {
+                    var isSeller = services.HttpContextAccessor.HttpContext?.User.IsInRole("Seller") ?? false;
+                    if (!isSeller || !await VerifySellerOwnsShopAsync(services, order.ShopId))
+                        return Results.Forbid();
+                }
 
                 return Results.Ok(MapOrderToResponse(order));
             });
@@ -74,6 +121,9 @@ internal class OrderHandlers
         async (string shopId, [AsParameters] OrderFilterRequest filter, IServiceProvider sp) =>
             await RouteHandlers.RouteHandlerAsync<OrderServices>(sp, async (services) =>
             {
+                if (!await VerifySellerOwnsShopAsync(services, shopId))
+                    return Results.Forbid();
+
                 var query = services.DbContext.Orders
                     .Where(o => o.ShopId == shopId)
                     .AsNoTracking();
@@ -99,6 +149,9 @@ internal class OrderHandlers
         async (string shopId, IServiceProvider sp) =>
             await RouteHandlers.RouteHandlerAsync<OrderServices>(sp, async (services) =>
             {
+                if (!await VerifySellerOwnsShopAsync(services, shopId))
+                    return Results.Forbid();
+
                 var orders = await services.DbContext.Orders
                     .Where(o => o.ShopId == shopId)
                     .AsNoTracking()
@@ -138,6 +191,9 @@ internal class OrderHandlers
                     var order = await services.DbContext.Orders.FindAsync(id);
                     if (order == null) return Results.NotFound(RESTResult.Fail("Order not found."));
 
+                    if (!await VerifySellerOwnsShopAsync(services, order.ShopId))
+                        return Results.Forbid();
+
                     var oldStatus = OrderStatus.FromId<OrderStatus>(order.StatusId)?.Name ?? "Unknown";
                     var newStatus = OrderStatus.FromId<OrderStatus>(request.StatusId);
                     if (newStatus == null) return Results.BadRequest(RESTResult.Fail("Invalid status ID."));
@@ -169,6 +225,9 @@ internal class OrderHandlers
                 {
                     var order = await services.DbContext.Orders.FindAsync(id);
                     if (order == null) return Results.NotFound(RESTResult.Fail("Order not found."));
+
+                    if (!await VerifySellerOwnsShopAsync(services, order.ShopId))
+                        return Results.Forbid();
 
                     order.TrackingNumber = request.TrackingNumber;
                     order.StatusId = OrderStatus.Shipped.Id;

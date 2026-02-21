@@ -7,6 +7,9 @@ using MarineLaceSpace.Interfaces.Repositories;
 using MarineLaceSpace.Models.Database.Catalog;
 using MarineLaceSpace.Models.Routes;
 using System.Security.Claims;
+using Minio;
+using Minio.DataModel.Args;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Catalog.WebHost.Routes;
 
@@ -18,6 +21,7 @@ internal class PhotoHandlers
         public required IProductRepository ProductRepository { get; init; }
         public required IHttpContextAccessor HttpContextAccessor { get; init; }
         public required ILogger<PhotoHandlers> Logger { get; init; }
+        public required IMinioClient MinioClient { get; init; }
     }
 
     internal static Delegate GetProductPhotosHandler =>
@@ -44,7 +48,7 @@ internal class PhotoHandlers
             });
 
     internal static Delegate UploadPhotoHandler =>
-        async (string shopId, string productId, string url, string? title, bool isMain, IServiceProvider sp) =>
+        async (string shopId, string productId, IFormFile file, [FromForm] string? title, [FromForm] bool isMain, IServiceProvider sp) =>
             await RouteHandlers.RouteHandlerAsync<PhotoServices>(sp, async (services) =>
             {
                 var httpContext = services.HttpContextAccessor.HttpContext!;
@@ -54,6 +58,33 @@ internal class PhotoHandlers
                     var product = await services.ProductRepository.GetByIdAsync(productId);
                     var isAdmin = httpContext.User.IsInRole("Admin");
                     if (!isAdmin && product.Shop.OwnerId != currentUserId) return Results.Forbid();
+
+                    if (file == null || file.Length == 0)
+                        return Results.BadRequest(RESTResult.Fail("File is empty"));
+
+                    var bucketName = "products";
+                    var beArgs = new BucketExistsArgs().WithBucket(bucketName);
+                    bool found = await services.MinioClient.BucketExistsAsync(beArgs);
+                    if (!found)
+                    {
+                        var mbArgs = new MakeBucketArgs().WithBucket(bucketName);
+                        await services.MinioClient.MakeBucketAsync(mbArgs);
+                        
+                        var policy = $@"{{""Version"":""2012-10-17"",""Statement"":[{{""Action"":[""s3:GetObject""],""Effect"":""Allow"",""Principal"":{{""AWS"":[""*""]}},""Resource"":[""arn:aws:s3:::{bucketName}/*""]}}]}}";
+                        await services.MinioClient.SetPolicyAsync(new SetPolicyArgs().WithBucket(bucketName).WithPolicy(policy));
+                    }
+
+                    var objectName = $"{productId}/{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+                    using var stream = file.OpenReadStream();
+                    var putObjectArgs = new PutObjectArgs()
+                        .WithBucket(bucketName)
+                        .WithObject(objectName)
+                        .WithStreamData(stream)
+                        .WithObjectSize(stream.Length)
+                        .WithContentType(file.ContentType);
+                    await services.MinioClient.PutObjectAsync(putObjectArgs);
+
+                    var url = $"/minio/{bucketName}/{objectName}"; 
 
                     var photo = new ProductPhoto
                     {
@@ -71,6 +102,11 @@ internal class PhotoHandlers
                 catch (NotFoundEntityException ex)
                 {
                     return Results.NotFound(RESTResult.Fail(ex.Message));
+                }
+                catch (Exception ex)
+                {
+                    services.Logger.LogError(ex, "Error uploading photo");
+                    return Results.StatusCode(500);
                 }
             });
 

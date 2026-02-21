@@ -34,7 +34,6 @@ internal class PaymentHandlers
 
                     var email = services.HttpContextAccessor.HttpContext?.User.FindFirstValue(ClaimTypes.Email);
 
-                    // Check if a payment record already exists for this order (created by OrderCreatedEvent)
                     var existingPayment = await services.DbContext.Payments
                         .FirstOrDefaultAsync(p => p.OrderId == request.OrderId && p.StatusId == PaymentStatus.Pending.Id);
 

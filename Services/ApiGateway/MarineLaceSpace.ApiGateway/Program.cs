@@ -100,6 +100,10 @@ var basketClient = "basket-api";
 var orderClient = "order-api";
 var paymentClient = "payment-api";
 var notificationClient = "notification-api";
+var minioClient = "minio";
+
+// MinIO routes
+app.MapForward("/minio/{**rest}", minioClient, "");
 
 // Auth routes (rate limited to prevent brute-force)
 app.MapForward("/api/auth/{**rest}", authClient, "/auth").RequireRateLimiting("auth");

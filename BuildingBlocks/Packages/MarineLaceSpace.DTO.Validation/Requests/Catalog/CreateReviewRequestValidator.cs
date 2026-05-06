@@ -10,8 +10,9 @@ public class CreateReviewRequestValidator : AbstractValidator<CreateReviewReques
         RuleFor(x => x.Rating)
             .InclusiveBetween(0, 5).WithMessage("Rating must be between 0 and 5.");
 
-        RuleFor(x => x.Comment)
-            .NotEmpty().WithMessage("Comment is required.")
-            .MaximumLength(1000).WithMessage("Comment cannot exceed 1000 characters.");
+        RuleFor(x => x)
+            .Must(x => !string.IsNullOrEmpty(x.Text) || !string.IsNullOrEmpty(x.Comment))
+            .WithMessage("Review text is required.")
+            .OverridePropertyName("Text");
     }
 }

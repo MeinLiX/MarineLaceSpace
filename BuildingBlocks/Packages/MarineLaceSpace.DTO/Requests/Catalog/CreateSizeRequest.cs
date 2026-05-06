@@ -6,4 +6,5 @@ public class CreateSizeRequest
     public string? Description { get; set; }
     public bool IsCustom { get; set; }
     public int GenderId { get; set; } = 3; // Unisex default
+    public string? ShopId { get; set; }
 }

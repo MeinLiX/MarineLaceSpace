@@ -66,7 +66,7 @@ export interface Category {
 export interface Shop {
 	id: string;
 	name: string;
-	slug: string;
+	urlSlug: string;
 	description: string;
 	logoUrl: string | null;
 	bannerUrl: string | null;
@@ -137,6 +137,7 @@ export interface ProductInventoryItem {
 
 export interface ProductDetail extends Product {
 	totalQuantity: number;
+	isUnlimitedQuantity?: boolean;
 	tags?: string[];
 	materials?: string[];
 	photos: ProductPhoto[];
@@ -147,18 +148,21 @@ export interface Size {
 	id: string;
 	name: string;
 	gender: Gender;
+	shopId?: string | null;
 }
 
 export interface Color {
 	id: string;
 	name: string;
 	hexCode: string;
+	shopId?: string | null;
 }
 
 export interface Material {
 	id: string;
 	name: string;
 	imageUrl?: string | null;
+	shopId?: string | null;
 }
 
 export interface ProductReview {
@@ -205,11 +209,18 @@ export interface BasketItem {
 
 export interface AddToBasketRequest {
 	productId: string;
+	productName: string;
 	sizeId?: string;
+	sizeName?: string;
 	colorId?: string;
+	colorName?: string;
 	materialId?: string;
+	materialName?: string;
+	unitPrice: number;
 	quantity: number;
 	personalization?: string;
+	imageUrl?: string;
+	shopId?: string;
 }
 
 export interface UpdateBasketItemRequest {
@@ -255,6 +266,7 @@ export interface Order {
 	items: OrderItem[];
 	totalPrice: number;
 	trackingNumber: string | null;
+	cancellationReason: string | null;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -273,6 +285,8 @@ export interface OrderItem {
 
 export interface OrderStatusUpdate {
 	statusId: number;
+	trackingNumber?: string;
+	cancellationReason?: string;
 }
 
 // ─── Payment Types ───────────────────────────────────────────────────────────

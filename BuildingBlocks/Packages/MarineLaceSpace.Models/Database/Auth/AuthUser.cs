@@ -13,7 +13,7 @@ public class AuthUser : IdentityUser
 
     public DateTime CreatedAt { get; private set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
-    public bool IsAnonimous => string.IsNullOrWhiteSpace(PasswordHash);
+    public bool IsAnonymous => string.IsNullOrWhiteSpace(PasswordHash);
 
     public ICollection<RefreshToken> RefreshTokens { get; set; } = [];
 }

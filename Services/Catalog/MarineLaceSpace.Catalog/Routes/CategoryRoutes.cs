@@ -13,6 +13,9 @@ public static class CategoryRoutes
         categoriesGroup.MapGet("/tree", CategoryHandlers.GetCategoryTreeHandler)
             .WithSummary("Get full category tree");
 
+        categoriesGroup.MapGet("/search", CategoryHandlers.SearchCategoriesHandler)
+            .WithSummary("Search categories by name");
+
         categoriesGroup.MapGet("/{id}", CategoryHandlers.GetCategoryByIdHandler)
             .WithSummary("Get category by ID with children")
             .Produces<CategoryResponse>()

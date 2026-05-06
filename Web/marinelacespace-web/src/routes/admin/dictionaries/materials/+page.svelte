@@ -5,37 +5,46 @@
   import LoadingSpinner from '$components/LoadingSpinner.svelte';
   import EmptyState from '$components/EmptyState.svelte';
   import Modal from '$components/Modal.svelte';
+  import FileUploadDropzone from '$components/FileUploadDropzone.svelte';
   import { notificationStore } from '$stores/notification.svelte';
   import { i18n } from '$i18n/index.svelte';
-  import type { Material } from '$types';
+  import type { Material, Shop } from '$types';
 
   $effect(() => {
-    if (!authStore.isLoading && !authStore.isAdmin) {
+    if (!authStore.isLoading && !authStore.isAdmin && !authStore.isSeller) {
       goto('/admin');
     }
   });
 
   let loading = $state(true);
   let materials = $state<Material[]>([]);
+  let myShop = $state<Shop | null>(null);
 
   let showModal = $state(false);
   let modalMode = $state<'create' | 'edit'>('create');
   let editingId = $state<string | null>(null);
   let modalName = $state('');
-  let modalImageUrl = $state('');
+  let modalImageFile = $state<File | null>(null);
+  let modalImagePreview = $state<string | null>(null);
+  let existingImageUrl = $state<string | null>(null);
   let saving = $state(false);
+  let fileInput = $state<HTMLInputElement | null>(null);
 
   let showDeleteModal = $state(false);
   let deleteTarget = $state<Material | null>(null);
 
   $effect(() => {
-    loadMaterials();
+    loadData();
   });
 
-  async function loadMaterials() {
+  async function loadData() {
     try {
       loading = true;
-      materials = await catalogApi.getMaterials();
+      if (authStore.isSeller && !authStore.isAdmin) {
+        const shops = await catalogApi.getMyShops();
+        myShop = shops.length > 0 ? shops[0] : null;
+      }
+      materials = await catalogApi.getMaterials(myShop?.id);
     } catch {
       notificationStore.error(i18n.t('admin.errorLoadingMaterials'));
     } finally {
@@ -43,11 +52,18 @@
     }
   }
 
+  function canEditEntry(entry: Material): boolean {
+    if (authStore.isAdmin) return true;
+    return !!entry.shopId && entry.shopId === myShop?.id;
+  }
+
   function openCreate() {
     modalMode = 'create';
     editingId = null;
     modalName = '';
-    modalImageUrl = '';
+    modalImageFile = null;
+    modalImagePreview = null;
+    existingImageUrl = null;
     showModal = true;
   }
 
@@ -55,8 +71,38 @@
     modalMode = 'edit';
     editingId = material.id;
     modalName = material.name;
-    modalImageUrl = material.imageUrl ?? '';
+    modalImageFile = null;
+    modalImagePreview = null;
+    existingImageUrl = material.imageUrl ?? null;
     showModal = true;
+  }
+
+  function handleFileSelect(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (file) {
+      modalImageFile = file;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        modalImagePreview = e.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  function handleDropzoneFile(file: File) {
+    modalImageFile = file;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      modalImagePreview = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function clearSelectedFile() {
+    modalImageFile = null;
+    modalImagePreview = null;
+    if (fileInput) fileInput.value = '';
   }
 
   function confirmDelete(material: Material) {
@@ -72,14 +118,14 @@
     try {
       saving = true;
       if (modalMode === 'create') {
-        await catalogApi.createMaterial({ name: modalName.trim(), imageUrl: modalImageUrl.trim() || undefined });
+        await catalogApi.createMaterial({ name: modalName.trim(), imageFile: modalImageFile ?? undefined, shopId: myShop?.id });
         notificationStore.success(i18n.t('admin.materialCreated'));
       } else if (editingId) {
-        await catalogApi.updateMaterial(editingId, { name: modalName.trim(), imageUrl: modalImageUrl.trim() || undefined });
+        await catalogApi.updateMaterial(editingId, { name: modalName.trim(), imageFile: modalImageFile ?? undefined });
         notificationStore.success(i18n.t('admin.materialUpdated'));
       }
       showModal = false;
-      loadMaterials();
+      loadData();
     } catch {
       notificationStore.error(i18n.t('admin.errorSavingMaterial'));
     } finally {
@@ -94,14 +140,14 @@
       notificationStore.success(i18n.t('admin.materialDeleted'));
       showDeleteModal = false;
       deleteTarget = null;
-      loadMaterials();
+      loadData();
     } catch {
       notificationStore.error(i18n.t('admin.errorDeletingMaterial'));
     }
   }
 </script>
 
-{#if authStore.isAdmin}
+{#if authStore.isAdmin || authStore.isSeller}
 <div class="materials-page">
   <div class="page-header">
     <h1 class="page-title">{i18n.t('admin.materialsDictionary')}</h1>
@@ -123,6 +169,7 @@
           <tr>
             <th>{i18n.t('admin.image')}</th>
             <th>{i18n.t('admin.name')}</th>
+            <th>Scope</th>
             <th>{i18n.t('admin.actions')}</th>
           </tr>
         </thead>
@@ -131,22 +178,29 @@
             <tr>
               <td class="cell-image">
                 {#if material.imageUrl}
-                  <img src={material.imageUrl} alt={material.name} class="material-thumb" />
+                  <img src={material.imageUrl} alt={material.name} class="material-thumb" loading="lazy" />
                 {:else}
                   <span class="material-placeholder">🧵</span>
                 {/if}
               </td>
               <td class="cell-name">{material.name}</td>
+              <td>
+                <span class="badge {material.shopId ? 'badge-shop' : 'badge-global'}">
+                  {material.shopId ? '🏪 Shop' : '🌐 Global'}
+                </span>
+              </td>
               <td class="cell-actions">
-                <button class="btn btn-sm btn-ghost" onclick={() => openEdit(material)}>
-                  {i18n.t('common.edit')}
-                </button>
-                <button
-                  class="btn btn-sm btn-ghost btn-danger-text"
-                  onclick={() => confirmDelete(material)}
-                >
-                  {i18n.t('common.delete')}
-                </button>
+                {#if canEditEntry(material)}
+                  <button class="btn btn-sm btn-ghost" onclick={() => openEdit(material)}>
+                    {i18n.t('common.edit')}
+                  </button>
+                  <button
+                    class="btn btn-sm btn-ghost btn-danger-text"
+                    onclick={() => confirmDelete(material)}
+                  >
+                    {i18n.t('common.delete')}
+                  </button>
+                {/if}
               </td>
             </tr>
           {/each}
@@ -172,17 +226,15 @@
     />
   </div>
   <div class="form-group">
-    <label class="form-label" for="materialImageUrl">{i18n.t('admin.imageUrl')}</label>
-    <input
-      id="materialImageUrl"
-      class="input"
-      type="url"
-      bind:value={modalImageUrl}
-      placeholder="https://..."
+    <span class="form-label">{i18n.t('admin.image')}</span>
+    <FileUploadDropzone
+      accept="image/*"
+      preview={modalImagePreview}
+      existingUrl={existingImageUrl}
+      compact={true}
+      onfile={handleDropzoneFile}
+      onclear={clearSelectedFile}
     />
-    {#if modalImageUrl}
-      <img src={modalImageUrl} alt="Preview" class="material-preview" />
-    {/if}
   </div>
   <div class="modal-actions">
     <button class="btn btn-outline" onclick={() => (showModal = false)}>{i18n.t('common.cancel')}</button>
@@ -201,8 +253,8 @@
 </Modal>
 {:else}
   <div style="padding: 2rem; text-align: center;">
-    <p>Access denied. Admin only.</p>
-    <a href="/admin">← Back to Dashboard</a>
+    <p>{i18n.t('admin.accessDenied')}</p>
+    <a href="/admin">← {i18n.t('admin.backToDashboard')}</a>
   </div>
 {/if}
 
@@ -278,14 +330,6 @@
     font-size: 1rem;
   }
 
-  .material-preview {
-    width: 64px;
-    height: 64px;
-    border-radius: var(--radius-sm);
-    object-fit: cover;
-    margin-top: var(--space-2);
-  }
-
   .cell-actions {
     white-space: nowrap;
   }
@@ -316,5 +360,23 @@
     justify-content: flex-end;
     gap: var(--space-3);
     margin-top: var(--space-6);
+  }
+
+  .badge-global {
+    background: #e0f2fe;
+    color: #0369a1;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .badge-shop {
+    background: #fef3c7;
+    color: #92400e;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
   }
 </style>

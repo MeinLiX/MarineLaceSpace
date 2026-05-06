@@ -258,8 +258,8 @@
 </Modal>
 {:else}
   <div style="padding: 2rem; text-align: center;">
-    <p>Access denied. Admin only.</p>
-    <a href="/admin">← Back to Dashboard</a>
+    <p>{i18n.t('admin.accessDenied')}. {i18n.t('admin.adminOnlySection')}</p>
+    <a href="/admin">← {i18n.t('admin.backToDashboard')}</a>
   </div>
 {/if}
 

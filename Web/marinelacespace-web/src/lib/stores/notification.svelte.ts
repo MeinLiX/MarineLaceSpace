@@ -5,6 +5,7 @@ export interface Notification {
 	message: string;
 	type: NotificationType;
 	timeout: number;
+	exiting?: boolean;
 }
 
 const DEFAULT_TIMEOUT = 5000;
@@ -19,7 +20,7 @@ function createNotificationStore() {
 		notifications = [...notifications, notification];
 
 		if (timeout > 0) {
-			setTimeout(() => removeNotification(id), timeout);
+			setTimeout(() => dismiss(id), timeout);
 		}
 
 		return id;
@@ -27,6 +28,11 @@ function createNotificationStore() {
 
 	function removeNotification(id: string): void {
 		notifications = notifications.filter((n) => n.id !== id);
+	}
+
+	function dismiss(id: string): void {
+		notifications = notifications.map((n) => n.id === id ? { ...n, exiting: true } : n);
+		setTimeout(() => removeNotification(id), 300);
 	}
 
 	function success(message: string, timeout?: number): string {
@@ -49,6 +55,7 @@ function createNotificationStore() {
 		get notifications() { return notifications; },
 		addNotification,
 		removeNotification,
+		dismiss,
 		success,
 		error,
 		warning,

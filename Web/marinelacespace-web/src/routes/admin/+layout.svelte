@@ -4,6 +4,7 @@
   import { goto } from '$app/navigation';
   import { authStore } from '$stores/auth.svelte';
   import { i18n } from '$i18n/index.svelte';
+  import LoadingSpinner from '$components/LoadingSpinner.svelte';
 
   let { children }: { children: Snippet } = $props();
 
@@ -39,7 +40,7 @@
   });
 
   let dictionaryItems = $derived.by(() => {
-    if (!authStore.isAdmin) return [];
+    if (!authStore.isAdmin && !authStore.isSeller) return [];
     return [
       { icon: '📐', label: i18n.t('admin.sizes'), href: '/admin/dictionaries/sizes' },
       { icon: '🎨', label: i18n.t('admin.colors'), href: '/admin/dictionaries/colors' },
@@ -53,7 +54,11 @@
   }
 </script>
 
-{#if authStore.isAdmin || authStore.isSeller}
+{#if authStore.isLoading}
+  <div class="admin-loading">
+    <LoadingSpinner size="lg" message={i18n.t('common.loading')} />
+  </div>
+{:else if authStore.isAdmin || authStore.isSeller}
   <div class="admin-wrapper">
     <button
       class="hamburger"
@@ -115,6 +120,9 @@
             </span>
             <span class="user-role">{authStore.isAdmin ? i18n.t('admin.administrator') : i18n.t('admin.seller')}</span>
           </div>
+          <a href="/" class="btn-back-to-site">
+            <span>←</span> {i18n.t('admin.backToSite')}
+          </a>
           <button class="btn-logout" onclick={() => authStore.logout()}>
             {i18n.t('common.logout')}
           </button>
@@ -228,6 +236,29 @@
     color: rgba(255, 255, 255, 0.5);
   }
 
+  .btn-back-to-site {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    background: none;
+    color: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    cursor: pointer;
+    text-decoration: none;
+    text-align: center;
+    transition: all var(--transition-fast);
+    justify-content: center;
+  }
+
+  .btn-back-to-site:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.4);
+  }
+
   .btn-logout {
     background: rgba(255, 255, 255, 0.1);
     color: rgba(255, 255, 255, 0.7);
@@ -310,5 +341,12 @@
       padding: var(--space-4);
       padding-top: var(--space-12);
     }
+  }
+
+  .admin-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
   }
 </style>

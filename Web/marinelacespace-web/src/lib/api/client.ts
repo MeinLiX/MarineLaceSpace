@@ -1,8 +1,21 @@
 import type { ApiError, RESTResultEnvelope } from '$types';
+import { notificationStore } from '$stores/notification.svelte';
 
 const BASE_URL = (typeof window !== 'undefined' && (window as unknown as Record<string, unknown>).__PUBLIC_API_URL__) as string
 	|| import.meta.env.PUBLIC_API_URL as string
 	|| '/api';
+
+const SESSION_ID_KEY = 'mls_session_id';
+
+function getOrCreateSessionId(): string | null {
+	if (typeof window === 'undefined') return null;
+	let sessionId = localStorage.getItem(SESSION_ID_KEY);
+	if (!sessionId) {
+		sessionId = crypto.randomUUID();
+		localStorage.setItem(SESSION_ID_KEY, sessionId);
+	}
+	return sessionId;
+}
 
 class ApiClient {
 	private baseUrl: string;
@@ -57,6 +70,11 @@ class ApiClient {
 				apiError = { message: response.statusText || `HTTP ${response.status}` };
 			}
 
+			// Auto-show backend error as toast
+			if (typeof window !== 'undefined') {
+				try { notificationStore.error(apiError.message); } catch { /* noop */ }
+			}
+
 			throw apiError;
 		}
 
@@ -79,6 +97,12 @@ class ApiClient {
 
 		if (token) {
 			headers['Authorization'] = `Bearer ${token}`;
+		} else {
+			// Anonymous user: send session ID for basket persistence
+			const sessionId = getOrCreateSessionId();
+			if (sessionId) {
+				headers['X-Session-Id'] = sessionId;
+			}
 		}
 
 		if (contentType) {
@@ -144,7 +168,25 @@ class ApiClient {
 		});
 		return this.handleResponse<T>(response);
 	}
+
+	async postFormData<T>(path: string, formData: FormData): Promise<T> {
+		const response = await fetch(this.buildUrl(path), {
+			method: 'POST',
+			headers: this.buildHeaders(), // NO Content-Type - browser sets it with boundary
+			body: formData,
+		});
+		return this.handleResponse<T>(response);
+	}
+
+	async putFormData<T>(path: string, formData: FormData): Promise<T> {
+		const response = await fetch(this.buildUrl(path), {
+			method: 'PUT',
+			headers: this.buildHeaders(), // NO Content-Type
+			body: formData,
+		});
+		return this.handleResponse<T>(response);
+	}
 }
 
 export const api = new ApiClient(BASE_URL);
-export { ApiClient };
+export { ApiClient, getOrCreateSessionId, SESSION_ID_KEY };

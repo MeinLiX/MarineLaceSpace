@@ -4,8 +4,6 @@ namespace Aspire.AppHost;
 
 public static class Extensions
 {
-    #region Configuration extensions
-
     public static IResourceBuilder<T> AddCommonConfiguration<T>(this IResourceBuilder<T> builder, IConfigurationManager configuration) where T : IResourceWithEnvironment
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -47,5 +45,4 @@ public static class Extensions
             if (child.Value != null) builder.WithEnvironment($"{prefix}__{child.Key}", child.Value);
             else ProcessConfigurationSection(builder, child, $"{prefix}__{child.Key}");
     }
-    #endregion Configuration extensions
 }

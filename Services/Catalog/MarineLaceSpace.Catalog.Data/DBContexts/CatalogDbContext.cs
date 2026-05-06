@@ -55,6 +55,29 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options) : DbCo
         {
             entity.Property(e => e.Gender)
                   .HasConversion(new EnumerationConverter<ProductSizeGender>());
+            entity.HasIndex(e => e.ShopId);
+            entity.HasOne(e => e.Shop)
+                  .WithMany()
+                  .HasForeignKey(e => e.ShopId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Color>(entity =>
+        {
+            entity.HasIndex(e => e.ShopId);
+            entity.HasOne(e => e.Shop)
+                  .WithMany()
+                  .HasForeignKey(e => e.ShopId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Material>(entity =>
+        {
+            entity.HasIndex(e => e.ShopId);
+            entity.HasOne(e => e.Shop)
+                  .WithMany()
+                  .HasForeignKey(e => e.ShopId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<ProductPrice>(entity =>

@@ -3,7 +3,9 @@
   import { goto } from '$app/navigation';
   import * as catalogApi from '$api/catalog';
   import LoadingSpinner from '$components/LoadingSpinner.svelte';
+  import FileUploadDropzone from '$components/FileUploadDropzone.svelte';
   import Modal from '$components/Modal.svelte';
+  import CategoryPickerModal from '$components/CategoryPickerModal.svelte';
   import { notificationStore } from '$stores/notification.svelte';
   import { authStore } from '$stores/auth.svelte';
   import { i18n } from '$i18n/index.svelte';
@@ -29,6 +31,8 @@
   let shopId = $state('');
   let isActive = $state(true);
   let allowPersonalization = $state(false);
+  let price = $state(0);
+  let quantity = $state(0);
 
   let selectedSizeIds = $state<Set<string>>(new Set());
   let selectedColorIds = $state<Set<string>>(new Set());
@@ -51,8 +55,12 @@
   let showDeleteModal = $state(false);
   let showDeleteImageModal = $state(false);
   let deleteImageTarget = $state<string | null>(null);
+  let showCategoryModal = $state(false);
 
   let flatCategories = $derived(flattenCategories(categories));
+  let selectedCategoryName = $derived(
+    flatCategories.find((c) => c.id === categoryId)?.name ?? ''
+  );
 
   function flattenCategories(
     cats: Category[],
@@ -80,19 +88,22 @@
         ? catalogApi.getShops({ pageSize: 100 }).then((r) => r.items.map((s) => ({ id: s.id, name: s.name })))
         : catalogApi.getMyShops().then((list) => list.map((s) => ({ id: s.id, name: s.name })));
 
-      const [catsRes, sizesRes, colorsRes, materialsRes, shopsRes] = await Promise.all([
+      const shopsRes = await shopsPromise;
+      shops = shopsRes;
+
+      const resolvedShopId = !authStore.isAdmin && shopsRes.length > 0 ? shopsRes[0].id : undefined;
+
+      const [catsRes, sizesRes, colorsRes, materialsRes] = await Promise.all([
         catalogApi.getCategoryTree(),
-        catalogApi.getSizes(),
-        catalogApi.getColors(),
-        catalogApi.getMaterials(),
-        shopsPromise,
+        catalogApi.getSizes(resolvedShopId),
+        catalogApi.getColors(resolvedShopId),
+        catalogApi.getMaterials(resolvedShopId),
       ]);
 
       categories = catsRes;
       allSizes = sizesRes;
       allColors = colorsRes;
       allMaterials = materialsRes;
-      shops = shopsRes;
 
       if (id !== 'new') {
         const product = await catalogApi.getProductById(id);
@@ -102,8 +113,23 @@
         shopId = product.shopId ?? '';
         isActive = product.isActive ?? true;
         allowPersonalization = product.allowPersonalization ?? false;
+        price = product.price ?? 0;
+        quantity = product.totalQuantity ?? 0;
         inventory = product.inventory ?? [];
         photos = product.photos ?? [];
+
+        // Initialize selected variant IDs from existing inventory
+        const sIds = new Set<string>();
+        const cIds = new Set<string>();
+        const mIds = new Set<string>();
+        for (const item of inventory) {
+          if (item.sizeId) sIds.add(item.sizeId);
+          if (item.colorId) cIds.add(item.colorId);
+          if (item.materialId) mIds.add(item.materialId);
+        }
+        selectedSizeIds = sIds;
+        selectedColorIds = cIds;
+        selectedMaterialIds = mIds;
       }
     } catch {
       notificationStore.error(i18n.t('admin.errorLoadingData'));
@@ -119,19 +145,24 @@
     }
     try {
       saving = true;
-      const data: Partial<ProductDetail> = {
+      const data: Partial<ProductDetail> & { price?: number; quantity?: number } = {
         name,
         description,
         categoryId,
         shopId,
         isActive,
         allowPersonalization,
+        price,
+        quantity,
       };
 
       if (isNew) {
         if (!shopId) {
-          notificationStore.warning(i18n.t('admin.selectShop'));
+          notificationStore.warning(i18n.t('admin.shopRequired'));
           return;
+        }
+        if (!categoryId) {
+          notificationStore.info(i18n.t('admin.categoryRecommended'));
         }
         const created = await catalogApi.createProduct(shopId, data);
         notificationStore.success(i18n.t('admin.productCreated'));
@@ -162,6 +193,7 @@
     if (next.has(id)) next.delete(id);
     else next.add(id);
     selectedSizeIds = next;
+    regenerateInventory();
   }
 
   function toggleColor(id: string) {
@@ -169,6 +201,7 @@
     if (next.has(id)) next.delete(id);
     else next.add(id);
     selectedColorIds = next;
+    regenerateInventory();
   }
 
   function toggleMaterial(id: string) {
@@ -176,6 +209,50 @@
     if (next.has(id)) next.delete(id);
     else next.add(id);
     selectedMaterialIds = next;
+    regenerateInventory();
+  }
+
+  /** Build cartesian product of selected variants, preserving existing prices/quantities */
+  function regenerateInventory() {
+    const sizes = [...selectedSizeIds];
+    const colors = [...selectedColorIds];
+    const materials = [...selectedMaterialIds];
+
+    // Build lookup for existing inventory to preserve price/quantity
+    const key = (s?: string | null, c?: string | null, m?: string | null) =>
+      `${s ?? ''}|${c ?? ''}|${m ?? ''}`;
+    const existingMap = new Map<string, ProductInventoryItem>();
+    for (const item of inventory) {
+      existingMap.set(key(item.sizeId, item.colorId, item.materialId), item);
+    }
+
+    const combos: { sizeId?: string | null; colorId?: string | null; materialId?: string | null }[] = [];
+
+    const sArr = sizes.length > 0 ? sizes : [null];
+    const cArr = colors.length > 0 ? colors : [null];
+    const mArr = materials.length > 0 ? materials : [null];
+
+    for (const s of sArr) {
+      for (const c of cArr) {
+        for (const m of mArr) {
+          combos.push({ sizeId: s, colorId: c, materialId: m });
+        }
+      }
+    }
+
+    // If no variants selected at all, keep a single base row
+    if (combos.length === 1 && !combos[0].sizeId && !combos[0].colorId && !combos[0].materialId) {
+      const base = existingMap.get(key(null, null, null));
+      inventory = base ? [base] : [{ price: price || 0, quantity: quantity || 0 }];
+      return;
+    }
+
+    inventory = combos.map((combo) => {
+      const existing = existingMap.get(key(combo.sizeId, combo.colorId, combo.materialId));
+      return existing
+        ? { ...existing }
+        : { sizeId: combo.sizeId, colorId: combo.colorId, materialId: combo.materialId, price: price || 0, quantity: 0 };
+    });
   }
 
   async function deleteImage(imageId: string) {
@@ -197,6 +274,33 @@
 
   function triggerFileInput() {
     fileInput?.click();
+  }
+
+  async function handleDropzoneFile(file: File) {
+    if (!shopId) {
+      notificationStore.warning(i18n.t('admin.selectShop'));
+      return;
+    }
+
+    try {
+      uploading = true;
+      const newPhoto = await catalogApi.uploadProductImage(
+        shopId,
+        productId,
+        file,
+        uploadTitle.trim() || undefined,
+        uploadIsMain
+      );
+      photos = [...photos, newPhoto];
+      uploadTitle = '';
+      uploadIsMain = false;
+      notificationStore.success(i18n.t('admin.imageUploaded'));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      notificationStore.error(msg || i18n.t('admin.errorUploadingImage'));
+    } finally {
+      uploading = false;
+    }
   }
 
   async function handleFileSelected(event: Event) {
@@ -263,6 +367,31 @@
   function getMaterialName(id: string): string {
     return allMaterials.find((m) => m.id === id)?.name ?? id;
   }
+
+  function updatePhotoVariant(photoId: string, field: 'colorId' | 'materialId', value: string) {
+    photos = photos.map((p) => {
+      if (p.id !== photoId) return p;
+      return { ...p, [field]: value || null };
+    });
+  }
+
+  async function saveVariationImages() {
+    try {
+      saving = true;
+      const associations = photos.map((p) => ({
+        imageId: p.id,
+        sizeId: p.sizeId ?? null,
+        colorId: p.colorId ?? null,
+        materialId: p.materialId ?? null,
+      }));
+      await catalogApi.associateVariationImages(productId, associations);
+      notificationStore.success(i18n.t('admin.variationImagesSaved'));
+    } catch {
+      notificationStore.error(i18n.t('admin.errorSavingVariationImages'));
+    } finally {
+      saving = false;
+    }
+  }
 </script>
 
 <div class="product-editor">
@@ -324,7 +453,7 @@
         <div class="card-body">
           <div class="form-grid">
             <div class="form-group full">
-              <label class="form-label" for="title">{i18n.t('admin.name')}</label>
+              <label class="form-label required" for="title">{i18n.t('admin.name')}</label>
               <input id="title" class="input" type="text" bind:value={name} placeholder={i18n.t('admin.productNamePlaceholder')} />
             </div>
 
@@ -341,16 +470,25 @@
 
             <div class="form-group">
               <label class="form-label" for="category">{i18n.t('admin.category')}</label>
-              <select id="category" class="input" bind:value={categoryId}>
-                <option value="">{i18n.t('admin.selectCategory')}</option>
-                {#each flatCategories as cat}
-                  <option value={cat.id}>{cat.indent}{cat.name}</option>
-                {/each}
-              </select>
+              <div class="category-picker-field">
+                {#if categoryId && selectedCategoryName}
+                  <span class="selected-category-name">{selectedCategoryName}</span>
+                  <button class="btn btn-outline btn-sm" type="button" onclick={() => (showCategoryModal = true)}>
+                    {i18n.t('admin.changeCategory')}
+                  </button>
+                  <button class="btn btn-outline btn-sm" type="button" onclick={() => (categoryId = '')}>
+                    {i18n.t('admin.clearCategory')}
+                  </button>
+                {:else}
+                  <button class="btn btn-outline" type="button" onclick={() => (showCategoryModal = true)}>
+                    {i18n.t('admin.selectCategory')}
+                  </button>
+                {/if}
+              </div>
             </div>
 
             <div class="form-group">
-              <label class="form-label" for="shop">{i18n.t('admin.shop')}</label>
+              <label class="form-label" class:required={isNew} for="shop">{i18n.t('admin.shop')}</label>
               <select id="shop" class="input" bind:value={shopId} disabled={!isNew}>
                 <option value="">{i18n.t('admin.selectShop')}</option>
                 {#each shops as shop}
@@ -373,6 +511,16 @@
                 <input type="checkbox" bind:checked={allowPersonalization} />
                 <span>{i18n.t('admin.allowPersonalization')}</span>
               </label>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="price">{i18n.t('admin.price')}</label>
+              <input id="price" class="input" type="number" min="0" step="0.01" bind:value={price} placeholder="0.00" />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="quantity">{i18n.t('admin.quantity')}</label>
+              <input id="quantity" class="input" type="number" min="0" step="1" bind:value={quantity} placeholder="0" />
             </div>
           </div>
         </div>
@@ -524,14 +672,12 @@
 
           <!-- Upload form -->
           <div class="upload-area">
-            <input
-              bind:this={fileInput}
-              type="file"
+            <FileUploadDropzone
               accept="image/*"
-              class="sr-only"
-              onchange={handleFileSelected}
+              uploading={uploading}
+              onfile={handleDropzoneFile}
             />
-            <div class="upload-controls">
+            <div class="upload-options">
               <input
                 class="input input-sm"
                 type="text"
@@ -543,19 +689,7 @@
                 <input type="checkbox" bind:checked={uploadIsMain} />
                 <span>{i18n.t('admin.main')}</span>
               </label>
-              <button
-                class="btn btn-primary btn-sm"
-                onclick={triggerFileInput}
-                disabled={uploading}
-              >
-                {uploading ? i18n.t('common.uploading') : i18n.t('admin.uploadImage')}
-              </button>
             </div>
-            {#if uploading}
-              <div class="upload-progress">
-                <div class="progress-bar"></div>
-              </div>
-            {/if}
           </div>
 
           {#if photos.length > 0}
@@ -565,17 +699,37 @@
                   {#if img.isMain}
                     <span class="main-badge">{i18n.t('admin.main')}</span>
                   {/if}
-                  <img src={img.url} alt={img.altText ?? 'Product'} class="photo-img" />
+                  <img src={img.url} alt={img.altText ?? 'Product'} class="photo-img" loading="lazy" />
                   <div class="photo-meta">
                     {#if img.sortOrder}
-                      <span class="text-xs text-muted">{i18n.t('admin.order')}: {img.sortOrder}</span>
+                      <span class="text-xs text-muted">{i18n.t('admin.sortOrder')}: {img.sortOrder}</span>
                     {/if}
-                    {#if img.colorId}
-                      <span class="text-xs">{i18n.t('admin.color')}: {getColorName(img.colorId)}</span>
-                    {/if}
-                    {#if img.materialId}
-                      <span class="text-xs">{i18n.t('admin.material')}: {getMaterialName(img.materialId)}</span>
-                    {/if}
+                    <label class="photo-variant-label">
+                      <span class="text-xs">{i18n.t('admin.color')}:</span>
+                      <select
+                        class="input input-xs"
+                        value={img.colorId ?? ''}
+                        onchange={(e) => updatePhotoVariant(img.id, 'colorId', e.currentTarget.value)}
+                      >
+                        <option value="">—</option>
+                        {#each allColors as color}
+                          <option value={color.id}>{color.name}</option>
+                        {/each}
+                      </select>
+                    </label>
+                    <label class="photo-variant-label">
+                      <span class="text-xs">{i18n.t('admin.material')}:</span>
+                      <select
+                        class="input input-xs"
+                        value={img.materialId ?? ''}
+                        onchange={(e) => updatePhotoVariant(img.id, 'materialId', e.currentTarget.value)}
+                      >
+                        <option value="">—</option>
+                        {#each allMaterials as material}
+                          <option value={material.id}>{material.name}</option>
+                        {/each}
+                      </select>
+                    </label>
                   </div>
                   <button
                     class="btn btn-sm btn-danger-text photo-delete"
@@ -585,6 +739,11 @@
                   </button>
                 </div>
               {/each}
+            </div>
+            <div class="mt-4">
+              <button class="btn btn-primary" onclick={saveVariationImages} disabled={saving}>
+                {i18n.t('admin.saveVariantBindings')}
+              </button>
             </div>
           {:else}
             <p class="text-muted mt-4">{i18n.t('admin.noImagesYet')}</p>
@@ -646,6 +805,16 @@
     </button>
   </div>
 </Modal>
+
+<CategoryPickerModal
+  open={showCategoryModal}
+  selectedCategoryId={categoryId}
+  onclose={() => (showCategoryModal = false)}
+  onselect={(cat) => {
+    categoryId = cat.id;
+    showCategoryModal = false;
+  }}
+/>
 
 <style>
   .editor-header {
@@ -746,12 +915,32 @@
     color: var(--color-text);
   }
 
+  .required::after {
+    content: ' *';
+    color: var(--color-error, #c4555a);
+    font-weight: 700;
+  }
+
   .toggle-label {
     display: inline-flex;
     align-items: center;
     gap: var(--space-2);
     cursor: pointer;
     font-size: 0.875rem;
+  }
+
+  .category-picker-field {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+
+  .selected-category-name {
+    font-size: 0.875rem;
+    color: var(--color-text);
+    font-weight: 500;
+    padding: var(--space-2) 0;
   }
 
   .section-title {
@@ -844,42 +1033,12 @@
     background: var(--color-surface-hover);
   }
 
-  .upload-controls {
+  .upload-options {
     display: flex;
     align-items: center;
     gap: var(--space-3);
     flex-wrap: wrap;
-  }
-
-  .upload-progress {
     margin-top: var(--space-3);
-    height: 4px;
-    background: var(--color-border-light);
-    border-radius: 2px;
-    overflow: hidden;
-  }
-
-  .progress-bar {
-    height: 100%;
-    width: 100%;
-    background: var(--color-primary);
-    animation: indeterminate 1.5s ease infinite;
-  }
-
-  @keyframes indeterminate {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(100%); }
-  }
-
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    border: 0;
   }
 
   .main-badge {
@@ -936,6 +1095,19 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
+  }
+
+  .photo-variant-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: 0.75rem;
+  }
+
+  .photo-variant-label select {
+    flex: 1;
+    font-size: 0.75rem;
+    padding: 2px 4px;
   }
 
   .photo-delete {

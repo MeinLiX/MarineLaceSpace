@@ -78,10 +78,10 @@
     {:else}
       <div class="shops-grid">
         {#each shops as shop (shop.id)}
-          <a href="/shops/{shop.slug}" class="shop-card card">
+          <a href="/shops/{shop.urlSlug || shop.id}" class="shop-card card">
             <div class="shop-logo-wrapper">
               {#if shop.logoUrl}
-                <img src={shop.logoUrl} alt={i18n.t('shops.shopLogo', { name: shop.name })} class="shop-logo" />
+                <img src={shop.logoUrl} alt={i18n.t('shops.shopLogo', { name: shop.name })} class="shop-logo" loading="lazy" />
               {:else}
                 <div class="shop-logo-placeholder" aria-hidden="true">
                   <span>🏪</span>

@@ -1,4 +1,5 @@
 using BB.Common.Routes;
+using MarineLaceSpace.Catalog.Data.DBContexts;
 using MarineLaceSpace.DTO.Requests.Catalog;
 using MarineLaceSpace.DTO.Responses;
 using MarineLaceSpace.DTO.Responses.Catalog;
@@ -6,6 +7,7 @@ using MarineLaceSpace.Exceptions.Repositories;
 using MarineLaceSpace.Interfaces.Repositories;
 using MarineLaceSpace.Models.Database.Catalog;
 using MarineLaceSpace.Models.Routes;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
 namespace Catalog.WebHost.Routes;
@@ -19,13 +21,66 @@ internal class ReviewHandlers
         public required ILogger<ReviewHandlers> Logger { get; init; }
     }
 
+    internal static Delegate GetAllReviewsHandler =>
+        async (int? page, int? pageSize, int? rating, IServiceProvider sp) =>
+        {
+            var dbContext = sp.GetRequiredService<CatalogDbContext>();
+
+            var clampedPage = Math.Max(1, page ?? 1);
+            var clampedSize = Math.Clamp(pageSize ?? 20, 1, 50);
+
+            IQueryable<ProductReview> query = dbContext.ProductReviews.AsNoTracking();
+
+            if (rating.HasValue && rating.Value >= 1 && rating.Value <= 5)
+                query = query.Where(r => (int)r.Rating == rating.Value);
+
+            var totalCount = await query.CountAsync();
+
+            var reviews = await query
+                .OrderByDescending(r => r.CreatedAt)
+                .Skip((clampedPage - 1) * clampedSize)
+                .Take(clampedSize)
+                .Select(r => MapReviewToResponse(r))
+                .ToListAsync();
+
+            var totalPages = (int)Math.Ceiling((double)totalCount / clampedSize);
+
+            return Results.Ok(RESTResult<object>.Success(new
+            {
+                Items = reviews,
+                TotalCount = totalCount,
+                Page = clampedPage,
+                PageSize = clampedSize,
+                TotalPages = totalPages
+            }));
+        };
+
     internal static Delegate GetProductReviewsHandler =>
-        async (string productId, IServiceProvider sp) =>
+        async (string productId, int? page, int? pageSize, IServiceProvider sp) =>
             await RouteHandlers.RouteHandlerAsync<ReviewServices>(sp, async (services) =>
             {
-                var reviews = await services.ReviewRepository.GetByProductIdAsync(productId);
-                var response = reviews.Select(MapReviewToResponse);
-                return Results.Ok(response);
+                var allReviews = await services.ReviewRepository.GetByProductIdAsync(productId);
+                var reviewsList = allReviews.ToList();
+                var totalCount = reviewsList.Count;
+
+                var clampedPage = Math.Max(1, page ?? 1);
+                var clampedSize = Math.Clamp(pageSize ?? 10, 1, 50);
+                var totalPages = (int)Math.Ceiling((double)totalCount / clampedSize);
+
+                var paged = reviewsList
+                    .Skip((clampedPage - 1) * clampedSize)
+                    .Take(clampedSize)
+                    .Select(MapReviewToResponse)
+                    .ToList();
+
+                return Results.Ok(new
+                {
+                    Items = paged,
+                    TotalCount = totalCount,
+                    Page = clampedPage,
+                    PageSize = clampedSize,
+                    TotalPages = totalPages
+                });
             });
 
     internal static Delegate GetReviewSummaryHandler =>
@@ -33,11 +88,24 @@ internal class ReviewHandlers
             await RouteHandlers.RouteHandlerAsync<ReviewServices>(sp, async (services) =>
             {
                 var reviews = await services.ReviewRepository.GetByProductIdAsync(productId);
+                var reviewsList = reviews.ToList();
                 var avg = await services.ReviewRepository.GetAverageRatingAsync(productId);
+
+                var distribution = new Dictionary<int, int>
+                {
+                    { 1, 0 }, { 2, 0 }, { 3, 0 }, { 4, 0 }, { 5, 0 }
+                };
+                foreach (var r in reviewsList)
+                {
+                    var star = Math.Clamp((int)Math.Round(r.Rating), 1, 5);
+                    distribution[star]++;
+                }
+
                 return Results.Ok(new ReviewSummaryResponse
                 {
                     AverageRating = avg,
-                    TotalReviews = reviews.Count()
+                    TotalCount = reviewsList.Count,
+                    Distribution = distribution
                 });
             });
 
@@ -54,7 +122,7 @@ internal class ReviewHandlers
                         Id = Guid.NewGuid().ToString(),
                         ProductId = productId,
                         Rating = request.Rating,
-                        Comment = request.Comment,
+                        Comment = !string.IsNullOrEmpty(request.Text) ? request.Text : request.Comment ?? string.Empty,
                         UserId = userId ?? string.Empty,
                         UserName = request.UserName ?? httpContext?.User.FindFirstValue(ClaimTypes.Email) ?? "Guest",
                         ContactInfo = request.ContactInfo ?? string.Empty,
@@ -86,9 +154,11 @@ internal class ReviewHandlers
         Id = r.Id,
         ProductId = r.ProductId,
         Rating = r.Rating,
-        Comment = r.Comment,
-        UserName = r.UserName,
+        Title = null,
+        Text = r.Comment,
+        UserId = string.IsNullOrEmpty(r.UserId) ? null : r.UserId,
+        GuestName = r.UserName,
         CreatedAt = r.CreatedAt,
-        IsVerified = r.IsVerified
+        IsVerifiedPurchase = r.IsVerified
     };
 }

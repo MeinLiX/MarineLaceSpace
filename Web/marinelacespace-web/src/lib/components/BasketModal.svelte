@@ -30,9 +30,11 @@
     onclose();
   }
 
+  const MAX_ITEM_QTY = 50;
+
   async function handleQuantityChange(itemId: string, currentQty: number, delta: number) {
     const newQty = currentQty + delta;
-    if (newQty < 1 || newQty > 99) return;
+    if (newQty < 1 || newQty > MAX_ITEM_QTY) return;
     try {
       await basketStore.updateItem(itemId, { quantity: newQty });
     } catch {
@@ -132,11 +134,13 @@
                 </button>
               </div>
 
-              {#if item.sizeName || item.colorName}
+              {#if item.sizeName || item.colorName || item.materialName}
                 <p class="bm-item-variant">
                   {#if item.sizeName}{i18n.t('product.size')}: {item.sizeName}{/if}
-                  {#if item.sizeName && item.colorName} · {/if}
+                  {#if item.sizeName && (item.colorName || item.materialName)} · {/if}
                   {#if item.colorName}{i18n.t('product.color')}: {item.colorName}{/if}
+                  {#if item.colorName && item.materialName} · {/if}
+                  {#if item.materialName}{i18n.t('product.material')}: {item.materialName}{/if}
                 </p>
               {/if}
 
@@ -152,7 +156,7 @@
                   <button
                     class="bm-qty-btn"
                     onclick={() => handleQuantityChange(item.itemId, item.quantity, 1)}
-                    disabled={item.quantity >= 99 || basketStore.isLoading}
+                    disabled={item.quantity >= MAX_ITEM_QTY || basketStore.isLoading}
                     aria-label={i18n.t('basket.increaseQuantity')}
                   >+</button>
                 </div>

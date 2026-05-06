@@ -4,7 +4,6 @@ using Projects;
 var builder = DistributedApplication.CreateBuilder(args);
 
 
-#region Infrastructure
 var redis = builder.AddRedis("redis")
                    .WithLifetime(ContainerLifetime.Persistent)
                    .WithRedisInsight();
@@ -12,7 +11,6 @@ var redis = builder.AddRedis("redis")
 var postgres = builder.AddPostgres("postgres")
                       .WithLifetime(ContainerLifetime.Persistent);
 
-var basketdb = postgres.AddDatabase("pg-basket");
 var catalogdb = postgres.AddDatabase("pg-catalog");
 var orderdb = postgres.AddDatabase("pg-order");
 var paymentdb = postgres.AddDatabase("pg-payment");
@@ -22,18 +20,15 @@ var rabbitmq = builder.AddRabbitMQ("rabbitmq")
                       .WithLifetime(ContainerLifetime.Persistent)
                       .WithManagementPlugin();
 
+// MinIO added as a raw container since there's no built-in Aspire component for it
 var minio = builder.AddContainer("minio", "minio/minio")
                    .WithArgs("server", "/data", "--console-address", ":9001")
                    .WithEnvironment("MINIO_ROOT_USER", "minioadmin")
                    .WithEnvironment("MINIO_ROOT_PASSWORD", "minioadmin")
-                   .WithHttpEndpoint(port: 9000, targetPort: 9000, name: "api")
+                   .WithHttpEndpoint(port: 9000, targetPort: 9000, name: "http")
                    .WithHttpEndpoint(port: 9001, targetPort: 9001, name: "console")
                    .WithLifetime(ContainerLifetime.Persistent);
 
-#endregion Infrastructure
-
-
-#region Add projects
 
 var apiGateway = builder.AddProject<ApiGateway_WebHost>("api-gateway")
                         .AddCommonConfiguration(builder.Configuration)
@@ -69,11 +64,6 @@ var payment = builder.AddProject<Payment_WebHost>("payment-api")
                      .AddCommonConfiguration(builder.Configuration)
                      .WithHttpHealthCheck("/health");
 
-#endregion Add projects
-
-
-
-#region projects references
 
 apiGateway.WithReference(redis).WaitFor(redis)
           .WithReference(auth).WaitFor(auth)
@@ -82,7 +72,7 @@ apiGateway.WithReference(redis).WaitFor(redis)
           .WithReference(order).WaitFor(order)
           .WithReference(payment).WaitFor(payment)
           .WithReference(notification).WaitFor(notification)
-          .WithReference(minio.GetEndpoint("api")).WaitFor(minio);
+          .WithReference(minio.GetEndpoint("http")).WaitFor(minio);
 
 auth.WithReference(rabbitmq).WaitFor(rabbitmq)
     .WithReference(identitydb).WaitFor(identitydb);
@@ -94,7 +84,8 @@ basket.WithReference(redis).WaitFor(redis)
 catalog.WithReference(redis).WaitFor(redis)
        .WithReference(catalogdb).WaitFor(catalogdb)
        .WithReference(rabbitmq).WaitFor(rabbitmq)
-       .WithReference(minio.GetEndpoint("api")).WaitFor(minio);
+       .WithReference(minio.GetEndpoint("http")).WaitFor(minio)
+       .WithEnvironment("ConnectionStrings__minio", minio.GetEndpoint("http"));
 
 
 notification.WithReference(rabbitmq).WaitFor(rabbitmq);
@@ -108,17 +99,10 @@ order.WithReference(orderdb).WaitFor(orderdb)
 payment.WithReference(paymentdb).WaitFor(paymentdb)
        .WithReference(rabbitmq).WaitFor(rabbitmq);
 
-#endregion projects references
-
-
-#region Frontend
 
 var web = builder.AddViteApp("web", "../../Web/marinelacespace-web", "dev")
                 .WithReference(apiGateway)
-                //.WaitFor(apiGateway)
                 .WithExternalHttpEndpoints();
-
-#endregion Frontend
 
 
 await builder.Build().RunAsync();

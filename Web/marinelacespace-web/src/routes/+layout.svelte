@@ -8,6 +8,7 @@
   import Toast from '$lib/components/Toast.svelte';
   import BasketModal from '$lib/components/BasketModal.svelte';
   import { authStore } from '$stores/auth.svelte';
+  import { startSignalR, stopSignalR } from '$lib/services/signalr';
 
   let { children }: { children: Snippet } = $props();
   let basketModalOpen = $state(false);
@@ -15,6 +16,14 @@
 
   $effect(() => {
     authStore.loadUser();
+  });
+
+  $effect(() => {
+    if (authStore.isAuthenticated) {
+      startSignalR();
+    } else {
+      stopSignalR();
+    }
   });
 
   function openBasketModal() {
@@ -27,10 +36,14 @@
   onNavigate((navigation) => {
     if (!document.startViewTransition) return;
     return new Promise((resolve) => {
-      document.startViewTransition!(async () => {
+      const transition = document.startViewTransition!(async () => {
         resolve();
         await navigation.complete;
       });
+      // If the transition gets stuck (e.g. page is still loading), skip it after a timeout
+      setTimeout(() => {
+        try { transition.skipTransition(); } catch { /* already finished */ }
+      }, 500);
     });
   });
 </script>

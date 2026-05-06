@@ -128,5 +128,24 @@ public static class NotificationEventConsumers
                 "Password Reset - MarineLaceSpace",
                 $"Your password reset token: {@event.ResetToken}. This token will expire soon.");
         });
+
+        eventBus.Subscribe<PaymentRefundedEvent>(async (@event, ct) =>
+        {
+            using var scope = serviceProvider.CreateScope();
+            var emailService = scope.ServiceProvider.GetRequiredService<IEmailService>();
+            var pushService = scope.ServiceProvider.GetRequiredService<INotificationPushService>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("NotificationConsumers");
+
+            logger.LogInformation("Payment refunded: {RefundId} for order {OrderId}, Amount: {Amount}",
+                @event.RefundId, @event.OrderId, @event.RefundAmount);
+
+            if (!string.IsNullOrEmpty(@event.BuyerEmail))
+            {
+                await emailService.SendEmailAsync(@event.BuyerEmail,
+                    "Refund Processed - MarineLaceSpace",
+                    $"A refund of {@event.RefundAmount:C} for order #{@event.OrderId} has been processed." +
+                    (!string.IsNullOrEmpty(@event.Reason) ? $" Reason: {@event.Reason}" : string.Empty));
+            }
+        });
     }
 }

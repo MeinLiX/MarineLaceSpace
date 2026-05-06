@@ -7,16 +7,17 @@
   import Modal from '$components/Modal.svelte';
   import { notificationStore } from '$stores/notification.svelte';
   import { i18n } from '$i18n/index.svelte';
-  import type { Size, Gender } from '$types';
+  import type { Size, Gender, Shop } from '$types';
 
   $effect(() => {
-    if (!authStore.isLoading && !authStore.isAdmin) {
+    if (!authStore.isLoading && !authStore.isAdmin && !authStore.isSeller) {
       goto('/admin');
     }
   });
 
   let loading = $state(true);
   let sizes = $state<Size[]>([]);
+  let myShop = $state<Shop | null>(null);
 
   let showModal = $state(false);
   let modalMode = $state<'create' | 'edit'>('create');
@@ -29,18 +30,28 @@
   let deleteTarget = $state<Size | null>(null);
 
   $effect(() => {
-    loadSizes();
+    loadData();
   });
 
-  async function loadSizes() {
+  async function loadData() {
     try {
       loading = true;
-      sizes = await catalogApi.getSizes();
+      if (authStore.isSeller && !authStore.isAdmin) {
+        const shops = await catalogApi.getMyShops();
+        myShop = shops.length > 0 ? shops[0] : null;
+      }
+      sizes = await catalogApi.getSizes(myShop?.id);
     } catch {
       notificationStore.error(i18n.t('admin.errorLoadingSizes'));
     } finally {
       loading = false;
     }
+  }
+
+  function canEditEntry(entry: Size): boolean {
+    if (authStore.isAdmin) return true;
+    // Seller can only edit their shop's entries (not global)
+    return !!entry.shopId && entry.shopId === myShop?.id;
   }
 
   function openCreate() {
@@ -72,14 +83,14 @@
     try {
       saving = true;
       if (modalMode === 'create') {
-        await catalogApi.createSize({ name: modalName.trim(), gender: modalGender });
+        await catalogApi.createSize({ name: modalName.trim(), gender: modalGender, shopId: myShop?.id });
         notificationStore.success(i18n.t('admin.sizeCreated'));
       } else if (editingId) {
         await catalogApi.updateSize(editingId, { name: modalName.trim(), gender: modalGender });
         notificationStore.success(i18n.t('admin.sizeUpdated'));
       }
       showModal = false;
-      loadSizes();
+      loadData();
     } catch {
       notificationStore.error(i18n.t('admin.errorSavingSize'));
     } finally {
@@ -94,7 +105,7 @@
       notificationStore.success(i18n.t('admin.sizeDeleted'));
       showDeleteModal = false;
       deleteTarget = null;
-      loadSizes();
+      loadData();
     } catch {
       notificationStore.error(i18n.t('admin.errorDeletingSize'));
     }
@@ -119,7 +130,7 @@
   }
 </script>
 
-{#if authStore.isAdmin}
+{#if authStore.isAdmin || authStore.isSeller}
 <div class="sizes-page">
   <div class="page-header">
     <h1 class="page-title">{i18n.t('admin.sizesDictionary')}</h1>
@@ -141,6 +152,7 @@
           <tr>
             <th>{i18n.t('admin.name')}</th>
             <th>{i18n.t('admin.gender')}</th>
+            <th>Scope</th>
             <th>{i18n.t('admin.actions')}</th>
           </tr>
         </thead>
@@ -153,16 +165,23 @@
                   {genderLabel(size.gender)}
                 </span>
               </td>
+              <td>
+                <span class="badge {size.shopId ? 'badge-shop' : 'badge-global'}">
+                  {size.shopId ? '🏪 Shop' : '🌐 Global'}
+                </span>
+              </td>
               <td class="cell-actions">
-                <button class="btn btn-sm btn-ghost" onclick={() => openEdit(size)}>
-                  {i18n.t('common.edit')}
-                </button>
-                <button
-                  class="btn btn-sm btn-ghost btn-danger-text"
-                  onclick={() => confirmDelete(size)}
-                >
-                  {i18n.t('common.delete')}
-                </button>
+                {#if canEditEntry(size)}
+                  <button class="btn btn-sm btn-ghost" onclick={() => openEdit(size)}>
+                    {i18n.t('common.edit')}
+                  </button>
+                  <button
+                    class="btn btn-sm btn-ghost btn-danger-text"
+                    onclick={() => confirmDelete(size)}
+                  >
+                    {i18n.t('common.delete')}
+                  </button>
+                {/if}
               </td>
             </tr>
           {/each}
@@ -206,8 +225,8 @@
 </Modal>
 {:else}
   <div style="padding: 2rem; text-align: center;">
-    <p>Access denied. Admin only.</p>
-    <a href="/admin">← Back to Dashboard</a>
+    <p>{i18n.t('admin.accessDenied')}</p>
+    <a href="/admin">← {i18n.t('admin.backToDashboard')}</a>
   </div>
 {/if}
 
@@ -263,6 +282,22 @@
 
   .cell-actions {
     white-space: nowrap;
+  }
+
+  .badge-global {
+    background: var(--color-info, #3b82f6);
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+  }
+
+  .badge-shop {
+    background: var(--color-warning, #f59e0b);
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
   }
 
   .form-group {

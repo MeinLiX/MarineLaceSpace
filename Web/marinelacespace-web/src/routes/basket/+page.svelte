@@ -7,6 +7,7 @@
   import PriceDisplay from '$components/PriceDisplay.svelte';
   import LoadingSpinner from '$components/LoadingSpinner.svelte';
   import EmptyState from '$components/EmptyState.svelte';
+  import { FREE_SHIPPING_THRESHOLD, SHIPPING_COST } from '$lib/config/shipping';
   import Modal from '$components/Modal.svelte';
 
   let showClearModal = $state(false);
@@ -21,9 +22,6 @@
   const subtotal = $derived(
     basketStore.basket?.items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0) ?? 0
   );
-
-  const FREE_SHIPPING_THRESHOLD = 2000;
-  const SHIPPING_COST = 150;
 
   const shippingCost = $derived(subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_COST);
   const total = $derived(subtotal + shippingCost);

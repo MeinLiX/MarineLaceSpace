@@ -12,6 +12,9 @@ namespace Basket.WebHost.Routes;
 
 internal class BasketHandlers
 {
+    private const int MaxBasketItems = 50;
+    private const int MaxItemQuantity = 50;
+
     private record BasketServices : BasicRouteServices
     {
         public required IBasketRepository BasketRepository { get; init; }
@@ -25,9 +28,9 @@ internal class BasketHandlers
         if (!string.IsNullOrEmpty(userId)) return userId;
 
         var sessionId = accessor.HttpContext?.Request.Headers["X-Session-Id"].FirstOrDefault();
-        if (!string.IsNullOrEmpty(sessionId)) return sessionId;
+        if (!string.IsNullOrEmpty(sessionId)) return $"anon-{sessionId}";
 
-        return Guid.NewGuid().ToString();
+        return $"anon-{Guid.NewGuid()}";
     }
 
     private static BasketResponse ToResponse(string buyerId, BasketData? data)
@@ -84,9 +87,18 @@ internal class BasketHandlers
                         i.ColorId == request.ColorId &&
                         i.MaterialId == request.MaterialId);
 
+                    var currentTotalItems = basket.Items.Sum(i => i.Quantity);
+                    var newTotalItems = currentTotalItems + request.Quantity;
+
+                    if (newTotalItems > MaxBasketItems)
+                        return Results.BadRequest(RESTResult.Fail($"Basket limit is {MaxBasketItems} items. Currently: {currentTotalItems}, adding: {request.Quantity}."));
+
                     if (existingItem != null)
                     {
-                        existingItem.Quantity += request.Quantity;
+                        var newItemQty = existingItem.Quantity + request.Quantity;
+                        if (newItemQty > MaxItemQuantity)
+                            return Results.BadRequest(RESTResult.Fail($"Maximum {MaxItemQuantity} per item. Current: {existingItem.Quantity}, adding: {request.Quantity}."));
+                        existingItem.Quantity = newItemQty;
                     }
                     else
                     {
@@ -125,7 +137,12 @@ internal class BasketHandlers
                     var item = basket.Items.FirstOrDefault(i => i.ItemId == itemId);
                     if (item == null) return Results.NotFound(RESTResult.Fail("Item not found in basket."));
 
-                    if (request.Quantity.HasValue) item.Quantity = request.Quantity.Value;
+                    if (request.Quantity.HasValue)
+                    {
+                        if (request.Quantity.Value > MaxItemQuantity)
+                            return Results.BadRequest(RESTResult.Fail($"Maximum {MaxItemQuantity} per item."));
+                        item.Quantity = request.Quantity.Value;
+                    }
                     if (request.Personalization != null) item.Personalization = request.Personalization;
 
                     if (item.Quantity <= 0) basket.Items.Remove(item);

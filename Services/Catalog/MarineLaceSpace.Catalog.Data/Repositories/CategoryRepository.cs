@@ -106,4 +106,14 @@ public class CategoryRepository(CatalogDbContext context) : ICategoryRepository
         _context.Categories.Remove(category);
         await _context.SaveChangesAsync();
     }
+
+    public async Task<IEnumerable<Category>> SearchByNameAsync(string query)
+    {
+        return await _context.Categories
+            .Where(c => EF.Functions.ILike(c.Name, $"%{query}%"))
+            .AsNoTracking()
+            .OrderBy(c => c.FullPath)
+            .Take(50)
+            .ToListAsync();
+    }
 }

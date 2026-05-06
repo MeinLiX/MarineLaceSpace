@@ -32,6 +32,12 @@ public class Product
 
     public bool AllowPersonalization { get; set; } = true;
 
+    /// <summary>
+    /// When true, this product has unlimited quantity (made-to-order).
+    /// Inventory deduction is skipped for unlimited products.
+    /// </summary>
+    public bool IsUnlimitedQuantity { get; set; } = false;
+
     public bool IsActive { get; set; } = true;
 
     public virtual ICollection<ProductSize> AvailableSizes { get; set; } = [];

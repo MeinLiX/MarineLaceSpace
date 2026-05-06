@@ -69,7 +69,16 @@ public static class OrderEventConsumers
                     OrderId = order.Id,
                     BuyerId = order.BuyerId,
                     BuyerEmail = order.BuyerEmail,
-                    TotalPrice = order.TotalPrice
+                    TotalPrice = order.TotalPrice,
+                    Items = order.Items.Select(i => new OrderCreatedItem
+                    {
+                        ProductId = i.ProductId,
+                        ProductName = i.ProductName,
+                        SizeId = i.SizeId,
+                        ColorId = i.ColorId,
+                        MaterialId = i.MaterialId,
+                        Quantity = i.Quantity
+                    }).ToList()
                 }, ct);
             }
         });
@@ -117,6 +126,70 @@ public static class OrderEventConsumers
                 order.UpdatedAt = DateTime.UtcNow;
                 await db.SaveChangesAsync(ct);
                 logger.LogInformation("Order {OrderId} marked as PaymentFailed: {Reason}", order.Id, @event.Reason);
+            }
+        });
+
+        eventBus.Subscribe<PaymentRefundedEvent>(async (@event, ct) =>
+        {
+            using var scope = serviceProvider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+            var bus = scope.ServiceProvider.GetService<IEventBus>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<OrderDbContext>>();
+
+            var order = await db.Orders.FirstOrDefaultAsync(o => o.Id == @event.OrderId, ct);
+            if (order != null)
+            {
+                var oldStatus = OrderStatus.FromId<OrderStatus>(order.StatusId)?.Name ?? "Unknown";
+                order.StatusId = OrderStatus.Refunded.Id;
+                order.UpdatedAt = DateTime.UtcNow;
+                await db.SaveChangesAsync(ct);
+                logger.LogInformation("Order {OrderId} marked as Refunded (RefundId: {RefundId}, Amount: {Amount})",
+                    order.Id, @event.RefundId, @event.RefundAmount);
+
+                if (bus != null)
+                {
+                    await bus.PublishAsync(new OrderStatusChangedEvent
+                    {
+                        OrderId = order.Id,
+                        BuyerId = order.BuyerId,
+                        BuyerEmail = order.BuyerEmail,
+                        OldStatus = oldStatus,
+                        NewStatus = OrderStatus.Refunded.Name
+                    }, ct);
+                }
+            }
+        });
+
+        eventBus.Subscribe<InventoryReservationFailedEvent>(async (@event, ct) =>
+        {
+            using var scope = serviceProvider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+            var bus = scope.ServiceProvider.GetService<IEventBus>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<OrderDbContext>>();
+
+            var order = await db.Orders.FirstOrDefaultAsync(o => o.Id == @event.OrderId, ct);
+            if (order != null)
+            {
+                var oldStatus = OrderStatus.FromId<OrderStatus>(order.StatusId)?.Name ?? "Unknown";
+                order.StatusId = OrderStatus.Canceled.Id;
+                order.CancellationReason = @event.Reason;
+                order.UpdatedAt = DateTime.UtcNow;
+                await db.SaveChangesAsync(ct);
+                logger.LogWarning(
+                    "Order {OrderId} CANCELED due to inventory reservation failure: {Reason}",
+                    order.Id, @event.Reason);
+
+                if (bus != null)
+                {
+                    await bus.PublishAsync(new OrderStatusChangedEvent
+                    {
+                        OrderId = order.Id,
+                        BuyerId = order.BuyerId,
+                        BuyerEmail = order.BuyerEmail,
+                        OldStatus = oldStatus,
+                        NewStatus = OrderStatus.Canceled.Name
+                    }, ct);
+                }
             }
         });
     }

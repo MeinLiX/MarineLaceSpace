@@ -6,6 +6,7 @@
   import { notificationStore } from '$stores/notification.svelte';
   import { createCheckoutSession } from '$api/payment';
   import { i18n } from '$i18n/index.svelte';
+  import { FREE_SHIPPING_THRESHOLD, SHIPPING_COST } from '$lib/config/shipping';
   import PriceDisplay from '$components/PriceDisplay.svelte';
   import LoadingSpinner from '$components/LoadingSpinner.svelte';
 
@@ -70,8 +71,6 @@
   /* ── Derived ── */
   const items = $derived(basketStore.basket?.items ?? []);
   const subtotal = $derived(items.reduce((s, i) => s + i.unitPrice * i.quantity, 0));
-  const FREE_SHIPPING_THRESHOLD = 75;
-  const SHIPPING_COST = 2;
   const shippingCost = $derived(subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_COST);
   const total = $derived(subtotal + shippingCost);
 

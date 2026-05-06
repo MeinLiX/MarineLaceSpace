@@ -97,17 +97,14 @@ internal class PaymentHandlers
         async (string provider, HttpContext httpContext, IServiceProvider sp) =>
             await RouteHandlers.RouteHandlerAsync<PaymentServices>(sp, async (services) =>
             {
-                // Simulate webhook processing - in production, verify signature per provider
                 var body = await new StreamReader(httpContext.Request.Body).ReadToEndAsync();
                 services.Logger.LogInformation("Received webhook from {Provider}: {Body}", provider, body);
 
-                // For demo: mark latest pending payment as succeeded
                 var pendingPayment = await services.DbContext.Payments
                     .FirstOrDefaultAsync(p => p.StatusId == PaymentStatus.Pending.Id);
 
                 if (pendingPayment != null)
                 {
-                    // Simulate: 80% success, 20% failure for demo purposes
                     var isSuccess = Random.Shared.Next(100) < 80;
 
                     if (isSuccess)
@@ -187,7 +184,6 @@ internal class PaymentHandlers
 
                     var refundAmount = request.Amount ?? payment.Amount;
 
-                    // Calculate already refunded total
                     var alreadyRefunded = await services.DbContext.Refunds
                         .Where(r => r.PaymentId == id && (r.StatusId == RefundStatus.Completed.Id || r.StatusId == RefundStatus.Approved.Id))
                         .SumAsync(r => r.Amount);

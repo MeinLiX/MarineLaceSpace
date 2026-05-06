@@ -7,16 +7,17 @@
   import Modal from '$components/Modal.svelte';
   import { notificationStore } from '$stores/notification.svelte';
   import { i18n } from '$i18n/index.svelte';
-  import type { Color } from '$types';
+  import type { Color, Shop } from '$types';
 
   $effect(() => {
-    if (!authStore.isLoading && !authStore.isAdmin) {
+    if (!authStore.isLoading && !authStore.isAdmin && !authStore.isSeller) {
       goto('/admin');
     }
   });
 
   let loading = $state(true);
   let colors = $state<Color[]>([]);
+  let myShop = $state<Shop | null>(null);
 
   let showModal = $state(false);
   let modalMode = $state<'create' | 'edit'>('create');
@@ -29,18 +30,27 @@
   let deleteTarget = $state<Color | null>(null);
 
   $effect(() => {
-    loadColors();
+    loadData();
   });
 
-  async function loadColors() {
+  async function loadData() {
     try {
       loading = true;
-      colors = await catalogApi.getColors();
+      if (authStore.isSeller && !authStore.isAdmin) {
+        const shops = await catalogApi.getMyShops();
+        myShop = shops.length > 0 ? shops[0] : null;
+      }
+      colors = await catalogApi.getColors(myShop?.id);
     } catch {
       notificationStore.error(i18n.t('admin.errorLoadingColors'));
     } finally {
       loading = false;
     }
+  }
+
+  function canEditEntry(entry: Color): boolean {
+    if (authStore.isAdmin) return true;
+    return !!entry.shopId && entry.shopId === myShop?.id;
   }
 
   function openCreate() {
@@ -76,14 +86,14 @@
     try {
       saving = true;
       if (modalMode === 'create') {
-        await catalogApi.createColor({ name: modalName.trim(), hexCode: modalHex });
+        await catalogApi.createColor({ name: modalName.trim(), hexCode: modalHex, shopId: myShop?.id });
         notificationStore.success(i18n.t('admin.colorCreated'));
       } else if (editingId) {
         await catalogApi.updateColor(editingId, { name: modalName.trim(), hexCode: modalHex });
         notificationStore.success(i18n.t('admin.colorUpdated'));
       }
       showModal = false;
-      loadColors();
+      loadData();
     } catch {
       notificationStore.error(i18n.t('admin.errorSavingColor'));
     } finally {
@@ -98,14 +108,14 @@
       notificationStore.success(i18n.t('admin.colorDeleted'));
       showDeleteModal = false;
       deleteTarget = null;
-      loadColors();
+      loadData();
     } catch {
       notificationStore.error(i18n.t('admin.errorDeletingColor'));
     }
   }
 </script>
 
-{#if authStore.isAdmin}
+{#if authStore.isAdmin || authStore.isSeller}
 <div class="colors-page">
   <div class="page-header">
     <h1 class="page-title">{i18n.t('admin.colorsDictionary')}</h1>
@@ -128,17 +138,22 @@
           <div class="color-info">
             <span class="color-name">{color.name}</span>
             <span class="color-hex">{color.hexCode}</span>
+            <span class="badge {color.shopId ? 'badge-shop' : 'badge-global'}">
+              {color.shopId ? '🏪 Shop' : '🌐 Global'}
+            </span>
           </div>
           <div class="color-actions">
-            <button class="btn btn-sm btn-ghost" onclick={() => openEdit(color)}>
-              {i18n.t('common.edit')}
-            </button>
-            <button
-              class="btn btn-sm btn-ghost btn-danger-text"
-              onclick={() => confirmDelete(color)}
-            >
-              {i18n.t('common.delete')}
-            </button>
+            {#if canEditEntry(color)}
+              <button class="btn btn-sm btn-ghost" onclick={() => openEdit(color)}>
+                {i18n.t('common.edit')}
+              </button>
+              <button
+                class="btn btn-sm btn-ghost btn-danger-text"
+                onclick={() => confirmDelete(color)}
+              >
+                {i18n.t('common.delete')}
+              </button>
+            {/if}
           </div>
         </div>
       {/each}
@@ -154,6 +169,7 @@
               <th>{i18n.t('admin.color')}</th>
               <th>{i18n.t('admin.name')}</th>
               <th>{i18n.t('admin.hexCode')}</th>
+              <th>Scope</th>
               <th>{i18n.t('admin.actions')}</th>
             </tr>
           </thead>
@@ -168,16 +184,23 @@
                 </td>
                 <td class="cell-name">{color.name}</td>
                 <td class="cell-mono">{color.hexCode}</td>
+                <td>
+                  <span class="badge {color.shopId ? 'badge-shop' : 'badge-global'}">
+                    {color.shopId ? '🏪 Shop' : '🌐 Global'}
+                  </span>
+                </td>
                 <td class="cell-actions">
-                  <button class="btn btn-sm btn-ghost" onclick={() => openEdit(color)}>
-                    {i18n.t('common.edit')}
-                  </button>
-                  <button
-                    class="btn btn-sm btn-ghost btn-danger-text"
-                    onclick={() => confirmDelete(color)}
-                  >
-                    {i18n.t('common.delete')}
-                  </button>
+                  {#if canEditEntry(color)}
+                    <button class="btn btn-sm btn-ghost" onclick={() => openEdit(color)}>
+                      {i18n.t('common.edit')}
+                    </button>
+                    <button
+                      class="btn btn-sm btn-ghost btn-danger-text"
+                      onclick={() => confirmDelete(color)}
+                    >
+                      {i18n.t('common.delete')}
+                    </button>
+                  {/if}
                 </td>
               </tr>
             {/each}
@@ -234,8 +257,8 @@
 </Modal>
 {:else}
   <div style="padding: 2rem; text-align: center;">
-    <p>Access denied. Admin only.</p>
-    <a href="/admin">← Back to Dashboard</a>
+    <p>{i18n.t('admin.accessDenied')}</p>
+    <a href="/admin">← {i18n.t('admin.backToDashboard')}</a>
   </div>
 {/if}
 
@@ -373,6 +396,22 @@
 
   .cell-actions {
     white-space: nowrap;
+  }
+
+  .badge-global {
+    background: var(--color-info, #3b82f6);
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+  }
+
+  .badge-shop {
+    background: var(--color-warning, #f59e0b);
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
   }
 
   .form-group {

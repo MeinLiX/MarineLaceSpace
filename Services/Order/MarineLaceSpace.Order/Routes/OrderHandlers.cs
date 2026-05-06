@@ -42,7 +42,6 @@ internal class OrderHandlers
         try
         {
             var client = services.HttpClientFactory.CreateClient("catalog-api");
-            // Forward the authorization header so the catalog service can verify
             var authHeader = httpContext.Request.Headers["Authorization"].FirstOrDefault();
             if (!string.IsNullOrEmpty(authHeader))
                 client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", authHeader);
@@ -200,6 +199,17 @@ internal class OrderHandlers
 
                     order.StatusId = request.StatusId;
                     order.UpdatedAt = DateTime.UtcNow;
+
+                    if (request.StatusId == OrderStatus.Shipped.Id && !string.IsNullOrWhiteSpace(request.TrackingNumber))
+                    {
+                        order.TrackingNumber = request.TrackingNumber.Trim();
+                    }
+
+                    if (request.StatusId == OrderStatus.Canceled.Id && !string.IsNullOrWhiteSpace(request.CancellationReason))
+                    {
+                        order.CancellationReason = request.CancellationReason.Trim();
+                    }
+
                     await services.DbContext.SaveChangesAsync();
 
                     if (services.EventBus != null)
@@ -250,7 +260,7 @@ internal class OrderHandlers
                 });
 
     internal static Delegate CancelOrderHandler =>
-        async (string id, IServiceProvider sp) =>
+        async (string id, [FromBody] CancelOrderRequest? request, IServiceProvider sp) =>
             await RouteHandlers.RouteHandlerAsync<OrderServices>(sp, async (services) =>
             {
                 var userId = services.HttpContextAccessor.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -272,6 +282,12 @@ internal class OrderHandlers
                 var oldStatus = currentStatus?.Name ?? "Unknown";
                 order.StatusId = OrderStatus.Canceled.Id;
                 order.UpdatedAt = DateTime.UtcNow;
+
+                if (!string.IsNullOrWhiteSpace(request?.Reason))
+                {
+                    order.CancellationReason = request.Reason.Trim();
+                }
+
                 await services.DbContext.SaveChangesAsync();
 
                 if (services.EventBus != null)
@@ -355,6 +371,7 @@ internal class OrderHandlers
         Status = OrderStatus.FromId<OrderStatus>(order.StatusId)?.Name ?? "Unknown",
         TotalPrice = order.TotalPrice,
         TrackingNumber = order.TrackingNumber,
+        CancellationReason = order.CancellationReason,
         CreatedAt = order.CreatedAt,
         UpdatedAt = order.UpdatedAt,
         ShippingAddress = new ShippingAddressInfo

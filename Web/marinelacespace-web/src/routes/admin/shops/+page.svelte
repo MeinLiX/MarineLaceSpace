@@ -21,6 +21,7 @@
   let showCreateModal = $state(false);
   let newShopName = $state('');
   let newShopDescription = $state('');
+  let newShopSlug = $state('');
   let isCreating = $state(false);
 
   $effect(() => {
@@ -82,12 +83,14 @@
     try {
       await catalogApi.createShop({
         name: newShopName.trim(),
-        description: newShopDescription.trim()
+        description: newShopDescription.trim(),
+        urlSlug: newShopSlug.trim() || undefined
       });
       notificationStore.success(i18n.t('admin.shopCreated'));
       showCreateModal = false;
       newShopName = '';
       newShopDescription = '';
+      newShopSlug = '';
       loadShops(currentPage, search);
     } catch {
       notificationStore.error(i18n.t('admin.errorSaving'));
@@ -140,15 +143,15 @@
             <tr>
               <td>
                 {#if shop.logoUrl}
-                  <img src={shop.logoUrl} alt={shop.name} class="shop-logo" />
+                  <img src={shop.logoUrl} alt={shop.name} class="shop-logo" loading="lazy" />
                 {:else}
                   <div class="shop-logo placeholder">🏪</div>
                 {/if}
               </td>
               <td class="cell-title">
                 <a href="/admin/shops/{shop.id}" class="shop-link">{shop.name}</a>
-                {#if shop.slug}
-                  <span class="slug-hint">/{shop.slug}</span>
+                {#if shop.urlSlug}
+                  <span class="slug-hint">/{shop.urlSlug}</span>
                 {/if}
               </td>
               <td>
@@ -164,7 +167,7 @@
               <td class="cell-links">
                 <a href="/admin/products?shopId={shop.id}" class="quick-link" title="Products">📦</a>
                 <a href="/admin/orders?shopId={shop.id}" class="quick-link" title="Orders">🧾</a>
-                <a href="/shops/{shop.slug || shop.id}" class="quick-link" title="Public page">🌐</a>
+                <a href="/shops/{shop.urlSlug || shop.id}" class="quick-link" title="Public page">🌐</a>
               </td>
               <td class="cell-actions">
                 <a href="/admin/shops/{shop.id}" class="btn btn-sm btn-ghost">{i18n.t('admin.details')}</a>
@@ -216,6 +219,18 @@
         placeholder={i18n.t('admin.shopDescriptionPlaceholder')}
         rows="3"
       ></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="newShopSlug">URL Slug</label>
+      <input
+        id="newShopSlug"
+        class="input"
+        type="text"
+        bind:value={newShopSlug}
+        placeholder="my-shop-name"
+        pattern="^[a-z0-9]+(?:-[a-z0-9]+)*$"
+      />
+      <span class="form-hint">{i18n.t('admin.slugHint') ?? 'Lowercase letters, numbers, and hyphens. Leave empty to auto-generate.'}</span>
     </div>
     <div class="modal-actions">
       <button type="button" class="btn btn-outline" onclick={() => (showCreateModal = false)}>{i18n.t('common.cancel')}</button>
@@ -402,5 +417,12 @@
     justify-content: flex-end;
     gap: var(--space-3);
     margin-top: var(--space-6);
+  }
+
+  .form-hint {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--color-text-light);
+    margin-top: var(--space-1);
   }
 </style>

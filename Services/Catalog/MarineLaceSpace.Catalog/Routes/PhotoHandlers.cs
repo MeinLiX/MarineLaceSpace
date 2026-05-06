@@ -62,6 +62,9 @@ internal class PhotoHandlers
                     if (file == null || file.Length == 0)
                         return Results.BadRequest(RESTResult.Fail("File is empty"));
 
+                    if (services.MinioClient == null)
+                        return Results.StatusCode(503); // MinIO not configured
+
                     var bucketName = "products";
                     var beArgs = new BucketExistsArgs().WithBucket(bucketName);
                     bool found = await services.MinioClient.BucketExistsAsync(beArgs);

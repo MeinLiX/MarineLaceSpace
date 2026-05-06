@@ -15,6 +15,9 @@ public class CreateProductRequest
 
     public bool AllowPersonalization { get; set; } = false;
 
+    /// <summary>When true, product has unlimited quantity (made-to-order).</summary>
+    public bool IsUnlimitedQuantity { get; set; } = false;
+
     [Required]
     public decimal Price { get; set; }
 

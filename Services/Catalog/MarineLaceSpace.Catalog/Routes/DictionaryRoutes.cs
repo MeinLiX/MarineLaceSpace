@@ -4,25 +4,22 @@ public static class DictionaryRoutes
 {
     public static void MapDictionaryRoutes(this IEndpointRouteBuilder app)
     {
-        // Sizes
         var sizesGroup = app.MapGroup("/api/sizes").WithTags("Sizes");
-        sizesGroup.MapGet("/", DictionaryHandlers.GetSizesHandler).WithSummary("Get all sizes");
-        sizesGroup.MapPost("/", DictionaryHandlers.CreateSizeHandler).WithSummary("Create a size").RequireAuthorization("AdminOnly");
-        sizesGroup.MapPut("/{id}", DictionaryHandlers.UpdateSizeHandler).WithSummary("Update a size").RequireAuthorization("AdminOnly");
-        sizesGroup.MapDelete("/{id}", DictionaryHandlers.DeleteSizeHandler).WithSummary("Delete a size").RequireAuthorization("AdminOnly");
+        sizesGroup.MapGet("/", DictionaryHandlers.GetSizesHandler).WithSummary("Get sizes (filtered by scope)");
+        sizesGroup.MapPost("/", DictionaryHandlers.CreateSizeHandler).WithSummary("Create a size").RequireAuthorization("SellersOrAdmin");
+        sizesGroup.MapPut("/{id}", DictionaryHandlers.UpdateSizeHandler).WithSummary("Update a size").RequireAuthorization("SellersOrAdmin");
+        sizesGroup.MapDelete("/{id}", DictionaryHandlers.DeleteSizeHandler).WithSummary("Delete a size").RequireAuthorization("SellersOrAdmin");
 
-        // Colors
         var colorsGroup = app.MapGroup("/api/colors").WithTags("Colors");
-        colorsGroup.MapGet("/", DictionaryHandlers.GetColorsHandler).WithSummary("Get all colors");
-        colorsGroup.MapPost("/", DictionaryHandlers.CreateColorHandler).WithSummary("Create a color").RequireAuthorization("AdminOnly");
-        colorsGroup.MapPut("/{id}", DictionaryHandlers.UpdateColorHandler).WithSummary("Update a color").RequireAuthorization("AdminOnly");
-        colorsGroup.MapDelete("/{id}", DictionaryHandlers.DeleteColorHandler).WithSummary("Delete a color").RequireAuthorization("AdminOnly");
+        colorsGroup.MapGet("/", DictionaryHandlers.GetColorsHandler).WithSummary("Get colors (filtered by scope)");
+        colorsGroup.MapPost("/", DictionaryHandlers.CreateColorHandler).WithSummary("Create a color").RequireAuthorization("SellersOrAdmin");
+        colorsGroup.MapPut("/{id}", DictionaryHandlers.UpdateColorHandler).WithSummary("Update a color").RequireAuthorization("SellersOrAdmin");
+        colorsGroup.MapDelete("/{id}", DictionaryHandlers.DeleteColorHandler).WithSummary("Delete a color").RequireAuthorization("SellersOrAdmin");
 
-        // Materials
         var materialsGroup = app.MapGroup("/api/materials").WithTags("Materials");
-        materialsGroup.MapGet("/", DictionaryHandlers.GetMaterialsHandler).WithSummary("Get all materials");
-        materialsGroup.MapPost("/", DictionaryHandlers.CreateMaterialHandler).WithSummary("Create a material").RequireAuthorization("AdminOnly");
-        materialsGroup.MapPut("/{id}", DictionaryHandlers.UpdateMaterialHandler).WithSummary("Update a material").RequireAuthorization("AdminOnly");
-        materialsGroup.MapDelete("/{id}", DictionaryHandlers.DeleteMaterialHandler).WithSummary("Delete a material").RequireAuthorization("AdminOnly");
+        materialsGroup.MapGet("/", DictionaryHandlers.GetMaterialsHandler).WithSummary("Get materials (filtered by scope)");
+        materialsGroup.MapPost("/", DictionaryHandlers.CreateMaterialHandler).WithSummary("Create a material").RequireAuthorization("SellersOrAdmin").DisableAntiforgery();
+        materialsGroup.MapPut("/{id}", DictionaryHandlers.UpdateMaterialHandler).WithSummary("Update a material").RequireAuthorization("SellersOrAdmin").DisableAntiforgery();
+        materialsGroup.MapDelete("/{id}", DictionaryHandlers.DeleteMaterialHandler).WithSummary("Delete a material").RequireAuthorization("SellersOrAdmin");
     }
 }

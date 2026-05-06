@@ -68,5 +68,14 @@ public static class ShopRoutes
         shopsGroup.MapGet("/{shopId}/reviews", ShopHandlers.GetShopReviewsHandler)
             .WithSummary("Get reviews for all products in a shop")
             .Produces<IRESTResult>(StatusCodes.Status200OK);
+
+        shopsGroup.MapPost("/{id}/upload-image", ShopHandlers.UploadShopImageHandler)
+            .WithSummary("Upload a logo or banner image for a shop")
+            .WithDescription("Uploads an image file to MinIO and saves the URL. Query param imageType must be 'logo' or 'banner'.")
+            .Produces<IRESTResult>(StatusCodes.Status200OK)
+            .Produces<IRESTResult>(StatusCodes.Status400BadRequest)
+            .Produces<IRESTResult>(StatusCodes.Status404NotFound)
+            .DisableAntiforgery()
+            .RequireAuthorization("SellersOrAdmin");
     }
 }

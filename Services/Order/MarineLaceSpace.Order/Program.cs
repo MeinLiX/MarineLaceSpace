@@ -1,4 +1,5 @@
 using BB.Common.EventBus;
+using BB.Common.Extensions;
 using MarineLaceSpace.Interfaces.EventBus;
 using Microsoft.EntityFrameworkCore;
 using Order.WebHost.Consumers;
@@ -10,7 +11,8 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("pg-order");
 builder.Services.AddDbContext<OrderDbContext>(options =>
 {
-    options.UseNpgsql(connectionString);
+    options.UseNpgsql(connectionString, npgsqlOptions =>
+        npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(30), errorCodesToAdd: null));
 });
 
 var rabbitConnectionString = builder.Configuration.GetConnectionString("rabbitmq");
@@ -25,8 +27,7 @@ var app = builder.BuildWithPostActions();
 
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
-    await db.Database.EnsureCreatedAsync();
+    await scope.ServiceProvider.EnsureCreatedWithRetryAsync<OrderDbContext>();
 
     var eventBus = scope.ServiceProvider.GetService<IEventBus>();
     if (eventBus != null)

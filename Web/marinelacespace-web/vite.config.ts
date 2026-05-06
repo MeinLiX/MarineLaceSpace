@@ -15,6 +15,11 @@ export default defineConfig({
 				target: apiGatewayUrl,
 				changeOrigin: true,
 				secure: false
+			},
+			'/minio': {
+				target: apiGatewayUrl,
+				changeOrigin: true,
+				secure: false
 			}
 		}
 	}

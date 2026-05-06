@@ -24,6 +24,7 @@
 
   let showCancelModal = $state(false);
   let canceling = $state(false);
+  let cancelReasonInput = $state('');
 
   const statusIdMap: Record<string, number> = {
     New: 1, PendingPayment: 2, Paid: 3, Processing: 4,
@@ -90,8 +91,19 @@
     if (!order || !newStatusId || statusNameMap[newStatusId] === order.status) return;
     try {
       changingStatus = true;
-      await orderApi.updateOrderStatus(order.id, { statusId: newStatusId });
-      order = { ...order, status: (statusNameMap[newStatusId] ?? order.status) as OrderStatus };
+      const payload: import('$types').OrderStatusUpdate = { statusId: newStatusId };
+      // Include tracking number when shipping
+      if (newStatusId === 5 && trackingInput.trim()) {
+        payload.trackingNumber = trackingInput.trim();
+      }
+      // Include cancellation reason when canceling via status change
+      if (newStatusId === 8 && cancelReasonInput.trim()) {
+        payload.cancellationReason = cancelReasonInput.trim();
+      }
+      const updated = await orderApi.updateOrderStatus(order.id, payload);
+      order = { ...order, status: (statusNameMap[newStatusId] ?? order.status) as OrderStatus, trackingNumber: updated.trackingNumber ?? order.trackingNumber, cancellationReason: updated.cancellationReason ?? order.cancellationReason };
+      trackingInput = '';
+      cancelReasonInput = '';
       notificationStore.success(i18n.t('admin.statusChanged'));
     } catch {
       notificationStore.error(i18n.t('admin.errorChangingStatus'));
@@ -120,9 +132,10 @@
     if (!order) return;
     try {
       canceling = true;
-      await orderApi.cancelOrder(order.id);
-      order = { ...order, status: 'Canceled' };
+      await orderApi.cancelOrder(order.id, cancelReasonInput.trim() || undefined);
+      order = { ...order, status: 'Canceled', cancellationReason: cancelReasonInput.trim() || null };
       showCancelModal = false;
+      cancelReasonInput = '';
       notificationStore.success(i18n.t('admin.orderCanceled'));
     } catch {
       notificationStore.error(i18n.t('admin.errorCanceling'));
@@ -258,6 +271,32 @@
                 {i18n.t('admin.changeStatus')}
               </button>
             </div>
+            {#if newStatusId === 5}
+              <div class="inline-field" style="margin-top: var(--space-3);">
+                <label class="form-label" for="inline-tracking">{i18n.t('admin.trackingNumberForShipping')}</label>
+                <input
+                  id="inline-tracking"
+                  class="input input-sm"
+                  type="text"
+                  bind:value={trackingInput}
+                  placeholder={i18n.t('admin.enterTrackingNumber')}
+                  style="max-width: 320px;"
+                />
+              </div>
+            {/if}
+            {#if newStatusId === 8}
+              <div class="inline-field" style="margin-top: var(--space-3);">
+                <label class="form-label" for="inline-cancel-reason">{i18n.t('admin.cancellationReason')}</label>
+                <input
+                  id="inline-cancel-reason"
+                  class="input input-sm"
+                  type="text"
+                  bind:value={cancelReasonInput}
+                  placeholder={i18n.t('admin.enterCancellationReason')}
+                  style="max-width: 320px;"
+                />
+              </div>
+            {/if}
           </div>
         </section>
 
@@ -303,6 +342,16 @@
           </div>
         </section>
 
+        <!-- Cancellation reason -->
+        {#if order.status === 'Canceled' && order.cancellationReason}
+          <section class="detail-section card">
+            <div class="card-body">
+              <h3 class="section-title">❌ {i18n.t('admin.cancellationReason')}</h3>
+              <p>{order.cancellationReason}</p>
+            </div>
+          </section>
+        {/if}
+
         <!-- Order items -->
         <section class="detail-section card">
           <div class="card-header">
@@ -326,7 +375,7 @@
                     <tr>
                       <td>
                         {#if item.imageUrl}
-                          <img src={item.imageUrl} alt={item.productName} class="item-thumb" />
+                          <img src={item.imageUrl} alt={item.productName} class="item-thumb" loading="lazy" />
                         {:else}
                           <div class="item-thumb placeholder">📷</div>
                         {/if}
@@ -472,6 +521,16 @@
 >
   <p>{i18n.t('admin.confirmCancelOrder')}</p>
   <p class="text-sm text-muted mt-2">{i18n.t('admin.actionIrreversible')}</p>
+  <div class="form-group" style="margin-top: var(--space-4);">
+    <label class="form-label" for="cancel-reason">{i18n.t('admin.cancellationReason')}</label>
+    <input
+      id="cancel-reason"
+      class="input"
+      type="text"
+      bind:value={cancelReasonInput}
+      placeholder={i18n.t('admin.enterCancellationReason')}
+    />
+  </div>
   <div class="modal-actions">
     <button class="btn btn-outline" onclick={() => (showCancelModal = false)}>{i18n.t('common.no')}</button>
     <button class="btn" style="background: var(--color-error); color: #fff;" onclick={cancelOrder} disabled={canceling}>
@@ -652,6 +711,12 @@
     display: flex;
     align-items: center;
     gap: var(--space-3);
+  }
+
+  .inline-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
   }
 
   .tracking-number {

@@ -198,7 +198,7 @@
               </td>
               <td>
                 {#if product.mainImageUrl}
-                  <img src={product.mainImageUrl} alt={product.name} class="thumb" />
+                  <img src={product.mainImageUrl} alt={product.name} class="thumb" loading="lazy" />
                 {:else}
                   <div class="thumb thumb-placeholder">📷</div>
                 {/if}

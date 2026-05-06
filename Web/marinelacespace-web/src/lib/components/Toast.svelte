@@ -1,37 +1,12 @@
 <script lang="ts">
+  import { notificationStore, type Notification } from '$stores/notification.svelte';
   import { i18n } from '$i18n/index.svelte';
 
-  interface Notification {
-    id: string;
-    type: 'success' | 'error' | 'warning' | 'info';
-    message: string;
-    duration?: number;
-  }
-
-  let notifications = $state<Notification[]>([]);
-  let timers = new Map<string, ReturnType<typeof setTimeout>>();
-
-  function addNotification(notification: Omit<Notification, 'id'>) {
-    const id = crypto.randomUUID();
-    const item: Notification = { id, ...notification };
-    notifications = [...notifications, item];
-
-    const duration = notification.duration ?? 5000;
-    const timer = setTimeout(() => removeNotification(id), duration);
-    timers.set(id, timer);
-  }
-
-  function removeNotification(id: string) {
-    const timer = timers.get(id);
-    if (timer) {
-      clearTimeout(timer);
-      timers.delete(id);
-    }
-    notifications = notifications.filter((n) => n.id !== id);
-  }
-
+  // Keep the window.__mls_toast bridge for legacy usage, but route through notificationStore
   if (typeof window !== 'undefined') {
-    (window as unknown as Record<string, unknown>).__mls_toast = addNotification;
+    (window as unknown as Record<string, unknown>).__mls_toast = (opts: { message: string; type?: Notification['type']; duration?: number }) => {
+      notificationStore.addNotification(opts.message, opts.type || 'info', opts.duration);
+    };
   }
 
   const iconPaths: Record<string, string> = {
@@ -42,10 +17,10 @@
   };
 </script>
 
-{#if notifications.length > 0}
+{#if notificationStore.notifications.length > 0}
   <div class="toast-container" aria-live="polite" aria-label={i18n.t('common.notifications')}>
-    {#each notifications as notification (notification.id)}
-      <div class="toast toast-{notification.type}" role="alert">
+    {#each notificationStore.notifications as notification (notification.id)}
+      <div class="toast toast-{notification.type}" class:toast-exiting={notification.exiting} role="alert">
         <svg class="toast-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
           <path d={iconPaths[notification.type]} />
         </svg>
@@ -53,7 +28,7 @@
         <button
           class="toast-close"
           aria-label={i18n.t('common.dismiss')}
-          onclick={() => removeNotification(notification.id)}
+          onclick={() => notificationStore.dismiss(notification.id)}
         >
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <line x1="18" y1="6" x2="6" y2="18" />
@@ -155,5 +130,20 @@
       opacity: 1;
       transform: translateX(0);
     }
+  }
+
+  @keyframes toastSlideOut {
+    from {
+      opacity: 1;
+      transform: translateX(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateX(20px);
+    }
+  }
+
+  .toast-exiting {
+    animation: toastSlideOut 300ms ease forwards;
   }
 </style>

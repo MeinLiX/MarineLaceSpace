@@ -28,6 +28,8 @@ public class Order
 
     public string? TrackingNumber { get; set; }
 
+    public string? CancellationReason { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

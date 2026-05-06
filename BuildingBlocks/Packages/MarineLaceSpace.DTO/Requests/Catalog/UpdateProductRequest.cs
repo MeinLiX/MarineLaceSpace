@@ -15,6 +15,8 @@ public class UpdateProductRequest
 
     public bool AllowPersonalization { get; set; }
 
+    public bool IsUnlimitedQuantity { get; set; }
+
     [Required]
     public decimal Price { get; set; }
 

@@ -48,7 +48,8 @@ internal class ProductHandlers
                         Name = request.Name,
                         Description = request.Description,
                         CategoryId = request.CategoryId,
-                        AllowPersonalization = request.AllowPersonalization
+                        AllowPersonalization = request.AllowPersonalization,
+                        IsUnlimitedQuantity = request.IsUnlimitedQuantity
                     };
 
                     var initialInventory = new ProductPrice
@@ -83,17 +84,43 @@ internal class ProductHandlers
             });
 
     internal static Delegate GetProductsByShopHandler =>
-        async (string shopId, IServiceProvider sp) =>
+        async (string shopId, int? page, int? pageSize, string? search, IServiceProvider sp) =>
             await RouteHandlers.RouteHandlerAsync<ProductServices>(sp, async (services) =>
             {
-                var products = await services.ProductRepository.GetByShopIdAsync(shopId);
-                var response = products.Select(product => new ProductSummaryResponse
+                var dbContext = sp.GetRequiredService<CatalogDbContext>();
+                var query = dbContext.Products
+                    .Where(p => p.ShopId == shopId)
+                    .Include(p => p.Photos)
+                    .Include(p => p.ProductPrices)
+                    .AsNoTracking();
+
+                if (!string.IsNullOrEmpty(search))
+                    query = query.Where(p => p.Name.Contains(search) || (p.Description != null && p.Description.Contains(search)));
+
+                var totalCount = await query.CountAsync();
+                var pg = Math.Max(1, page ?? 1);
+                var ps = Math.Clamp(pageSize ?? 20, 1, 100);
+
+                var products = await query
+                    .OrderByDescending(p => p.CreatedAt)
+                    .Skip((pg - 1) * ps)
+                    .Take(ps)
+                    .ToListAsync();
+
+                var response = new
                 {
-                    Id = product.Id,
-                    Name = product.Name,
-                    Price = product.ProductPrices.Any() ? product.ProductPrices.Min(p => p.BasePrice) : 0,
-                    MainImageUrl = product.Photos?.FirstOrDefault(p => p.IsMain)?.Url ?? product.Photos?.FirstOrDefault()?.Url
-                });
+                    Items = products.Select(product => new ProductSummaryResponse
+                    {
+                        Id = product.Id,
+                        Name = product.Name,
+                        Price = product.ProductPrices.Any() ? product.ProductPrices.Min(p => p.BasePrice) : 0,
+                        MainImageUrl = product.Photos?.FirstOrDefault(p => p.IsMain)?.Url ?? product.Photos?.FirstOrDefault()?.Url
+                    }),
+                    TotalCount = totalCount,
+                    Page = pg,
+                    PageSize = ps,
+                    TotalPages = (int)Math.Ceiling(totalCount / (double)ps)
+                };
                 return Results.Ok(response);
             });
 
@@ -114,6 +141,7 @@ internal class ProductHandlers
                         productToUpdate.Description = request.Description;
                         productToUpdate.CategoryId = request.CategoryId;
                         productToUpdate.AllowPersonalization = request.AllowPersonalization;
+                        productToUpdate.IsUnlimitedQuantity = request.IsUnlimitedQuantity;
                         productToUpdate.UpdatedAt = DateTime.UtcNow;
 
                         var baseInventory = productToUpdate.ProductPrices.FirstOrDefault(p => p.ProductSizeId == null && p.ProductColorId == null && p.ProductMaterialId == null);
@@ -272,6 +300,7 @@ internal class ProductHandlers
                             ShopName = p.Shop?.Name,
                             p.IsActive,
                             p.AllowPersonalization,
+                            p.IsUnlimitedQuantity,
                             Price = p.ProductPrices.Any() ? p.ProductPrices.Min(pp => pp.BasePrice) : 0,
                             MainImageUrl = p.Photos.FirstOrDefault(ph => ph.IsMain)?.Url ?? p.Photos.FirstOrDefault()?.Url,
                             p.CreatedAt,
@@ -454,7 +483,6 @@ internal class ProductHandlers
                 });
             });
 
-    #region 
     private static ProductDetailResponse MapProductToDetailResponse(Product product)
     {
         var inventoryResponse = product.ProductPrices?.Select(price => new ProductInventoryItemResponse
@@ -473,6 +501,7 @@ internal class ProductHandlers
             Description = product.Description,
             TotalQuantity = inventoryResponse.Sum(i => i.Quantity),
             AllowPersonalization = product.AllowPersonalization,
+            IsUnlimitedQuantity = product.IsUnlimitedQuantity,
             ShopId = product.ShopId,
             MainImageUrl = product.Photos?.FirstOrDefault(p => p.IsMain)?.Url ?? product.Photos?.FirstOrDefault()?.Url,
             Photos = product.Photos?.Select(p => new ProductPhotoResponse
@@ -488,5 +517,4 @@ internal class ProductHandlers
             Inventory = inventoryResponse
         };
     }
-    #endregion
 }

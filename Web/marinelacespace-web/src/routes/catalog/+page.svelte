@@ -7,12 +7,15 @@
   import Pagination from '$components/Pagination.svelte';
   import LoadingSpinner from '$components/LoadingSpinner.svelte';
   import EmptyState from '$components/EmptyState.svelte';
+  import Breadcrumb from '$components/Breadcrumb.svelte';
+  import ScrollToTop from '$components/ScrollToTop.svelte';
   import { getProducts, getCategoryTree, getSizes, getColors, getMaterials, type ProductFilters } from '$api/catalog';
   import type { Product, Category, PaginatedResponse, Size, Color, Material } from '$types';
 
   // ─── State ─────────────────────────────────────────────────────────────────
 
   let isLoading = $state(true);
+  let loadError = $state(false);
   let products = $state<Product[]>([]);
   let totalPages = $state(1);
   let currentPage = $state(1);
@@ -76,6 +79,7 @@
 
   async function loadProducts() {
     isLoading = true;
+    loadError = false;
     try {
       const sortParams = getSortParams();
       const filters: ProductFilters = {
@@ -84,6 +88,9 @@
         categoryId: selectedCategory,
         minPrice: minPrice ? Number(minPrice) : undefined,
         maxPrice: maxPrice ? Number(maxPrice) : undefined,
+        sizeId: selectedSizes.size > 0 ? [...selectedSizes].join(',') : undefined,
+        colorId: selectedColors.size > 0 ? [...selectedColors].join(',') : undefined,
+        materialId: selectedMaterials.size > 0 ? [...selectedMaterials].join(',') : undefined,
         ...sortParams,
       };
 
@@ -93,6 +100,7 @@
       currentPage = result.page;
     } catch (err) {
       console.error('Failed to load products', err);
+      loadError = true;
       products = [];
     } finally {
       isLoading = false;
@@ -168,10 +176,15 @@
 
   // ─── Lifecycle ─────────────────────────────────────────────────────────────
 
+  let initialized = false;
+
   $effect(() => {
-    readUrlParams();
-    loadFiltersData();
-    loadProducts();
+    if (!initialized) {
+      initialized = true;
+      readUrlParams();
+      loadFiltersData();
+      loadProducts();
+    }
   });
 
   function mapProductToCard(p: Product) {
@@ -191,6 +204,7 @@
 
 <div class="catalog-page">
   <div class="container">
+    <Breadcrumb items={[{ label: i18n.t('catalog.title') }]} />
     <div class="catalog-header">
       <h1>{i18n.t('catalog.title')}</h1>
       <div class="catalog-controls">
@@ -344,12 +358,21 @@
       <section class="catalog-content" aria-label={i18n.t('catalog.products')}>
         {#if isLoading}
           <LoadingSpinner size="lg" message={i18n.t('common.loading')} />
+        {:else if loadError}
+          <EmptyState
+            title={i18n.t('catalog.error')}
+            description={i18n.t('common.tryAgain')}
+            icon="⚠️"
+            actionLabel={i18n.t('common.tryAgain')}
+            onaction={() => loadProducts()}
+          />
         {:else if products.length === 0}
           <EmptyState
             title={i18n.t('emptyState.noProducts')}
             description={i18n.t('emptyState.noProductsDescription')}
             icon="🔍"
             actionLabel={i18n.t('catalog.reset')}
+            onaction={clearFilters}
           />
         {:else}
           <div class="product-grid">
@@ -370,6 +393,8 @@
     </div>
   </div>
 </div>
+
+<ScrollToTop />
 
 <style>
   .catalog-page {

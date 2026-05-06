@@ -4,13 +4,15 @@
     description = undefined,
     icon = '📦',
     actionLabel = undefined,
-    actionHref = undefined
+    actionHref = undefined,
+    onaction = undefined
   }: {
     title: string;
     description?: string;
     icon?: string;
     actionLabel?: string;
     actionHref?: string;
+    onaction?: () => void;
   } = $props();
 </script>
 
@@ -24,7 +26,7 @@
     {#if actionHref}
       <a href={actionHref} class="btn btn-primary empty-action">{actionLabel}</a>
     {:else}
-      <button class="btn btn-primary empty-action">{actionLabel}</button>
+      <button class="btn btn-primary empty-action" onclick={onaction}>{actionLabel}</button>
     {/if}
   {/if}
 </div>

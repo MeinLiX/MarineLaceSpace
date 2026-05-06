@@ -8,6 +8,7 @@ public class OrderResponse
     public string Status { get; set; } = string.Empty;
     public decimal TotalPrice { get; set; }
     public string? TrackingNumber { get; set; }
+    public string? CancellationReason { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public ShippingAddressInfo ShippingAddress { get; set; } = new();

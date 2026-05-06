@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import * as catalogApi from '$api/catalog';
   import LoadingSpinner from '$components/LoadingSpinner.svelte';
+  import FileUploadDropzone from '$components/FileUploadDropzone.svelte';
   import { notificationStore } from '$stores/notification.svelte';
   import { authStore } from '$stores/auth.svelte';
   import { i18n } from '$i18n/index.svelte';
@@ -24,6 +25,12 @@
   let description = $state('');
   let logoUrl = $state('');
   let bannerUrl = $state('');
+  let logoFile = $state<File | null>(null);
+  let logoPreview = $state<string | null>(null);
+  let bannerFile = $state<File | null>(null);
+  let bannerPreview = $state<string | null>(null);
+  let uploadingLogo = $state(false);
+  let uploadingBanner = $state(false);
 
   $effect(() => {
     loadShop(shopId);
@@ -62,6 +69,23 @@
     }
     try {
       saving = true;
+      // Upload files if selected
+      if (logoFile) {
+        uploadingLogo = true;
+        const url = await catalogApi.uploadShopImage(shopId, 'logo', logoFile);
+        logoUrl = url;
+        logoFile = null;
+        logoPreview = null;
+        uploadingLogo = false;
+      }
+      if (bannerFile) {
+        uploadingBanner = true;
+        const url = await catalogApi.uploadShopImage(shopId, 'banner', bannerFile);
+        bannerUrl = url;
+        bannerFile = null;
+        bannerPreview = null;
+        uploadingBanner = false;
+      }
       await catalogApi.updateShop(shopId, {
         name: name.trim(),
         description: description.trim(),
@@ -73,11 +97,61 @@
       notificationStore.error(i18n.t('admin.errorSaving'));
     } finally {
       saving = false;
+      uploadingLogo = false;
+      uploadingBanner = false;
     }
-  }
+ }
 
   function formatDate(date: string): string {
     return new Date(date).toLocaleDateString('uk-UA');
+  }
+
+  function handleLogoFile(file: File) {
+    logoFile = file;
+    const reader = new FileReader();
+    reader.onload = (e) => { logoPreview = e.target?.result as string; };
+    reader.readAsDataURL(file);
+  }
+
+  function handleBannerFile(file: File) {
+    bannerFile = file;
+    const reader = new FileReader();
+    reader.onload = (e) => { bannerPreview = e.target?.result as string; };
+    reader.readAsDataURL(file);
+  }
+
+  function handleLogoSelect(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (file) {
+      logoFile = file;
+      const reader = new FileReader();
+      reader.onload = (e) => { logoPreview = e.target?.result as string; };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  function handleBannerSelect(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (file) {
+      bannerFile = file;
+      const reader = new FileReader();
+      reader.onload = (e) => { bannerPreview = e.target?.result as string; };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  function clearLogo() {
+    logoFile = null;
+    logoPreview = null;
+    logoUrl = '';
+  }
+
+  function clearBanner() {
+    bannerFile = null;
+    bannerPreview = null;
+    bannerUrl = '';
   }
 
   function formatCurrency(value: number): string {
@@ -125,7 +199,7 @@
       <a href="/admin/orders?shopId={shop.id}" class="cross-link">
         <span class="cross-icon">🧾</span> {i18n.t('admin.orders')}
       </a>
-      <a href="/shops/{shop.slug || shop.id}" class="cross-link" target="_blank" rel="noopener">
+      <a href="/shops/{shop.urlSlug || shop.id}" class="cross-link" target="_blank" rel="noopener">
         <span class="cross-icon">🌐</span> {i18n.t('admin.viewPublicPage')}
       </a>
     </div>
@@ -172,7 +246,7 @@
 
             <div class="form-group">
               <label class="form-label" for="shopSlug">Slug</label>
-              <input id="shopSlug" class="input" type="text" value={shop.slug} disabled />
+              <input id="shopSlug" class="input" type="text" value={shop.urlSlug} disabled />
             </div>
 
             <div class="form-group full">
@@ -181,13 +255,28 @@
             </div>
 
             <div class="form-group">
-              <label class="form-label" for="logoUrl">{i18n.t('admin.logoUrl')}</label>
-              <input id="logoUrl" class="input" type="url" bind:value={logoUrl} placeholder="https://..." />
+              <span class="form-label">{i18n.t('admin.logo')}</span>
+              <FileUploadDropzone
+                accept="image/*"
+                uploading={uploadingLogo}
+                preview={logoPreview}
+                existingUrl={logoUrl}
+                compact={true}
+                onfile={handleLogoFile}
+                onclear={clearLogo}
+              />
             </div>
 
             <div class="form-group">
-              <label class="form-label" for="bannerUrl">{i18n.t('admin.bannerUrl')}</label>
-              <input id="bannerUrl" class="input" type="url" bind:value={bannerUrl} placeholder="https://..." />
+              <span class="form-label">{i18n.t('admin.banner')}</span>
+              <FileUploadDropzone
+                accept="image/*"
+                uploading={uploadingBanner}
+                preview={bannerPreview}
+                existingUrl={bannerUrl}
+                onfile={handleBannerFile}
+                onclear={clearBanner}
+              />
             </div>
           </div>
         </div>
@@ -199,7 +288,7 @@
         </div>
         <div class="card-body">
           <p><strong>{i18n.t('admin.name')}:</strong> {shop.name}</p>
-          <p><strong>Slug:</strong> {shop.slug}</p>
+          <p><strong>Slug:</strong> {shop.urlSlug}</p>
           <p><strong>{i18n.t('admin.description')}:</strong> {shop.description}</p>
         </div>
       </section>

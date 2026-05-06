@@ -8,4 +8,5 @@ public interface ICategoryRepository : IRepository<Category>
     Task<string> GetFullPathAsync(string categoryId);
     Task<IEnumerable<Category>> GetCategoryPathAsync(string categoryId);
     Task UpdateChildCategoriesPathAsync(Category parentCategory);
+    Task<IEnumerable<Category>> SearchByNameAsync(string query);
 }

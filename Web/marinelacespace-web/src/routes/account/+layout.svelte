@@ -4,6 +4,7 @@
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores/auth.svelte';
   import { i18n } from '$i18n/index.svelte';
+  import LoadingSpinner from '$components/LoadingSpinner.svelte';
 
   let { children }: { children: Snippet } = $props();
 
@@ -37,7 +38,11 @@
   <title>{i18n.t('account.myAccountTitle')}</title>
 </svelte:head>
 
-{#if authStore.isAuthenticated}
+{#if authStore.isLoading}
+  <div class="account-loading">
+    <LoadingSpinner size="lg" message={i18n.t('common.loading')} />
+  </div>
+{:else if authStore.isAuthenticated}
   <div class="account-layout container">
     <nav class="account-sidebar" aria-label={i18n.t('account.accountNavigation')}>
       <button
@@ -227,5 +232,13 @@
     .nav-list.nav-open {
       display: flex;
     }
+  }
+
+  .account-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: calc(100vh - 200px);
+    padding: var(--space-16) 0;
   }
 </style>

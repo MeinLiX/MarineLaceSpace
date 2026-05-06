@@ -14,6 +14,11 @@
   let totalPages = $state(1);
   let currentPage = $state(1);
   let search = $state('');
+  let roleFilter = $state<string | null>(null);
+
+  let filteredUsers = $derived(
+    roleFilter ? users.filter(u => u.roles.includes(roleFilter!)) : users
+  );
 
   let showRoleModal = $state(false);
   let roleTarget = $state<AuthUser | null>(null);
@@ -103,15 +108,15 @@
   {#if accessDenied}
     <div class="access-denied">
       <div class="access-denied-icon">🚫</div>
-      <h2>Access Denied</h2>
-      <p>Only administrators can manage users.</p>
-      <a href="/admin" class="btn btn-primary">Back to Dashboard</a>
+      <h2>{i18n.t('admin.accessDenied')}</h2>
+      <p>{i18n.t('admin.onlyAdminsCanManageUsers')}</p>
+      <a href="/admin" class="btn btn-primary">{i18n.t('admin.backToDashboard')}</a>
     </div>
   {:else}
     <div class="page-header">
       <h1 class="page-title">{i18n.t('admin.users')}</h1>
       {#if !loading}
-        <span class="user-count">{users.length} users on this page</span>
+        <span class="user-count">{i18n.t('admin.usersOnPage', { count: users.length })}</span>
       {/if}
     </div>
 
@@ -126,7 +131,41 @@
           oninput={() => { currentPage = 1; }}
         />
       </div>
+      <select
+        class="input input-sm filter-select"
+        value={roleFilter ?? ''}
+        onchange={(e) => {
+          const v = e.currentTarget.value;
+          roleFilter = v || null;
+        }}
+      >
+        <option value="">{i18n.t('admin.allRoles')}</option>
+        <option value="Admin">{i18n.t('admin.administrator')}</option>
+        <option value="Seller">{i18n.t('admin.seller')}</option>
+        <option value="Customer">{i18n.t('admin.customer')}</option>
+      </select>
     </div>
+
+    {#if !loading && users.length > 0}
+      <div class="user-stats">
+        <div class="stat-chip">
+          <span class="stat-count">{users.length}</span>
+          <span class="stat-label">{i18n.t('admin.total')}</span>
+        </div>
+        <div class="stat-chip stat-admin">
+          <span class="stat-count">{users.filter(u => u.roles.includes('Admin')).length}</span>
+          <span class="stat-label">{i18n.t('admin.administrator')}</span>
+        </div>
+        <div class="stat-chip stat-seller">
+          <span class="stat-count">{users.filter(u => u.roles.includes('Seller')).length}</span>
+          <span class="stat-label">{i18n.t('admin.seller')}</span>
+        </div>
+        <div class="stat-chip stat-customer">
+          <span class="stat-count">{users.filter(u => u.roles.includes('Customer')).length}</span>
+          <span class="stat-label">{i18n.t('admin.customer')}</span>
+        </div>
+      </div>
+    {/if}
 
     {#if loading}
       <LoadingSpinner message={i18n.t('admin.loadingUsers')} />
@@ -138,13 +177,13 @@
           <thead>
             <tr>
               <th>{i18n.t('admin.name')}</th>
-              <th>Email</th>
+              <th>{i18n.t('admin.email')}</th>
               <th>{i18n.t('admin.roles')}</th>
               <th>{i18n.t('admin.actions')}</th>
             </tr>
           </thead>
           <tbody>
-            {#each users as user}
+            {#each filteredUsers as user}
               <tr class="user-row">
                 <td class="cell-name">
                   <div class="user-avatar">{user.firstName.charAt(0)}{user.lastName.charAt(0)}</div>
@@ -496,5 +535,44 @@
     justify-content: flex-end;
     gap: var(--space-3);
     margin-top: var(--space-6);
+  }
+
+  .user-stats {
+    display: flex;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+    flex-wrap: wrap;
+  }
+  .stat-chip {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: 0.8125rem;
+  }
+  .stat-count {
+    font-weight: 700;
+    font-family: var(--font-display);
+  }
+  .stat-label {
+    color: var(--color-text-light);
+  }
+  .stat-chip.stat-admin {
+    border-color: var(--color-error);
+    background: color-mix(in srgb, var(--color-error) 5%, transparent);
+  }
+  .stat-chip.stat-seller {
+    border-color: var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary) 5%, transparent);
+  }
+  .stat-chip.stat-customer {
+    border-color: var(--color-success);
+    background: color-mix(in srgb, var(--color-success) 5%, transparent);
+  }
+  .filter-select {
+    min-width: 150px;
   }
 </style>

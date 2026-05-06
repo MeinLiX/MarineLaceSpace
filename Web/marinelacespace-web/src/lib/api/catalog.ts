@@ -40,6 +40,10 @@ export async function deleteCategory(id: string): Promise<void> {
 	return api.delete<void>(`/categories/${id}`);
 }
 
+export async function searchCategories(query: string): Promise<Category[]> {
+	return api.get<Category[]>('/categories/search', { query });
+}
+
 // ─── Shops ───────────────────────────────────────────────────────────────────
 
 export async function getShops(params?: { page?: number; pageSize?: number; search?: string }): Promise<PaginatedResponse<Shop>> {
@@ -62,12 +66,40 @@ export async function getMyShops(): Promise<Shop[]> {
 	return api.get<Shop[]>('/shops/my');
 }
 
-export async function createShop(data: { name: string; description: string }): Promise<Shop> {
+export async function createShop(data: { name: string; description: string; urlSlug?: string }): Promise<Shop> {
 	return api.post<Shop>('/shops', data);
 }
 
 export async function updateShop(id: string, data: Partial<{ name: string; description: string; logoUrl: string; bannerUrl: string }>): Promise<Shop> {
 	return api.put<Shop>(`/shops/${id}`, data);
+}
+
+export async function uploadShopImage(shopId: string, imageType: 'logo' | 'banner', file: File): Promise<string> {
+	const formData = new FormData();
+	formData.append('file', file);
+
+	const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+	const baseUrl =
+		(typeof window !== 'undefined' && (window as unknown as Record<string, unknown>).__PUBLIC_API_URL__) as string
+		|| import.meta.env.PUBLIC_API_URL as string
+		|| '/api';
+
+	const res = await fetch(`${baseUrl}/shops/${shopId}/upload-image?imageType=${imageType}`, {
+		method: 'POST',
+		headers: token ? { Authorization: `Bearer ${token}` } : {},
+		body: formData,
+	});
+
+	if (!res.ok) {
+		const body = await res.text().catch(() => '');
+		throw new Error(body || `Upload failed (${res.status})`);
+	}
+
+	const parsed = await res.json();
+	if (parsed && typeof parsed === 'object' && 'succeeded' in parsed && 'data' in parsed) {
+		return (parsed.data as { imageUrl: string }).imageUrl;
+	}
+	return (parsed as { imageUrl: string }).imageUrl;
 }
 
 export async function deleteShop(id: string): Promise<void> {
@@ -131,7 +163,14 @@ export async function deleteProduct(id: string): Promise<void> {
 // ─── Inventory ───────────────────────────────────────────────────────────────
 
 export async function updateProductInventory(productId: string, inventory: ProductInventoryItem[]): Promise<void> {
-	return api.put<void>(`/products/${productId}/inventory`, { items: inventory });
+	return api.put<void>(`/products/${productId}/inventory`, { inventoryItems: inventory });
+}
+
+export async function associateVariationImages(
+	productId: string,
+	associations: { imageId: string; sizeId?: string | null; colorId?: string | null; materialId?: string | null }[]
+): Promise<void> {
+	return api.put<void>(`/products/${productId}/variation-images`, { associations });
 }
 
 // ─── Images ──────────────────────────────────────────────────────────────────
@@ -190,6 +229,10 @@ export async function deleteProductImage(shopId: string, productId: string, imag
 
 // ─── Reviews ─────────────────────────────────────────────────────────────────
 
+export async function getShopReviews(shopId: string, params?: { page?: number; pageSize?: number }): Promise<PaginatedResponse<ProductReview>> {
+	return api.get<PaginatedResponse<ProductReview>>(`/shops/${shopId}/reviews`, params as Record<string, string | number | boolean | undefined>);
+}
+
 export async function getProductReviews(productId: string, params?: { page?: number; pageSize?: number }): Promise<PaginatedResponse<ProductReview>> {
 	return api.get<PaginatedResponse<ProductReview>>(`/products/${productId}/reviews`, params as Record<string, string | number | boolean | undefined>);
 }
@@ -212,11 +255,12 @@ export async function getReviews(params?: { page?: number; pageSize?: number; ra
 
 // ─── Dictionaries: Sizes ─────────────────────────────────────────────────────
 
-export async function getSizes(): Promise<Size[]> {
-	return api.get<Size[]>('/sizes');
+export async function getSizes(shopId?: string): Promise<Size[]> {
+	const params = shopId ? { shopId } : undefined;
+	return api.get<Size[]>('/sizes', params as Record<string, string | number | boolean | undefined>);
 }
 
-export async function createSize(data: { name: string; gender: string }): Promise<Size> {
+export async function createSize(data: { name: string; gender: string; shopId?: string }): Promise<Size> {
 	return api.post<Size>('/sizes', data);
 }
 
@@ -230,11 +274,12 @@ export async function deleteSize(id: string): Promise<void> {
 
 // ─── Dictionaries: Colors ────────────────────────────────────────────────────
 
-export async function getColors(): Promise<Color[]> {
-	return api.get<Color[]>('/colors');
+export async function getColors(shopId?: string): Promise<Color[]> {
+	const params = shopId ? { shopId } : undefined;
+	return api.get<Color[]>('/colors', params as Record<string, string | number | boolean | undefined>);
 }
 
-export async function createColor(data: { name: string; hexCode: string }): Promise<Color> {
+export async function createColor(data: { name: string; hexCode: string; shopId?: string }): Promise<Color> {
 	return api.post<Color>('/colors', data);
 }
 
@@ -248,16 +293,26 @@ export async function deleteColor(id: string): Promise<void> {
 
 // ─── Dictionaries: Materials ─────────────────────────────────────────────────
 
-export async function getMaterials(): Promise<Material[]> {
-	return api.get<Material[]>('/materials');
+export async function getMaterials(shopId?: string): Promise<Material[]> {
+	const params = shopId ? { shopId } : undefined;
+	return api.get<Material[]>('/materials', params as Record<string, string | number | boolean | undefined>);
 }
 
-export async function createMaterial(data: { name: string; imageUrl?: string }): Promise<Material> {
-	return api.post<Material>('/materials', data);
+export async function createMaterial(data: { name: string; description?: string; imageFile?: File; shopId?: string }): Promise<Material> {
+	const formData = new FormData();
+	formData.append('name', data.name);
+	if (data.description) formData.append('description', data.description);
+	if (data.imageFile) formData.append('imageFile', data.imageFile);
+	if (data.shopId) formData.append('shopId', data.shopId);
+	return api.postFormData<Material>('/materials', formData);
 }
 
-export async function updateMaterial(id: string, data: { name: string; imageUrl?: string }): Promise<Material> {
-	return api.put<Material>(`/materials/${id}`, data);
+export async function updateMaterial(id: string, data: { name: string; description?: string; imageFile?: File }): Promise<Material> {
+	const formData = new FormData();
+	formData.append('name', data.name);
+	if (data.description) formData.append('description', data.description);
+	if (data.imageFile) formData.append('imageFile', data.imageFile);
+	return api.putFormData<Material>(`/materials/${id}`, formData);
 }
 
 export async function deleteMaterial(id: string): Promise<void> {

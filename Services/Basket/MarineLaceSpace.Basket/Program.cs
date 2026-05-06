@@ -6,16 +6,13 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 
-// Redis distributed cache
 builder.Services.AddStackExchangeRedisCache(options =>
 {
     options.Configuration = builder.Configuration.GetConnectionString("redis");
 });
 
-// DI
 builder.Services.AddSingleton<IBasketRepository, RedisBasketRepository>();
 
-// RabbitMQ
 builder.Services.AddRabbitMQEventBus(
     builder.Configuration.GetConnectionString("rabbitmq") ?? throw new InvalidOperationException("RabbitMQ connection string missing"),
     "basket-api");

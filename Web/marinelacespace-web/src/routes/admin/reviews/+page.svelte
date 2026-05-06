@@ -19,6 +19,17 @@
   let totalPages = $state(1);
   let currentPage = $state(1);
   let ratingFilter = $state<number | null>(null);
+  let search = $state('');
+
+  let filteredReviews = $derived(
+    search.trim()
+      ? reviews.filter(r =>
+          r.text.toLowerCase().includes(search.trim().toLowerCase()) ||
+          ((r as any).productName ?? '').toLowerCase().includes(search.trim().toLowerCase()) ||
+          (r.guestName ?? '').toLowerCase().includes(search.trim().toLowerCase())
+        )
+      : reviews
+  );
 
   let showViewModal = $state(false);
   let viewTarget = $state<ProductReview | null>(null);
@@ -88,6 +99,15 @@
   <h1 class="page-title">{i18n.t('admin.reviewModeration')}</h1>
 
   <div class="toolbar">
+    <div class="search-wrapper">
+      <span class="search-icon">🔍</span>
+      <input
+        class="input input-sm search-input"
+        type="search"
+        placeholder={i18n.t('admin.searchReviews')}
+        bind:value={search}
+      />
+    </div>
     <select
       class="input input-sm filter-select"
       value={ratingFilter ?? ''}
@@ -110,6 +130,8 @@
     <LoadingSpinner message={i18n.t('admin.loadingReviews')} />
   {:else if reviews.length === 0}
     <EmptyState title={i18n.t('admin.noReviewsFound')} icon="⭐" />
+  {:else if filteredReviews.length === 0}
+    <EmptyState title={i18n.t('admin.noMatchingReviews')} icon="🔍" />
   {:else}
     <div class="table-wrapper">
       <table class="data-table">
@@ -124,7 +146,7 @@
           </tr>
         </thead>
         <tbody>
-          {#each reviews as review}
+          {#each filteredReviews as review}
             <tr>
               <td>
                 <a href="/admin/products/{review.productId}" class="product-link">
@@ -197,7 +219,29 @@
   }
 
   .toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
     margin-bottom: var(--space-4);
+  }
+
+  .search-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .search-icon {
+    position: absolute;
+    left: 10px;
+    font-size: 0.875rem;
+    pointer-events: none;
+  }
+
+  .search-input {
+    padding-left: 2rem;
+    min-width: 250px;
   }
 
   .filter-select {

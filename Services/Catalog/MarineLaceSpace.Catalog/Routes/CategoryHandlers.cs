@@ -151,6 +151,26 @@ internal class CategoryHandlers
                 }
             });
 
+    internal static Delegate SearchCategoriesHandler =>
+        async (string? query, IServiceProvider sp) =>
+            await RouteHandlers.RouteHandlerAsync<CategoryServices>(sp, async (services) =>
+            {
+                if (string.IsNullOrWhiteSpace(query))
+                    return Results.Ok(Enumerable.Empty<CategoryResponse>());
+
+                var categories = await services.CategoryRepository.SearchByNameAsync(query);
+                var response = categories.Select(c => new CategoryResponse
+                {
+                    Id = c.Id,
+                    Name = c.Name,
+                    Description = c.Description,
+                    ParentCategoryId = c.ParentCategoryId,
+                    Level = c.Level,
+                    FullPath = c.FullPath
+                });
+                return Results.Ok(response);
+            });
+
     private static CategoryResponse MapCategoryToResponse(Category category) => new()
     {
         Id = category.Id,

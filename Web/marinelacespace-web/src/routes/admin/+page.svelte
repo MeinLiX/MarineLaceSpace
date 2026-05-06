@@ -16,7 +16,7 @@
   });
 
   let dashboardTitle = $derived(
-    authStore.isAdmin ? i18n.t('admin.dashboard') : `${i18n.t('admin.dashboard')} (Seller)`
+    authStore.isAdmin ? i18n.t('admin.dashboard') : `${i18n.t('admin.dashboard')} (${i18n.t('admin.seller')})`
   );
 
   $effect(() => {
@@ -50,6 +50,13 @@
           shops.map((shop) => catalogApi.getAdminProducts({ shopId: shop.id, page: 1, pageSize: 1 }))
         );
         totalProducts = productResults.reduce((sum, r) => sum + r.totalCount, 0);
+      }
+
+      try {
+        const reviewsRes = await catalogApi.getReviews({ page: 1, pageSize: 1 });
+        stats.newReviews = reviewsRes.totalCount;
+      } catch {
+        stats.newReviews = 0;
       }
 
       recentOrders = allOrders
@@ -152,7 +159,7 @@
         <div class="stat-body">
           <span class="stat-label">{i18n.t('admin.newReviews')}</span>
           <span class="stat-value">{stats.newReviews}</span>
-          <span class="stat-change neutral">{i18n.t('admin.thisWeek')}</span>
+          <span class="stat-change neutral">{i18n.t('admin.total')}</span>
         </div>
       </div>
     </div>
@@ -224,6 +231,14 @@
                 <span class="action-label">{i18n.t('admin.manageCatalog')}</span>
               </a>
             {/if}
+            <a href="/admin/shops" class="action-card">
+              <span class="action-icon">🏪</span>
+              <span class="action-label">{i18n.t('admin.shops')}</span>
+            </a>
+            <a href="/admin/dictionaries/sizes" class="action-card">
+              <span class="action-icon">📐</span>
+              <span class="action-label">{i18n.t('admin.dictionaries')}</span>
+            </a>
           </div>
         </div>
       </section>

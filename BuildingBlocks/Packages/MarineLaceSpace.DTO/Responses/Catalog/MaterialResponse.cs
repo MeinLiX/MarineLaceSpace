@@ -6,4 +6,5 @@ public class MaterialResponse
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string? ImageUrl { get; set; }
+    public string? ShopId { get; set; }
 }

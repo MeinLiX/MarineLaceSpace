@@ -15,5 +15,11 @@ public class Color
     [StringLength(9)]
     public string? HexCode { get; set; }
 
+    /// <summary>Null = global (admin-created). Set = shop-scoped.</summary>
+    public string? ShopId { get; set; }
+
+    [ForeignKey(nameof(ShopId))]
+    public virtual Shop? Shop { get; set; }
+
     public ICollection<ProductColor> ProductColors { get; set; } = [];
 }

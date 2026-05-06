@@ -39,7 +39,7 @@ internal class AuthHandlers
                     {
                         var user = await services.AuthUserRepository.GetByEmailAsync(loginDto.Email);
 
-                        if (user.IsAnonimous)
+                        if (user.IsAnonymous)
                         {
                             return Results.BadRequest(RESTResult.Fail("Invalid credentials."));
                         }
@@ -114,7 +114,7 @@ internal class AuthHandlers
                                 var errors = string.Join(", ", result.Errors.Select(e => e.Description));
                                 return Results.BadRequest(RESTResult.Fail(errors));
                             }
-                            await services.UserManager.AddToRoleAsync(newUser, "Anonimous");
+                            await services.UserManager.AddToRoleAsync(newUser, "Anonymous");
                         }
 
                         var (accessToken, accessExpiresAt) = await services.JwtTokenService.GenerateAccessTokenAsync(newUser);
@@ -213,7 +213,7 @@ internal class AuthHandlers
                             user.Email,
                             user.FirstName,
                             user.LastName,
-                            user.IsAnonimous,
+                            user.IsAnonymous,
                             Roles = roles,
                             user.CreatedAt
                         });
@@ -312,7 +312,7 @@ internal class AuthHandlers
                             FirstName = user.FirstName,
                             LastName = user.LastName,
                             PhoneNumber = user.PhoneNumber,
-                            IsAnonymous = user.IsAnonimous,
+                            IsAnonymous = user.IsAnonymous,
                             CreatedAt = user.CreatedAt,
                             Roles = roles.ToList()
                         }));
@@ -352,7 +352,7 @@ internal class AuthHandlers
                             FirstName = user.FirstName,
                             LastName = user.LastName,
                             PhoneNumber = user.PhoneNumber,
-                            IsAnonymous = user.IsAnonimous,
+                            IsAnonymous = user.IsAnonymous,
                             CreatedAt = user.CreatedAt,
                             Roles = roles.ToList()
                         }));
@@ -464,7 +464,7 @@ internal class AuthHandlers
                             user.FirstName,
                             user.LastName,
                             user.PhoneNumber,
-                            user.IsAnonimous,
+                            user.IsAnonymous,
                             Roles = roles.ToList(),
                             user.CreatedAt,
                             user.EmailConfirmed,

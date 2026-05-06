@@ -49,7 +49,7 @@ public class AuthUserRepository : IAuthUserRepository
                 throw new UserManagerException(result.Errors.Select(e => e.Code));
             }
 
-            result = await _userManager.AddToRoleAsync(entity, "Anonimous");
+            result = await _userManager.AddToRoleAsync(entity, "Anonymous");
             if (!result.Succeeded)
             {
                 throw new UserManagerException(result.Errors.Select(e => e.Code));

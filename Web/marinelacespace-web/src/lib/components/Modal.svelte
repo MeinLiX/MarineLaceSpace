@@ -14,6 +14,9 @@
     children: Snippet;
   } = $props();
 
+  let dialogRef = $state<HTMLDivElement | null>(null);
+  let previouslyFocused: HTMLElement | null = null;
+
   function handleBackdropClick(e: MouseEvent) {
     if (e.target === e.currentTarget) {
       onclose();
@@ -23,14 +26,42 @@
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       onclose();
+      return;
+    }
+    if (e.key === 'Tab' && dialogRef) {
+      const focusable = dialogRef.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     }
   }
 
   $effect(() => {
     if (open) {
+      previouslyFocused = document.activeElement as HTMLElement | null;
       document.body.style.overflow = 'hidden';
+      // Auto-focus close button after render
+      requestAnimationFrame(() => {
+        const closeBtn = dialogRef?.querySelector<HTMLElement>('.modal-close');
+        closeBtn?.focus();
+      });
     } else {
       document.body.style.overflow = '';
+      previouslyFocused?.focus();
+      previouslyFocused = null;
     }
     return () => {
       document.body.style.overflow = '';
@@ -43,6 +74,7 @@
 {#if open}
   <div
     class="modal-backdrop"
+    bind:this={dialogRef}
     onclick={handleBackdropClick}
     onkeydown={handleKeydown}
     role="dialog"

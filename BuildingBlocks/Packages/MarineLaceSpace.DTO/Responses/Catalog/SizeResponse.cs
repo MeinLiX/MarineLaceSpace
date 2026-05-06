@@ -7,4 +7,5 @@ public class SizeResponse
     public string? Description { get; set; }
     public bool IsCustom { get; set; }
     public string Gender { get; set; } = string.Empty;
+    public string? ShopId { get; set; }
 }

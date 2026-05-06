@@ -6,7 +6,7 @@
   import Pagination from '$components/Pagination.svelte';
   import LoadingSpinner from '$components/LoadingSpinner.svelte';
   import EmptyState from '$components/EmptyState.svelte';
-  import { getShopBySlug, getProductsByShop, getProductReviews } from '$api/catalog';
+  import { getShopBySlug, getProductsByShop, getShopReviews } from '$api/catalog';
   import type { Shop, Product, ProductReview, PaginatedResponse } from '$types';
 
   // ─── State ─────────────────────────────────────────────────────────────────
@@ -60,7 +60,7 @@
     if (!shop) return;
     isReviewsLoading = true;
     try {
-      const result: PaginatedResponse<ProductReview> = await getProductReviews(shop.id, {
+      const result: PaginatedResponse<ProductReview> = await getShopReviews(shop.id, {
         page: reviewPage,
         pageSize: 10,
       });
@@ -128,13 +128,13 @@
       <header class="shop-header">
         {#if shop.bannerUrl}
           <div class="shop-banner">
-            <img src={shop.bannerUrl} alt={i18n.t('shops.shopBanner', { name: shop.name })} />
+            <img src={shop.bannerUrl} alt={i18n.t('shops.shopBanner', { name: shop.name })} loading="lazy" />
           </div>
         {/if}
         <div class="shop-identity">
           <div class="shop-avatar">
             {#if shop.logoUrl}
-              <img src={shop.logoUrl} alt={i18n.t('shops.shopLogo', { name: shop.name })} class="avatar-image" />
+              <img src={shop.logoUrl} alt={i18n.t('shops.shopLogo', { name: shop.name })} class="avatar-image" loading="lazy" />
             {:else}
               <div class="avatar-placeholder" aria-hidden="true">🏪</div>
             {/if}

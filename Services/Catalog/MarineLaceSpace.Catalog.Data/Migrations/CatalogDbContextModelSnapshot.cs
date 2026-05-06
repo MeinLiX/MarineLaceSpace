@@ -67,7 +67,12 @@ namespace MarineLaceSpace.Catalog.Data.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<string>("ShopId")
+                        .HasColumnType("text");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("ShopId");
 
                     b.ToTable("Colors");
                 });
@@ -91,7 +96,12 @@ namespace MarineLaceSpace.Catalog.Data.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<string>("ShopId")
+                        .HasColumnType("text");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("ShopId");
 
                     b.ToTable("Materials");
                 });
@@ -116,6 +126,9 @@ namespace MarineLaceSpace.Catalog.Data.Migrations
                         .HasColumnType("character varying(2000)");
 
                     b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsUnlimitedQuantity")
                         .HasColumnType("boolean");
 
                     b.Property<string>("Name")
@@ -446,7 +459,12 @@ namespace MarineLaceSpace.Catalog.Data.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<string>("ShopId")
+                        .HasColumnType("text");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("ShopId");
 
                     b.ToTable("Sizes");
                 });
@@ -459,6 +477,26 @@ namespace MarineLaceSpace.Catalog.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("ParentCategory");
+                });
+
+            modelBuilder.Entity("MarineLaceSpace.Models.Database.Catalog.Color", b =>
+                {
+                    b.HasOne("MarineLaceSpace.Models.Database.Catalog.Shop", "Shop")
+                        .WithMany()
+                        .HasForeignKey("ShopId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("Shop");
+                });
+
+            modelBuilder.Entity("MarineLaceSpace.Models.Database.Catalog.Material", b =>
+                {
+                    b.HasOne("MarineLaceSpace.Models.Database.Catalog.Shop", "Shop")
+                        .WithMany()
+                        .HasForeignKey("ShopId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("Shop");
                 });
 
             modelBuilder.Entity("MarineLaceSpace.Models.Database.Catalog.Product", b =>
@@ -604,6 +642,16 @@ namespace MarineLaceSpace.Catalog.Data.Migrations
                     b.Navigation("Product");
 
                     b.Navigation("Size");
+                });
+
+            modelBuilder.Entity("MarineLaceSpace.Models.Database.Catalog.Size", b =>
+                {
+                    b.HasOne("MarineLaceSpace.Models.Database.Catalog.Shop", "Shop")
+                        .WithMany()
+                        .HasForeignKey("ShopId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("Shop");
                 });
 
             modelBuilder.Entity("MarineLaceSpace.Models.Database.Catalog.Category", b =>

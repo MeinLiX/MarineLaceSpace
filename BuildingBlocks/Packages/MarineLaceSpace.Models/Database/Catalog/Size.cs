@@ -1,5 +1,6 @@
 ﻿using MarineLaceSpace.Enumerations;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace MarineLaceSpace.Models.Database.Catalog;
 
@@ -19,6 +20,12 @@ public class Size
 
     [StringLength(50)]
     public ProductSizeGender Gender { get; set; } = ProductSizeGender.Unisex;
+
+    /// <summary>Null = global (admin-created). Set = shop-scoped.</summary>
+    public string? ShopId { get; set; }
+
+    [ForeignKey(nameof(ShopId))]
+    public virtual Shop? Shop { get; set; }
 
     public ICollection<ProductSize> ProductSizes { get; set; } = [];
 }

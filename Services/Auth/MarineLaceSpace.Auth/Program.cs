@@ -3,6 +3,7 @@ using Auth.WebHost.Routes;
 using Auth.WebHost.Services;
 using BB.Common.Data.Repositories;
 using BB.Common.EventBus;
+using BB.Common.Extensions;
 using MarineLaceSpace.Interfaces.EventBus;
 using MarineLaceSpace.Interfaces.Repositories.Auth;
 using MarineLaceSpace.Models.Database.Auth;
@@ -15,7 +16,8 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("pg-identity");
 builder.Services.AddDbContext<AuthIdentityDbContext>(options =>
 {
-    options.UseNpgsql(connectionString);
+    options.UseNpgsql(connectionString, npgsqlOptions =>
+        npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(30), errorCodesToAdd: null));
 });
 
 builder.Services.AddIdentityCore<AuthUser>(options =>
@@ -58,11 +60,10 @@ var app = builder.BuildWithPostActions();
 
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<AuthIdentityDbContext>();
-    await db.Database.EnsureCreatedAsync();
+    await scope.ServiceProvider.EnsureCreatedWithRetryAsync<AuthIdentityDbContext>();
 
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-    string[] roles = ["Admin", "Seller", "Customer", "Anonimous"];
+    string[] roles = ["Admin", "Seller", "Customer", "Anonymous"];
     foreach (var role in roles)
     {
         if (!await roleManager.RoleExistsAsync(role))
@@ -71,7 +72,6 @@ using (var scope = app.Services.CreateScope())
         }
     }
 
-    // Seed default admin user
     var adminSeed = app.Configuration.GetSection("AdminSeed").Get<AdminSeedOption>();
     if (adminSeed is { Email.Length: > 0, Password.Length: > 0 })
     {

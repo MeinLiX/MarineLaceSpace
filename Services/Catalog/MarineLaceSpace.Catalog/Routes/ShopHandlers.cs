@@ -8,6 +8,8 @@ using MarineLaceSpace.Interfaces.Repositories;
 using MarineLaceSpace.Models.Database.Catalog;
 using MarineLaceSpace.Models.Routes;
 using Microsoft.EntityFrameworkCore;
+using Minio;
+using Minio.DataModel.Args;
 using System.Security.Claims;
 
 namespace Catalog.WebHost.Routes;
@@ -52,12 +54,17 @@ internal class ShopHandlers
                     {
                     }
 
+                    // Auto-generate slug from name if not provided
+                    var slug = !string.IsNullOrWhiteSpace(request.UrlSlug)
+                        ? request.UrlSlug
+                        : GenerateSlug(request.Name);
+
                     var newShop = new Shop
                     {
                         Id = Guid.NewGuid().ToString(),
                         Name = request.Name,
                         Description = request.Description,
-                        UrlSlug = request.UrlSlug,
+                        UrlSlug = slug,
                         OwnerId = ownerId,
                         CreatedAt = DateTime.UtcNow,
                         UpdatedAt = DateTime.UtcNow
@@ -99,10 +106,20 @@ internal class ShopHandlers
 
                         return Results.Ok(MapShopToResponse(shop));
                     }
-                    catch (NotFoundEntityException ex)
+                    catch (NotFoundEntityException)
                     {
-                        services.Logger.LogWarning(ex, "Shop with slug '{UrlSlug}' not found", urlSlug);
-                        return Results.NotFound(RESTResult.Fail(ex.Message));
+                        // Fallback: try to find by ID (frontend may pass shop ID as slug)
+                        try
+                        {
+                            services.Logger.LogInformation("Slug lookup failed, trying ID fallback for '{UrlSlug}'", urlSlug);
+                            var shop = await services.ShopRepository.GetByIdAsync(urlSlug);
+                            return Results.Ok(MapShopToResponse(shop));
+                        }
+                        catch (NotFoundEntityException ex)
+                        {
+                            services.Logger.LogWarning(ex, "Shop with slug or ID '{UrlSlug}' not found", urlSlug);
+                            return Results.NotFound(RESTResult.Fail(ex.Message));
+                        }
                     }
                 });
 
@@ -137,6 +154,8 @@ internal class ShopHandlers
 
                         shopToUpdate.Name = request.Name;
                         shopToUpdate.Description = request.Description;
+                        if (request.LogoUrl != null) shopToUpdate.LogoUrl = request.LogoUrl;
+                        if (request.BannerUrl != null) shopToUpdate.BannerUrl = request.BannerUrl;
                         shopToUpdate.UpdatedAt = DateTime.UtcNow;
 
                         await services.ShopRepository.UpdateAsync(shopToUpdate);
@@ -346,14 +365,16 @@ internal class ShopHandlers
                             Id = r.Id,
                             ProductId = r.ProductId,
                             Rating = r.Rating,
-                            Comment = r.Comment,
-                            UserName = r.UserName,
+                            Title = null,
+                            Text = r.Comment,
+                            UserId = string.IsNullOrEmpty(r.UserId) ? null : r.UserId,
+                            GuestName = r.UserName,
                             CreatedAt = r.CreatedAt,
-                            IsVerified = r.IsVerified
+                            IsVerifiedPurchase = r.IsVerified
                         })
                         .ToListAsync();
 
-                    var response = new { Items = reviews, TotalCount = totalCount, Page = clampedPage, PageSize = clampedSize };
+                    var response = new { Items = reviews, TotalCount = totalCount, Page = clampedPage, PageSize = clampedSize, TotalPages = (int)Math.Ceiling((double)totalCount / clampedSize) };
                     return Results.Ok(RESTResult<object>.Success(response));
                 }
                 catch (Exception ex)
@@ -362,7 +383,63 @@ internal class ShopHandlers
                 }
             });
 
-    #region
+    internal static Delegate UploadShopImageHandler =>
+        async (string id, string imageType, IFormFile file, IServiceProvider sp) =>
+        {
+            var httpContextAccessor = sp.GetRequiredService<IHttpContextAccessor>();
+            var httpContext = httpContextAccessor.HttpContext;
+            if (httpContext is null) return Results.Problem("HttpContext is not available.");
+
+            var currentUserId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(currentUserId)) return Results.Unauthorized();
+
+            var dbContext = sp.GetRequiredService<CatalogDbContext>();
+            var shop = await dbContext.Shops.FindAsync(id);
+            if (shop == null) return Results.NotFound(RESTResult.Fail("Shop not found."));
+
+            var isAdmin = httpContext.User.IsInRole("Admin");
+            if (!isAdmin && shop.OwnerId != currentUserId) return Results.Forbid();
+
+            if (imageType != "logo" && imageType != "banner")
+                return Results.BadRequest(RESTResult.Fail("imageType must be 'logo' or 'banner'."));
+
+            if (file is not { Length: > 0 })
+                return Results.BadRequest(RESTResult.Fail("No file provided."));
+
+            var minioClient = sp.GetRequiredService<IMinioClient>();
+            var bucketName = "shops";
+
+            var beArgs = new BucketExistsArgs().WithBucket(bucketName);
+            bool found = await minioClient.BucketExistsAsync(beArgs);
+            if (!found)
+            {
+                var mbArgs = new MakeBucketArgs().WithBucket(bucketName);
+                await minioClient.MakeBucketAsync(mbArgs);
+
+                var policy = $@"{{""Version"":""2012-10-17"",""Statement"":[{{""Action"":[""s3:GetObject""],""Effect"":""Allow"",""Principal"":{{""AWS"":[""*""]}},""Resource"":[""arn:aws:s3:::{bucketName}/*""]}}]}}";
+                await minioClient.SetPolicyAsync(new SetPolicyArgs().WithBucket(bucketName).WithPolicy(policy));
+            }
+
+            var objectName = $"{id}/{imageType}-{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+            using var stream = file.OpenReadStream();
+            var putObjectArgs = new PutObjectArgs()
+                .WithBucket(bucketName)
+                .WithObject(objectName)
+                .WithStreamData(stream)
+                .WithObjectSize(stream.Length)
+                .WithContentType(file.ContentType);
+            await minioClient.PutObjectAsync(putObjectArgs);
+
+            var imageUrl = $"/minio/{bucketName}/{objectName}";
+
+            if (imageType == "logo") shop.LogoUrl = imageUrl;
+            else shop.BannerUrl = imageUrl;
+            shop.UpdatedAt = DateTime.UtcNow;
+            await dbContext.SaveChangesAsync();
+
+            return Results.Ok(RESTResult<object>.Success(new { imageUrl }));
+        };
+
     private static ShopResponse MapShopToResponse(Shop shop) => new()
     {
         Id = shop.Id,
@@ -376,5 +453,20 @@ internal class ShopHandlers
         ProductCount = shop.Products?.Count ?? 0,
         CreatedAt = shop.CreatedAt
     };
-    #endregion
+
+    private static string GenerateSlug(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return string.Empty;
+
+        var slug = name.ToLowerInvariant().Trim();
+        // Replace spaces and special chars with hyphens
+        slug = System.Text.RegularExpressions.Regex.Replace(slug, @"[^a-z0-9\s-]", "");
+        slug = System.Text.RegularExpressions.Regex.Replace(slug, @"[\s-]+", "-");
+        slug = slug.Trim('-');
+
+        // Add random suffix to ensure uniqueness
+        slug = $"{slug}-{Guid.NewGuid().ToString("N")[..6]}";
+
+        return slug;
+    }
 }

@@ -29,6 +29,6 @@ export async function addTrackingNumber(id: string, data: { trackingNumber: stri
 	return api.post<Order>(`/orders/${id}/tracking`, data);
 }
 
-export async function cancelOrder(id: string): Promise<Order> {
-	return api.post<Order>(`/orders/${id}/cancel`);
+export async function cancelOrder(id: string, reason?: string): Promise<Order> {
+	return api.post<Order>(`/orders/${id}/cancel`, reason ? { reason } : undefined);
 }

@@ -18,6 +18,7 @@ public class AddBasketItemRequestValidator : AbstractValidator<AddBasketItemRequ
             .GreaterThan(0).WithMessage("Unit price must be greater than 0.");
 
         RuleFor(x => x.Quantity)
-            .GreaterThan(0).WithMessage("Quantity must be at least 1.");
+            .GreaterThan(0).WithMessage("Quantity must be at least 1.")
+            .LessThanOrEqualTo(50).WithMessage("Maximum 50 per item.");
     }
 }

@@ -7,7 +7,15 @@ public static class ReviewRoutes
 {
     public static void MapReviewRoutes(this IEndpointRouteBuilder app)
     {
-        var reviewsGroup = app.MapGroup("/api/products/{productId}/reviews")
+        // Standalone reviews endpoint (admin panel — all reviews with pagination)
+        var standaloneGroup = app.MapGroup("/api/reviews")
+            .WithTags("Reviews");
+
+        standaloneGroup.MapGet("/", ReviewHandlers.GetAllReviewsHandler)
+            .WithSummary("Get all reviews with pagination and optional rating filter");
+
+        // Product-scoped reviews — accessed via /api/products/{rest} → /api/v1/products/{rest}
+        var reviewsGroup = app.MapGroup("/api/v1/products/{productId}/reviews")
             .WithTags("Reviews");
 
         reviewsGroup.MapGet("/", ReviewHandlers.GetProductReviewsHandler)

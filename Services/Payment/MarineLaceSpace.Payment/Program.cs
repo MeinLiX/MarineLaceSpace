@@ -1,4 +1,5 @@
 using BB.Common.EventBus;
+using BB.Common.Extensions;
 using MarineLaceSpace.Interfaces.EventBus;
 using Microsoft.EntityFrameworkCore;
 using Payment.WebHost.Consumers;
@@ -10,7 +11,8 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("pg-payment");
 builder.Services.AddDbContext<PaymentDbContext>(options =>
 {
-    options.UseNpgsql(connectionString);
+    options.UseNpgsql(connectionString, npgsqlOptions =>
+        npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(30), errorCodesToAdd: null));
 });
 
 var rabbitConnectionString = builder.Configuration.GetConnectionString("rabbitmq");
@@ -25,8 +27,7 @@ var app = builder.BuildWithPostActions();
 
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
-    await db.Database.EnsureCreatedAsync();
+    await scope.ServiceProvider.EnsureCreatedWithRetryAsync<PaymentDbContext>();
 
     var eventBus = scope.ServiceProvider.GetService<IEventBus>();
     if (eventBus != null)

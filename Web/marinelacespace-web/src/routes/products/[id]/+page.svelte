@@ -4,9 +4,10 @@
   import ReviewStars from '$components/ReviewStars.svelte';
   import PriceDisplay from '$components/PriceDisplay.svelte';
   import LoadingSpinner from '$components/LoadingSpinner.svelte';
+  import EmptyState from '$components/EmptyState.svelte';
+  import Breadcrumb from '$components/Breadcrumb.svelte';
   import Pagination from '$components/Pagination.svelte';
-  import { getProductById, getProductReviews, getReviewSummary, createReview, getCategoryById, getSizes, getColors } from '$api/catalog';
-  import { addItem } from '$api/basket';
+  import { getProductById, getProductReviews, getReviewSummary, createReview, getCategoryById, getSizes, getColors, getMaterials } from '$api/catalog';
   import { basketStore } from '$stores/basket.svelte';
   import { authStore } from '$stores/auth.svelte';
   import { notificationStore } from '$stores/notification.svelte';
@@ -19,13 +20,13 @@
     Category,
     Size,
     Color,
+    Material,
     PaginatedResponse,
     AddToBasketRequest,
   } from '$types';
 
-  // ─── State ─────────────────────────────────────────────────────────────────
-
   let isLoading = $state(true);
+  let loadError = $state(false);
   let product = $state<ProductDetail | null>(null);
   let category = $state<Category | null>(null);
   let reviewSummary = $state<ReviewSummary | null>(null);
@@ -36,26 +37,32 @@
 
   let allSizes = $state<Size[]>([]);
   let allColors = $state<Color[]>([]);
-
-  // ─── Gallery ───────────────────────────────────────────────────────────────
+  let allMaterials = $state<Material[]>([]);
 
   let selectedImageIndex = $state(0);
+  let allPhotosImageIndex = $state(0);
+
+  let allPhotos = $derived<ProductPhoto[]>(product?.photos ?? []);
 
   let filteredImages = $derived.by<ProductPhoto[]>(() => {
     if (!product) return [];
     const imgs = product.photos;
     if (!selectedColor && !selectedMaterial) return imgs;
-    const variantImgs = imgs.filter((img) => {
+
+    if (selectedColor && selectedMaterial) {
+      const both = imgs.filter(img => img.colorId === selectedColor && img.materialId === selectedMaterial);
+      if (both.length > 0) return both;
+    }
+
+    const partial = imgs.filter(img => {
       if (selectedColor && img.colorId === selectedColor) return true;
       if (selectedMaterial && img.materialId === selectedMaterial) return true;
       return false;
     });
-    return variantImgs.length > 0 ? variantImgs : imgs;
+    return partial.length > 0 ? partial : imgs;
   });
 
   let mainImage = $derived(filteredImages.length > 0 ? filteredImages[selectedImageIndex] ?? filteredImages[0] : null);
-
-  // ─── Selected Variants ─────────────────────────────────────────────────────
 
   let selectedSize = $state<string | undefined>(undefined);
   let selectedColor = $state<string | undefined>(undefined);
@@ -63,7 +70,9 @@
   let quantity = $state(1);
   let personalization = $state('');
 
-  // ─── Derived Price ─────────────────────────────────────────────────────────
+  let hasFilteredSubset = $derived(
+    (selectedColor || selectedMaterial) && filteredImages.length < allPhotos.length
+  );
 
   let matchedInventory = $derived.by<ProductInventoryItem | undefined>(() => {
     if (!product) return undefined;
@@ -76,9 +85,9 @@
   });
 
   let displayPrice = $derived(matchedInventory?.price ?? product?.price ?? 0);
-  let inStock = $derived((matchedInventory?.quantity ?? 0) > 0);
-
-  // ─── Resolved variant lists from dictionaries + inventory ─────────────────
+  let isUnlimited = $derived(product?.isUnlimitedQuantity === true);
+  let maxQuantity = $derived(isUnlimited ? 50 : (matchedInventory?.quantity ?? 0));
+  let inStock = $derived(isUnlimited || (matchedInventory?.quantity ?? 0) > 0);
 
   let productSizes = $derived.by(() => {
     if (!product) return [];
@@ -92,9 +101,23 @@
     return allColors.filter(c => colorIds.includes(c.id));
   });
 
-  let productMaterials = $derived(product?.materials ?? []);
+  let productMaterials = $derived.by(() => {
+    if (!product) return [];
+    const materialIds = [...new Set(product.inventory.map(i => i.materialId).filter(Boolean) as string[])];
+    return allMaterials.filter(m => materialIds.includes(m.id));
+  });
 
-  // ─── Add to Cart ───────────────────────────────────────────────────────────
+  let hasSizes = $derived(productSizes.length > 0);
+  let hasColors = $derived(productColors.length > 0);
+  let hasMaterials = $derived(productMaterials.length > 0);
+
+  let allVariantsSelected = $derived(
+    (!hasSizes || !!selectedSize) &&
+    (!hasColors || !!selectedColor) &&
+    (!hasMaterials || !!selectedMaterial)
+  );
+
+  let canAddToCart = $derived(inStock && allVariantsSelected && maxQuantity > 0);
 
   let isAddingToCart = $state(false);
 
@@ -102,16 +125,27 @@
     if (!product) return;
     isAddingToCart = true;
     try {
+      const selectedSizeObj = productSizes.find(s => s.id === selectedSize);
+      const selectedColorObj = productColors.find(c => c.id === selectedColor);
+      const selectedMaterialObj = productMaterials.find(m => m.id === selectedMaterial);
+      const mainImg = filteredImages.find(img => img.isMain) ?? filteredImages[0];
+
       const request: AddToBasketRequest = {
         productId: product.id,
+        productName: product.name,
         sizeId: selectedSize,
+        sizeName: selectedSizeObj?.name,
         colorId: selectedColor,
+        colorName: selectedColorObj?.name,
         materialId: selectedMaterial,
+        materialName: selectedMaterialObj?.name,
+        unitPrice: displayPrice,
         quantity,
         personalization: product.allowPersonalization && personalization.trim() ? personalization.trim() : undefined,
+        imageUrl: mainImg?.url ?? product.mainImageUrl ?? undefined,
+        shopId: product.shopId,
       };
-      await addItem(request);
-      await basketStore.loadBasket();
+      await basketStore.addItem(request);
       notificationStore.success(i18n.t('product.addedToBasket'));
     } catch (err) {
       notificationStore.error(i18n.t('product.addToBasketError'));
@@ -121,16 +155,24 @@
     }
   }
 
-  // ─── Review Form ───────────────────────────────────────────────────────────
-
   let showReviewForm = $state(false);
   let reviewRating = $state(0);
   let reviewTitle = $state('');
   let reviewText = $state('');
   let isSubmittingReview = $state(false);
+  let reviewValidationError = $state('');
 
   async function submitReview() {
-    if (!product || reviewRating < 1 || !reviewText.trim()) return;
+    reviewValidationError = '';
+    if (!product) return;
+    if (reviewRating < 1) {
+      reviewValidationError = i18n.t('product.ratingRequired');
+      return;
+    }
+    if (!reviewText.trim()) {
+      reviewValidationError = i18n.t('product.reviewTextRequired');
+      return;
+    }
     isSubmittingReview = true;
     try {
       await createReview(product.id, {
@@ -152,27 +194,33 @@
     }
   }
 
-  // ─── Data Loading ──────────────────────────────────────────────────────────
-
   async function loadProduct(id: string) {
     isLoading = true;
+    loadError = false;
     try {
-      const [productRes, sizesRes, colorsRes] = await Promise.all([
+      const [productRes, sizesRes, colorsRes, materialsRes] = await Promise.all([
         getProductById(id),
         getSizes(),
         getColors(),
+        getMaterials(),
       ]);
       product = productRes;
       allSizes = sizesRes;
       allColors = colorsRes;
+      allMaterials = materialsRes;
 
       const sizeIds = [...new Set(productRes.inventory.map(i => i.sizeId).filter(Boolean) as string[])];
       const colorIds = [...new Set(productRes.inventory.map(i => i.colorId).filter(Boolean) as string[])];
-      const materialNames = productRes.materials ?? [];
+      const materialIds = [...new Set(productRes.inventory.map(i => i.materialId).filter(Boolean) as string[])];
 
-      if (sizeIds.length > 0) selectedSize = sizeIds[0];
-      if (colorIds.length > 0) selectedColor = colorIds[0];
-      if (materialNames.length > 0) selectedMaterial = materialNames[0];
+      selectedSize = sizeIds.length === 1 ? sizeIds[0] : undefined;
+      selectedColor = colorIds.length === 1 ? colorIds[0] : undefined;
+      selectedMaterial = materialIds.length === 1 ? materialIds[0] : undefined;
+
+      prevColor = selectedColor;
+      prevMaterial = selectedMaterial;
+      selectedImageIndex = 0;
+      allPhotosImageIndex = 0;
 
       if (product.categoryId) {
         try { category = await getCategoryById(product.categoryId); } catch { /* noop */ }
@@ -182,6 +230,7 @@
       await loadReviews();
     } catch (err) {
       console.error('Failed to load product', err);
+      loadError = true;
     } finally {
       isLoading = false;
     }
@@ -195,8 +244,8 @@
         page: reviewPage,
         pageSize: 5,
       });
-      reviews = result.items;
-      reviewTotalPages = result.totalPages;
+      reviews = Array.isArray(result) ? result : (result.items ?? []);
+      reviewTotalPages = Array.isArray(result) ? 1 : (result.totalPages ?? 1);
     } catch {
       reviews = [];
     } finally {
@@ -209,22 +258,84 @@
     loadReviews();
   }
 
-  // ─── Lifecycle ─────────────────────────────────────────────────────────────
+  let prevProductId = $state('');
 
   $effect(() => {
     const id = $page.params.id;
-    if (id) loadProduct(id);
+    if (id && id !== prevProductId) {
+      prevProductId = id;
+      loadProduct(id);
+    }
   });
 
-  // ─── Reset image index when variant changes ───────────────────────────────
+  let prevColor = $state<string | undefined>(undefined);
+  let prevMaterial = $state<string | undefined>(undefined);
+
+  function findBestImageIndex(
+    images: ProductPhoto[],
+    primaryField: 'colorId' | 'materialId',
+    primaryValue: string | undefined,
+    secondaryField: 'colorId' | 'materialId',
+    secondaryValue: string | undefined,
+    currentIndex: number
+  ): number {
+    if (!primaryValue) return 0;
+
+    if (secondaryValue) {
+      const idx = images.findIndex(
+        img => img[primaryField] === primaryValue && img[secondaryField] === secondaryValue
+      );
+      if (idx !== -1) return idx;
+    }
+
+    const idxNoSecondary = images.findIndex(
+      img => img[primaryField] === primaryValue && !img[secondaryField]
+    );
+    if (idxNoSecondary !== -1) return idxNoSecondary;
+
+    const idxAny = images.findIndex(img => img[primaryField] === primaryValue);
+    if (idxAny !== -1) return idxAny;
+
+    return Math.min(currentIndex, Math.max(images.length - 1, 0));
+  }
 
   $effect(() => {
-    void selectedColor;
-    void selectedMaterial;
-    selectedImageIndex = 0;
+    const colorChanged = selectedColor !== prevColor;
+    const materialChanged = selectedMaterial !== prevMaterial;
+
+    if (colorChanged || materialChanged) {
+      const imgs = filteredImages;
+
+      if (materialChanged && !colorChanged) {
+        selectedImageIndex = findBestImageIndex(
+          imgs, 'materialId', selectedMaterial, 'colorId', selectedColor, selectedImageIndex
+        );
+      } else if (colorChanged && !materialChanged) {
+        selectedImageIndex = findBestImageIndex(
+          imgs, 'colorId', selectedColor, 'materialId', selectedMaterial, selectedImageIndex
+        );
+      } else {
+        selectedImageIndex = 0;
+      }
+
+      prevColor = selectedColor;
+      prevMaterial = selectedMaterial;
+    }
+
+    void selectedSize;
+    if (quantity > maxQuantity && maxQuantity > 0) quantity = maxQuantity;
+    if (maxQuantity === 0 && quantity !== 1) quantity = 1;
   });
 
-  // ─── Helpers ───────────────────────────────────────────────────────────────
+  function selectImageFromAllPhotos(photo: ProductPhoto) {
+    const idx = filteredImages.findIndex(img => img.id === photo.id);
+    if (idx !== -1) {
+      selectedImageIndex = idx;
+    } else {
+      selectedImageIndex = 0;
+    }
+    allPhotosImageIndex = allPhotos.findIndex(img => img.id === photo.id);
+  }
 
   function formatDate(iso: string): string {
     return new Date(iso).toLocaleDateString('uk-UA', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -236,6 +347,18 @@
       .filter((p) => p.sizeId === sizeId && (!selectedColor || p.colorId === selectedColor) && (!selectedMaterial || p.materialId === selectedMaterial))
       .reduce((sum, p) => sum + p.quantity, 0);
   }
+
+  function getSelectedSizeName(): string {
+    return productSizes.find(s => s.id === selectedSize)?.name ?? '';
+  }
+
+  function getSelectedColorName(): string {
+    return productColors.find(c => c.id === selectedColor)?.name ?? '';
+  }
+
+  function getSelectedMaterialName(): string {
+    return productMaterials.find(m => m.id === selectedMaterial)?.name ?? '';
+  }
 </script>
 
 <svelte:head>
@@ -246,11 +369,26 @@
   <div class="container product-loading">
     <LoadingSpinner size="lg" message={i18n.t('common.loading')} />
   </div>
+{:else if loadError}
+  <div class="container product-loading">
+    <EmptyState
+      title={i18n.t('product.notFound')}
+      description={i18n.t('common.tryAgain')}
+      icon="⚠️"
+      actionLabel={i18n.t('common.tryAgain')}
+      onaction={() => { const id = $page.params.id; if (id) loadProduct(id); }}
+    />
+  </div>
 {:else if product}
   <div class="product-page">
     <div class="container">
+      <Breadcrumb items={[
+        { label: i18n.t('catalog.title'), href: '/catalog' },
+        ...(category ? [{ label: category.name, href: `/catalog?category=${category.id}` }] : []),
+        { label: product.name }
+      ]} />
+
       <div class="product-main">
-        <!-- ─── Gallery ──────────────────────────────────────────────────── -->
         <div class="gallery">
           <div class="gallery-main">
             {#if mainImage}
@@ -258,6 +396,7 @@
                 src={mainImage.url}
                 alt={mainImage.altText ?? product.name}
                 class="gallery-main-image"
+                loading="eager"
               />
             {:else}
               <div class="gallery-placeholder" aria-hidden="true">
@@ -269,6 +408,7 @@
               </div>
             {/if}
           </div>
+
           {#if filteredImages.length > 1}
             <div class="gallery-thumbs" role="list" aria-label={i18n.t('product.images')}>
               {#each filteredImages as img, i (img.id)}
@@ -278,14 +418,31 @@
                   onclick={() => (selectedImageIndex = i)}
                   aria-label={i18n.t('product.imageN', { n: i + 1 })}
                 >
-                  <img src={img.url} alt={img.altText ?? `${product.name} — ${i + 1}`} />
+                  <img src={img.url} alt={img.altText ?? `${product.name} — ${i + 1}`} loading="lazy" />
                 </button>
               {/each}
             </div>
           {/if}
+
+          {#if hasFilteredSubset && allPhotos.length > 1}
+            <div class="gallery-all-section">
+              <span class="gallery-all-label">{i18n.t('product.allPhotos')}</span>
+              <div class="gallery-thumbs gallery-thumbs-all" role="list">
+                {#each allPhotos as img, i (img.id)}
+                  <button
+                    class="thumb thumb-small"
+                    class:active={allPhotosImageIndex === i}
+                    onclick={() => selectImageFromAllPhotos(img)}
+                    aria-label={i18n.t('product.imageN', { n: i + 1 })}
+                  >
+                    <img src={img.url} alt={img.altText ?? `${product.name} — ${i + 1}`} loading="lazy" />
+                  </button>
+                {/each}
+              </div>
+            </div>
+          {/if}
         </div>
 
-        <!-- ─── Info ─────────────────────────────────────────────────────── -->
         <div class="product-info">
           <a href="/shops/{product.shopId}" class="shop-link">{product.shopName}</a>
 
@@ -301,73 +458,145 @@
             <PriceDisplay price={displayPrice} />
           </div>
 
-          <!-- ─── Size Selector ──────────────────────────────────────────── -->
-          {#if productSizes.length > 0}
-            <div class="variant-section">
-              <h3 class="variant-label">{i18n.t('product.size')}</h3>
-              <div class="variant-options">
-                {#each productSizes as size (size.id)}
-                  {@const stock = getInventoryForSize(size.id)}
-                  <button
-                    class="variant-btn"
-                    class:selected={selectedSize === size.id}
-                    class:out-of-stock={stock === 0}
-                    onclick={() => (selectedSize = size.id)}
-                    disabled={stock === 0}
-                    aria-pressed={selectedSize === size.id}
-                    title={stock === 0 ? i18n.t('product.outOfStock') : size.name}
-                  >
-                    {size.name}
-                  </button>
-                {/each}
-              </div>
+          {#if hasSizes}
+            <div class="variant-section" class:variant-missing={!selectedSize}>
+              <label class="variant-label" for="size-select">
+                {i18n.t('product.size')}
+                {#if selectedSize}
+                  <span class="variant-selected-value">: {getSelectedSizeName()}</span>
+                {:else}
+                  <span class="variant-hint">— {i18n.t('product.selectSize')}</span>
+                {/if}
+              </label>
+              {#if productSizes.length <= 5}
+                <div class="variant-options">
+                  {#each productSizes as size (size.id)}
+                    {@const stock = getInventoryForSize(size.id)}
+                    <button
+                      class="variant-btn"
+                      class:selected={selectedSize === size.id}
+                      class:out-of-stock={!isUnlimited && stock === 0}
+                      onclick={() => (selectedSize = size.id)}
+                      disabled={!isUnlimited && stock === 0}
+                      aria-pressed={selectedSize === size.id}
+                      title={!isUnlimited && stock === 0 ? i18n.t('product.outOfStock') : size.name}
+                    >
+                      {size.name}
+                    </button>
+                  {/each}
+                </div>
+              {:else}
+                <select
+                  id="size-select"
+                  class="variant-select"
+                  value={selectedSize ?? ''}
+                  onchange={(e) => {
+                    const val = (e.target as HTMLSelectElement).value;
+                    selectedSize = val || undefined;
+                  }}
+                >
+                  <option value="">{i18n.t('product.selectSize')}</option>
+                  {#each productSizes as size (size.id)}
+                    {@const stock = getInventoryForSize(size.id)}
+                    <option value={size.id} disabled={!isUnlimited && stock === 0}>
+                      {size.name}{!isUnlimited && stock === 0 ? ` (${i18n.t('product.outOfStock')})` : ''}
+                    </option>
+                  {/each}
+                </select>
+              {/if}
             </div>
           {/if}
 
-          <!-- ─── Color Selector ─────────────────────────────────────────── -->
-          {#if productColors.length > 0}
-            <div class="variant-section">
-              <h3 class="variant-label">{i18n.t('product.color')}</h3>
-              <div class="variant-options color-options">
-                {#each productColors as color (color.id)}
-                  <button
-                    class="color-circle"
-                    class:selected={selectedColor === color.id}
-                    style="--clr: {color.hexCode}"
-                    onclick={() => (selectedColor = color.id)}
-                    aria-label={color.name}
-                    aria-pressed={selectedColor === color.id}
-                    title={color.name}
-                  ></button>
-                {/each}
-              </div>
+          {#if hasColors}
+            <div class="variant-section" class:variant-missing={!selectedColor}>
+              <label class="variant-label" for="color-select">
+                {i18n.t('product.color')}
+                {#if selectedColor}
+                  <span class="variant-selected-value">: {getSelectedColorName()}</span>
+                {:else}
+                  <span class="variant-hint">— {i18n.t('product.selectColor')}</span>
+                {/if}
+              </label>
+              {#if productColors.length <= 5}
+                <div class="variant-options color-options">
+                  {#each productColors as color (color.id)}
+                    <button
+                      class="color-circle"
+                      class:selected={selectedColor === color.id}
+                      style="--clr: {color.hexCode}"
+                      onclick={() => (selectedColor = color.id)}
+                      aria-label={color.name}
+                      aria-pressed={selectedColor === color.id}
+                      title={color.name}
+                    ></button>
+                  {/each}
+                </div>
+              {:else}
+                <select
+                  id="color-select"
+                  class="variant-select"
+                  value={selectedColor ?? ''}
+                  onchange={(e) => {
+                    const val = (e.target as HTMLSelectElement).value;
+                    selectedColor = val || undefined;
+                  }}
+                >
+                  <option value="">{i18n.t('product.selectColor')}</option>
+                  {#each productColors as color (color.id)}
+                    <option value={color.id}>{color.name}</option>
+                  {/each}
+                </select>
+              {/if}
             </div>
           {/if}
 
-          <!-- ─── Material Selector ──────────────────────────────────────── -->
-          {#if productMaterials.length > 0}
-            <div class="variant-section">
-              <h3 class="variant-label">{i18n.t('product.materials')}</h3>
-              <div class="variant-options">
-                {#each productMaterials as material}
-                  <button
-                    class="variant-btn"
-                    class:selected={selectedMaterial === material}
-                    onclick={() => (selectedMaterial = material)}
-                    aria-pressed={selectedMaterial === material}
-                  >
-                    {material}
-                  </button>
-                {/each}
-              </div>
+          {#if hasMaterials}
+            <div class="variant-section" class:variant-missing={!selectedMaterial}>
+              <label class="variant-label" for="material-select">
+                {i18n.t('product.material')}
+                {#if selectedMaterial}
+                  <span class="variant-selected-value">: {getSelectedMaterialName()}</span>
+                {:else}
+                  <span class="variant-hint">— {i18n.t('product.selectMaterial')}</span>
+                {/if}
+              </label>
+              {#if productMaterials.length <= 5}
+                <div class="variant-options">
+                  {#each productMaterials as material (material.id)}
+                    <button
+                      class="variant-btn"
+                      class:selected={selectedMaterial === material.id}
+                      onclick={() => (selectedMaterial = material.id)}
+                      aria-pressed={selectedMaterial === material.id}
+                    >
+                      {material.name}
+                    </button>
+                  {/each}
+                </div>
+              {:else}
+                <select
+                  id="material-select"
+                  class="variant-select"
+                  value={selectedMaterial ?? ''}
+                  onchange={(e) => {
+                    const val = (e.target as HTMLSelectElement).value;
+                    selectedMaterial = val || undefined;
+                  }}
+                >
+                  <option value="">{i18n.t('product.selectMaterial')}</option>
+                  {#each productMaterials as material (material.id)}
+                    <option value={material.id}>{material.name}</option>
+                  {/each}
+                </select>
+              {/if}
             </div>
           {/if}
 
-          <!-- ─── Personalization ────────────────────────────────────────── -->
           {#if product.allowPersonalization}
             <div class="variant-section">
-              <h3 class="variant-label">{i18n.t('product.personalization')}</h3>
+              <label class="variant-label" for="personalization-input">{i18n.t('product.personalization')}</label>
               <textarea
+                id="personalization-input"
                 class="input personalization-input"
                 bind:value={personalization}
                 maxlength="512"
@@ -378,29 +607,43 @@
             </div>
           {/if}
 
-          <!-- ─── Add to Cart ────────────────────────────────────────────── -->
+          {#if allVariantsSelected}
+            <div class="stock-info" class:low-stock={!isUnlimited && maxQuantity > 0 && maxQuantity <= 5}>
+              {#if isUnlimited}
+                <span class="stock-badge in-stock">{i18n.t('product.madeToOrder')}</span>
+              {:else if maxQuantity > 0}
+                <span class="stock-badge in-stock">{i18n.t('product.inStock')}: {maxQuantity}</span>
+              {:else}
+                <span class="stock-badge out-of-stock-badge">{i18n.t('product.outOfStock')}</span>
+              {/if}
+            </div>
+          {/if}
+
           <div class="add-to-cart">
             <div class="quantity-selector">
               <button
                 class="btn btn-icon quantity-btn"
                 onclick={() => (quantity = Math.max(1, quantity - 1))}
-                disabled={quantity <= 1}
+                disabled={quantity <= 1 || !canAddToCart}
                 aria-label={i18n.t('product.decreaseQuantity')}
               >−</button>
               <span class="quantity-value" aria-live="polite">{quantity}</span>
               <button
                 class="btn btn-icon quantity-btn"
-                onclick={() => (quantity = quantity + 1)}
+                onclick={() => (quantity = Math.min(maxQuantity, quantity + 1))}
+                disabled={quantity >= maxQuantity || !canAddToCart}
                 aria-label={i18n.t('product.increaseQuantity')}
               >+</button>
             </div>
             <button
               class="btn btn-primary btn-lg add-to-cart-btn"
               onclick={handleAddToCart}
-              disabled={isAddingToCart || !inStock}
+              disabled={isAddingToCart || !canAddToCart}
             >
               {#if isAddingToCart}
                 {i18n.t('product.adding')}
+              {:else if !allVariantsSelected}
+                {i18n.t('product.selectVariants')}
               {:else if !inStock}
                 {i18n.t('product.outOfStock')}
               {:else}
@@ -409,7 +652,6 @@
             </button>
           </div>
 
-          <!-- ─── Description ────────────────────────────────────────────── -->
           <div class="product-description">
             <h2>{i18n.t('product.description')}</h2>
             <div class="description-text">{product.description}</div>
@@ -417,7 +659,6 @@
         </div>
       </div>
 
-      <!-- ─── Reviews Section ──────────────────────────────────────────────── -->
       <section class="reviews-section" aria-label={i18n.t('product.reviews')}>
         <h2>{i18n.t('product.reviews')}</h2>
 
@@ -430,7 +671,7 @@
             </div>
             <div class="summary-distribution">
               {#each [5, 4, 3, 2, 1] as star (star)}
-                {@const count = reviewSummary.distribution[star] ?? 0}
+                {@const count = reviewSummary.distribution?.[star] ?? 0}
                 {@const pct = reviewSummary.totalCount > 0 ? (count / reviewSummary.totalCount) * 100 : 0}
                 <div class="distrib-row">
                   <span class="distrib-star">{star}★</span>
@@ -480,13 +721,15 @@
               rows="4"
               required
             ></textarea>
-            <button class="btn btn-primary" type="submit" disabled={isSubmittingReview || reviewRating < 1 || !reviewText.trim()}>
+            {#if reviewValidationError}
+              <p class="review-validation-error" role="alert">{reviewValidationError}</p>
+            {/if}
+            <button class="btn btn-primary" type="submit" disabled={isSubmittingReview}>
               {isSubmittingReview ? i18n.t('product.submittingReview') : i18n.t('product.submitReview')}
             </button>
           </form>
         {/if}
 
-        <!-- Review List -->
         {#if isReviewsLoading}
           <LoadingSpinner message={i18n.t('common.loading')} />
         {:else if reviews.length > 0}
@@ -547,16 +790,12 @@
     padding-block: var(--space-4) var(--space-16);
   }
 
-  /* ─── Main Layout ─────────────────────────────────────────────────────── */
-
   .product-main {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: var(--space-10);
     margin-top: var(--space-4);
   }
-
-  /* ─── Gallery ─────────────────────────────────────────────────────────── */
 
   .gallery {
     position: sticky;
@@ -591,6 +830,7 @@
     gap: var(--space-2);
     overflow-x: auto;
     padding-bottom: var(--space-2);
+    scrollbar-width: thin;
   }
 
   .thumb {
@@ -601,9 +841,13 @@
     border: 2px solid var(--color-border-light);
     cursor: pointer;
     flex-shrink: 0;
-    transition: border-color var(--transition-fast);
+    transition: border-color var(--transition-fast), opacity var(--transition-fast);
     padding: 0;
     background: none;
+  }
+
+  .thumb:hover {
+    border-color: var(--color-primary-light);
   }
 
   .thumb.active {
@@ -616,7 +860,32 @@
     object-fit: cover;
   }
 
-  /* ─── Product Info ────────────────────────────────────────────────────── */
+  .thumb-small {
+    width: 48px;
+    height: 60px;
+    opacity: 0.7;
+  }
+
+  .thumb-small:hover,
+  .thumb-small.active {
+    opacity: 1;
+  }
+
+  .gallery-all-section {
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border-light);
+  }
+
+  .gallery-all-label {
+    display: block;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+  }
 
   .product-info {
     display: flex;
@@ -656,8 +925,6 @@
     font-size: 1.5rem;
   }
 
-  /* ─── Variant Selectors ───────────────────────────────────────────────── */
-
   .variant-section {
     display: flex;
     flex-direction: column;
@@ -672,6 +939,26 @@
     letter-spacing: 0.04em;
     color: var(--color-text-light);
     margin: 0;
+  }
+
+  .variant-selected-value {
+    font-weight: 500;
+    color: var(--color-text);
+    text-transform: none;
+    letter-spacing: normal;
+  }
+
+  .variant-hint {
+    font-weight: 400;
+    font-size: 0.75rem;
+    color: var(--color-warning, #D4A040);
+    text-transform: none;
+    letter-spacing: normal;
+  }
+
+  .variant-missing {
+    border-left: 3px solid var(--color-warning, #D4A040);
+    padding-left: var(--space-3);
   }
 
   .variant-options {
@@ -694,6 +981,7 @@
 
   .variant-btn:hover:not(:disabled) {
     border-color: var(--color-primary-light);
+    background: var(--color-surface-hover);
   }
 
   .variant-btn.selected {
@@ -706,6 +994,33 @@
     opacity: 0.4;
     text-decoration: line-through;
     cursor: not-allowed;
+  }
+
+  .variant-select {
+    appearance: none;
+    padding: var(--space-2) var(--space-4);
+    padding-right: var(--space-8);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236B6B6B' d='M2.5 4.5L6 8l3.5-3.5'/%3E%3C/svg%3E") no-repeat right var(--space-3) center;
+    font-size: 0.875rem;
+    font-weight: 500;
+    font-family: var(--font-body);
+    color: var(--color-text);
+    cursor: pointer;
+    transition: border-color var(--transition-fast);
+    width: 100%;
+    max-width: 320px;
+  }
+
+  .variant-select:hover {
+    border-color: var(--color-primary-light);
+  }
+
+  .variant-select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 15%, transparent);
   }
 
   .color-circle {
@@ -733,7 +1048,33 @@
     resize: vertical;
   }
 
-  /* ─── Add to Cart ─────────────────────────────────────────────────────── */
+  .stock-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .stock-badge {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-sm);
+  }
+
+  .stock-badge.in-stock {
+    color: var(--color-success);
+    background: color-mix(in srgb, var(--color-success) 10%, transparent);
+  }
+
+  .stock-badge.out-of-stock-badge {
+    color: var(--color-error);
+    background: color-mix(in srgb, var(--color-error) 10%, transparent);
+  }
+
+  .low-stock .stock-badge {
+    color: var(--color-warning);
+    background: color-mix(in srgb, var(--color-warning) 10%, transparent);
+  }
 
   .add-to-cart {
     display: flex;
@@ -778,8 +1119,6 @@
     min-width: 200px;
   }
 
-  /* ─── Description ─────────────────────────────────────────────────────── */
-
   .product-description h2 {
     font-size: 1.25rem;
     margin-bottom: var(--space-3);
@@ -791,8 +1130,6 @@
     color: var(--color-text);
     white-space: pre-line;
   }
-
-  /* ─── Reviews Section ─────────────────────────────────────────────────── */
 
   .reviews-section {
     margin-top: var(--space-16);
@@ -876,8 +1213,6 @@
     width: 28px;
   }
 
-  /* ─── Review Form ─────────────────────────────────────────────────────── */
-
   .review-form {
     display: flex;
     flex-direction: column;
@@ -887,6 +1222,12 @@
     background-color: var(--color-surface);
     border: 1px solid var(--color-border-light);
     border-radius: var(--radius-lg);
+  }
+
+  .review-validation-error {
+    font-size: 0.875rem;
+    color: var(--color-error);
+    margin: 0;
   }
 
   .review-form-rating {
@@ -918,8 +1259,6 @@
   .star-pick:hover {
     color: var(--color-secondary);
   }
-
-  /* ─── Review List ─────────────────────────────────────────────────────── */
 
   .review-list {
     display: flex;
@@ -970,8 +1309,6 @@
     justify-content: center;
   }
 
-  /* ─── Responsive ────────────────────────────────────────────────────────── */
-
   @media (max-width: 768px) {
     .product-main {
       grid-template-columns: 1fr;
@@ -992,6 +1329,10 @@
     }
 
     .summary-distribution {
+      max-width: 100%;
+    }
+
+    .variant-select {
       max-width: 100%;
     }
   }
